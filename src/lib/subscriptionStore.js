@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'checkursubs.subscriptions';
 const STORAGE_VERSION = 1;
+const DEFAULT_CURRENCY = 'EUR';
 
 const newId = () => {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -16,7 +17,7 @@ const normalize = (input, createId = newId) => {
     id: asString(input?.id) || createId(),
     name: asString(input?.name),
     price: Number.isFinite(numericPrice) ? numericPrice : 0,
-    currency_code: asString(input?.currency_code, 'USD') || 'USD',
+    currency_code: asString(input?.currency_code, DEFAULT_CURRENCY) || DEFAULT_CURRENCY,
     date: asString(input?.date),
     period: asString(input?.period, 'monthly') || 'monthly',
     category: asString(input?.category, 'other') || 'other',

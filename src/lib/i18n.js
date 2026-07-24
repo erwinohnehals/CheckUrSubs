@@ -7,6 +7,13 @@ export const translations = {
     nav_calendar:  'Календарь',
     nav_analytics: 'Аналитика',
 
+    // Десктоп
+    home_subtitle:      'Все подписки и расходы в одном месте',
+    calendar_subtitle:  'Когда и сколько списывается',
+    analytics_subtitle: 'Куда уходят деньги',
+    today:              'Сегодня',
+    more_count:         (n) => `ещё ${n}`,
+
     // Главная
     per_month:     'В месяц',
     per_year:      'За год',
@@ -165,9 +172,13 @@ export const translations = {
     pwa_android_menu_hint: 'Три точки справа вверху',
     pwa_android_install: '«Установить приложение»',
     pwa_android_install_hint: 'Или «Добавить на гл. экран»',
+    pwa_desktop_install: '«Установить CheckUrSubs»',
+    pwa_desktop_install_hint: 'Иконка установки в адресной строке',
     // Статус бейджи
     badge_paused: 'пауза',
     badge_trial:  'пробный',
+    // Управление подписками на десктопе
+    onb_manage_desktop: 'Наведи курсор на подписку — появятся кнопки редактирования и удаления. Клик по строке сразу открывает редактирование.',
     // DatePicker
     datepicker_choose: 'Выбрать дату',
     // Calendar
@@ -205,6 +216,13 @@ export const translations = {
     nav_home:      'Home',
     nav_calendar:  'Calendar',
     nav_analytics: 'Analytics',
+
+    // Desktop
+    home_subtitle:      'All your subscriptions and spending in one place',
+    calendar_subtitle:  'When you get billed, and how much',
+    analytics_subtitle: 'Where the money goes',
+    today:              'Today',
+    more_count:         (n) => `${n} more`,
 
     // Home
     per_month:     'Per month',
@@ -389,9 +407,13 @@ export const translations = {
     pwa_android_menu_hint: 'Three dots in top right',
     pwa_android_install: '"Install app"',
     pwa_android_install_hint: 'Or "Add to Home screen"',
+    pwa_desktop_install: '"Install CheckUrSubs"',
+    pwa_desktop_install_hint: 'Install icon in the address bar',
     // Status badges
     badge_paused: 'paused',
     badge_trial:  'trial',
+    // Managing subscriptions on desktop
+    onb_manage_desktop: 'Hover a subscription to reveal edit and delete. Clicking the row opens it for editing right away.',
     // DatePicker
     datepicker_choose: 'Choose date',
     // Calendar

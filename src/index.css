@@ -19,9 +19,12 @@ body::-webkit-scrollbar { display: none; } /* Chrome/Safari */
   display: none;
 }
 
-/* iOS: font-size < 16px вызывает автозум при фокусе на инпут — фиксируем */
-input, textarea, select {
-  font-size: 16px !important;
+/* iOS: font-size < 16px вызывает автозум при фокусе на инпут — фиксируем.
+   На десктопе автозума нет, там инпуты используют свой размер. */
+@media (max-width: 1023px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
 }
 
 /* Без стрелочек у numeric-input, но с цифровой клавиатурой */
@@ -67,4 +70,30 @@ input[type="number"] {
 html, body {
   overscroll-behavior: none;
   overscroll-behavior-x: none;
+}
+
+/* ─── Десктоп ────────────────────────────────────────────────────────────────
+   На мыши скроллбар нужен — возвращаем тонкий, для элементов с .desktop-scroll */
+@media (min-width: 1024px) and (pointer: fine) {
+  .no-scrollbar.desktop-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #3f3f46 transparent;
+    -ms-overflow-style: auto;
+  }
+  .no-scrollbar.desktop-scroll::-webkit-scrollbar {
+    display: block;
+    width: 10px;
+  }
+  .no-scrollbar.desktop-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .no-scrollbar.desktop-scroll::-webkit-scrollbar-thumb {
+    background-color: #3f3f46;
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+  .no-scrollbar.desktop-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: #52525b;
+  }
 }

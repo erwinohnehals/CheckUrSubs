@@ -30,11 +30,12 @@ const getCat = (id) => CATEGORIES.find(c => c.id === id) || null;
 
 // ─── Валюты ────────────────────────────────────────────────────────────────────
 const CURRENCIES    = [
-  { code: 'USD', symbol: '$', label: 'USD ($)' },
   { code: 'EUR', symbol: '€', label: 'EUR (€)' },
+  { code: 'USD', symbol: '$', label: 'USD ($)' },
   { code: 'RUB', symbol: '₽', label: 'RUB (₽)' },
   { code: 'GBP', symbol: '£', label: 'GBP (£)' },
 ];
+const DEFAULT_CURRENCY = 'EUR';
 const getCurrency   = (code) => CURRENCIES.find(c => c.code === code) || CURRENCIES[0];
 const DEFAULT_RATES = { USD: 1, EUR: 0.92, RUB: 90, GBP: 0.79 };
 
@@ -262,7 +263,7 @@ const toUSD = (price, currencyCode, rates) => {
 };
 
 const monthlyUSD = (sub, rates) => {
-  const p = toUSD(sub.price ?? sub.price_usd ?? sub.priceUSD ?? 0, sub.currency_code || 'USD', rates);
+  const p = toUSD(sub.price ?? sub.price_usd ?? sub.priceUSD ?? 0, sub.currency_code || DEFAULT_CURRENCY, rates);
   return sub.period === 'yearly' ? p / 12 : p;
 };
 
@@ -349,11 +350,26 @@ const useTabSwipe = (activeTab, setActiveTab, enabled = true) => {
   return ref;
 };
 
+// ─── Хук: десктопный брейкпоинт (совпадает с tailwind lg) ─────────────────────
+const DESKTOP_QUERY = '(min-width: 1024px)';
+
+const useIsDesktop = () => {
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(DESKTOP_QUERY).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(DESKTOP_QUERY);
+    const onChange = (e) => setIsDesktop(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return isDesktop;
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════════════════════════════════════════
 const App = ({ toggleLang, lang }) => {
   const t = useT();
+  const isDesktop = useIsDesktop();
 
   const [subscriptions, setSubscriptions] = useState(() =>
     subscriptionStore.list().map((subscription) => ({
@@ -364,7 +380,7 @@ const App = ({ toggleLang, lang }) => {
   const [currency,     setCurrency]     = useState(() => {
     const saved = localStorage.getItem('currency');
     if (saved) return saved;
-    return lang === 'ru' ? 'RUB' : 'USD';
+    return lang === 'ru' ? 'RUB' : DEFAULT_CURRENCY;
   });
   const [rates,        setRates]        = useState(() => loadRates() || DEFAULT_RATES);
   const [ratesLoading, setRatesLoading] = useState(false);
@@ -375,7 +391,7 @@ const App = ({ toggleLang, lang }) => {
   // При смене языка — менять валюту на дефолт, если юзер не выбирал вручную
   useEffect(() => {
     if (!localStorage.getItem('currencyManual')) {
-      setCurrency(lang === 'ru' ? 'RUB' : 'USD');
+      setCurrency(lang === 'ru' ? 'RUB' : DEFAULT_CURRENCY);
     }
   }, [lang]);
   const [toast,        setToast]        = useState(null);
@@ -402,7 +418,7 @@ const App = ({ toggleLang, lang }) => {
 
   // Реальная сумма списания: для годовых — полная, для месячных — месячная
   const realUSD = (sub) => {
-    const p = toUSD(sub.price ?? sub.price_usd ?? sub.priceUSD ?? 0, sub.currency_code || 'USD', rates);
+    const p = toUSD(sub.price ?? sub.price_usd ?? sub.priceUSD ?? 0, sub.currency_code || DEFAULT_CURRENCY, rates);
     return p; // всегда полная сумма подписки
   };
   const fmtReal = (sub) => fmt(sub.period === 'yearly' ? realUSD(sub) : monthly(sub));
@@ -410,7 +426,7 @@ const App = ({ toggleLang, lang }) => {
   // Оригинальная цена подписки — всегда в той валюте, в которой добавлена
   const fmtOriginal = (sub) => {
     const p    = Number(sub.price ?? sub.price_usd ?? sub.priceUSD ?? 0);
-    const code = sub.currency_code || 'USD';
+    const code = sub.currency_code || DEFAULT_CURRENCY;
     const c    = getCurrency(code);
     const v    = sub.period === 'yearly' ? p : p;
     return `${c.symbol}${v % 1 === 0 ? v.toFixed(0) : v.toFixed(2)}`;
@@ -428,7 +444,30 @@ const App = ({ toggleLang, lang }) => {
     tabRefs[activeTab]?.current?.scrollTo({ top: 0, behavior: 'instant' });
   }, [activeTab]);
 
-  const swipeRef = useTabSwipe(activeTab, switchTab, !isModalOpen);
+  const swipeRef = useTabSwipe(activeTab, switchTab, !isModalOpen && !isDesktop);
+
+  // ── Клавиатура (десктоп) ───────────────────────────────────────────────────
+  const searchRef = useRef(null);
+  useEffect(() => {
+    if (!isDesktop) return;
+    const onKey = (e) => {
+      const typing = ['INPUT', 'TEXTAREA'].includes(e.target?.tagName) || e.target?.isContentEditable;
+      if (e.key === 'Escape') {
+        if (isModalOpen) { setIsModalOpen(false); setEditingSub(null); }
+        else if (confirmSub) setConfirmSub(null);
+        else if (typing) e.target.blur();
+        return;
+      }
+      if (isModalOpen || confirmSub || typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'n' || e.key === 'т') { e.preventDefault(); setEditingSub(null); setIsModalOpen(true); }
+      if (e.key === '/') { e.preventDefault(); switchTab('home'); setTimeout(() => searchRef.current?.focus(), 0); }
+      if (e.key === '1') switchTab('home');
+      if (e.key === '2') switchTab('calendar');
+      if (e.key === '3') switchTab('analytics');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isDesktop, isModalOpen, confirmSub]);
 
   // ── Курсы валют ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -589,16 +628,33 @@ const App = ({ toggleLang, lang }) => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans flex justify-center select-none">
-      <div className="w-full max-w-[450px] min-h-screen border-x border-zinc-900 bg-black flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-black text-white font-sans flex justify-center select-none lg:select-text">
+      {/* ── Боковая навигация (десктоп) ── */}
+      <DesktopSidebar
+        activeTab={activeTab} onSwitch={switchTab} onAdd={openAdd}
+        lang={lang} toggleLang={toggleLang}
+        count={activeSubs.length} total={fmt(totalMonthlyUSD)}
+      />
+
+      <div className="w-full max-w-[450px] min-h-screen border-x border-zinc-900 bg-black flex flex-col relative overflow-hidden
+        lg:max-w-[1240px] lg:border-x-0 lg:border-r lg:h-screen">
 
         {/* Контент со свайпом между вкладками */}
         <div ref={el => { swipeRef.current = el; }} className="flex-1 relative overflow-hidden">
 
           {/* ════ HOME ════ */}
-          <div ref={tabRefs.home} className={`absolute inset-0 overflow-y-auto no-scrollbar pb-32 safe-top ${activeTab === 'home' ? 'block' : 'hidden'}`}>
-            <div className="p-4 space-y-5">
-              <header className="relative flex items-center justify-between px-1 pt-2">
+          <div ref={tabRefs.home} className={`absolute inset-0 overflow-y-auto no-scrollbar desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'home' ? 'block' : 'hidden'}`}>
+            <div className="p-4 space-y-5 lg:p-10 lg:pt-8 lg:space-y-7">
+              {/* Заголовок — десктоп */}
+              <PageHeader title={t.nav_home} subtitle={t.home_subtitle}>
+                <button onClick={openAdd}
+                  className="flex items-center gap-2 bg-white text-black font-semibold text-sm rounded-2xl px-5 py-3 hover:bg-zinc-200 active:scale-[0.97] transition shadow-lg">
+                  <Plus className="w-4 h-4" />
+                  {t.add_sub}
+                </button>
+              </PageHeader>
+
+              <header className="relative flex items-center justify-between px-1 pt-2 lg:hidden">
                 <SupportMenu />
                 <h1 className="absolute left-1/2 -translate-x-1/2 text-lg font-semibold tracking-tight whitespace-nowrap">CheckUrSubs</h1>
                 <div className="flex items-center gap-2">
@@ -618,17 +674,22 @@ const App = ({ toggleLang, lang }) => {
                 </div>
               </header>
 
-              <section className="bg-gradient-to-b from-zinc-800/40 to-zinc-900/20 border border-zinc-800 rounded-[40px] p-6 text-center shadow-2xl">
+            {/* Сетка дашборда: на мобиле — колонка, на десктопе — 3 колонки */}
+            <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
+
+              <section className="bg-gradient-to-b from-zinc-800/40 to-zinc-900/20 border border-zinc-800 rounded-[40px] p-6 text-center shadow-2xl
+                lg:col-span-2 lg:col-start-1 lg:row-start-1 lg:flex lg:items-center lg:gap-10 lg:text-left lg:p-8">
+              <div className="lg:flex-1 lg:min-w-0">
                 <p className="text-zinc-500 uppercase text-[10px] tracking-[0.22em] font-semibold mb-2">{t.per_month}</p>
-                <h2 className="text-6xl font-bold tracking-tighter mb-3">{fmt(totalMonthlyUSD)}</h2>
-                <div className="flex items-center justify-center gap-2">
+                <h2 className="text-6xl font-bold tracking-tighter mb-3 lg:text-7xl">{fmt(totalMonthlyUSD)}</h2>
+                <div className="flex items-center justify-center gap-2 lg:justify-start">
                   <CurrencySelector value={currency} onChange={(c) => { setCurrency(c); localStorage.setItem('currencyManual', '1'); }} />
                   <button onClick={() => { setRatesLoading(true); fetchRates().then(r => { if (r) setRates(r); setRatesLoading(false); }); }}
-                    className="w-7 h-7 flex items-center justify-center rounded-full bg-zinc-800/70 border border-zinc-700 text-zinc-400 hover:text-zinc-200 transition active:scale-95">
+                    className="w-7 h-7 flex items-center justify-center rounded-full bg-zinc-800/70 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/70 transition active:scale-95">
                     <RefreshCw className={`w-3 h-3 ${ratesLoading ? 'animate-spin' : ''}`} />
                   </button>
                 </div>
-                <div className="flex items-center justify-center flex-wrap gap-2 mt-3">
+                <div className="flex items-center justify-center flex-wrap gap-2 mt-3 lg:justify-start">
                   {(() => {
                     const active  = subscriptions.filter(s => !s.status || s.status === 'active').length;
                     const paused  = subscriptions.filter(s => s.status === 'paused').length;
@@ -653,20 +714,22 @@ const App = ({ toggleLang, lang }) => {
                     </>;
                   })()}
                 </div>
-                <div className="grid grid-cols-2 mt-5 text-left border-t border-zinc-800/60 pt-4">
+              </div>
+                <div className="grid grid-cols-2 mt-5 text-left border-t border-zinc-800/60 pt-4
+                  lg:grid-cols-1 lg:gap-6 lg:mt-0 lg:pt-0 lg:border-t-0 lg:border-l lg:pl-10 lg:w-[190px] lg:shrink-0">
                   <div>
-                    <p className="text-xl font-semibold">{fmt(totalYearlyUSD)}</p>
+                    <p className="text-xl font-semibold lg:text-2xl">{fmt(totalYearlyUSD)}</p>
                     <p className="text-zinc-500 text-[10px] uppercase font-semibold mt-1">{t.per_year}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xl font-semibold">{fmt(totalMonthlyUSD / 30)}</p>
+                  <div className="text-right lg:text-left">
+                    <p className="text-xl font-semibold lg:text-2xl">{fmt(totalMonthlyUSD / 30)}</p>
                     <p className="text-zinc-500 text-[10px] uppercase font-semibold mt-1">{t.per_day}</p>
                   </div>
                 </div>
               </section>
 
-              {/* Кнопка добавить */}
-              <div className="flex justify-center -mt-1">
+              {/* Кнопка добавить — на десктопе живёт в шапке */}
+              <div className="flex justify-center -mt-1 lg:hidden">
                 <button onClick={openAdd}
                   className="w-2/3 flex items-center justify-center gap-2 bg-white text-black font-semibold text-sm rounded-2xl py-3.5 active:scale-[0.97] transition shadow-lg">
                   <Plus className="w-4 h-4" />
@@ -674,7 +737,8 @@ const App = ({ toggleLang, lang }) => {
                 </button>
               </div>
 
-              <SoonSection soonSubs={soonSubs} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly} />
+              <SoonSection soonSubs={soonSubs} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
+                className="lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:self-start" />
 
               {subscriptions.length === 0 ? (
                 /* ── Empty state ── */
@@ -682,7 +746,8 @@ const App = ({ toggleLang, lang }) => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.35, ease: 'easeOut' }}
-                  className="flex flex-col items-center text-center px-6 py-10 space-y-5">
+                  className="flex flex-col items-center text-center px-6 py-10 space-y-5
+                    lg:col-span-2 lg:col-start-1 lg:row-start-2 lg:py-16 lg:bg-[#1C1C1E] lg:border lg:border-zinc-800/60 lg:rounded-3xl">
                   <div className="relative">
                     <div className="w-24 h-24 rounded-[32px] bg-zinc-900 border border-zinc-800 flex items-center justify-center">
                       <CreditCard className="w-10 h-10 text-zinc-700" />
@@ -698,20 +763,31 @@ const App = ({ toggleLang, lang }) => {
                     </p>
                   </div>
                   <button onClick={openAdd}
-                    className="flex items-center gap-2 bg-white text-black font-semibold text-sm rounded-2xl px-6 py-3 active:scale-95 transition shadow-lg">
+                    className="flex items-center gap-2 bg-white text-black font-semibold text-sm rounded-2xl px-6 py-3 hover:bg-zinc-200 active:scale-95 transition shadow-lg">
                     <Plus className="w-4 h-4" />
                     {t.add_first_sub}
                   </button>
                 </motion.div>
               ) : (
-                <section className="space-y-3">
-                  <div className="flex items-center justify-between px-1">
+                <section className="space-y-3 lg:col-span-2 lg:col-start-1 lg:row-start-2">
+                  <div className="flex items-center justify-between px-1 gap-3">
                     <SectionTitle icon={List} label={t.all_subs} />
-                    <button onClick={cycleSortBy} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition font-semibold uppercase tracking-wide">
+                    <div className="relative hidden lg:block flex-1 max-w-[280px] ml-auto">
+                      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600 pointer-events-none" />
+                      <input ref={searchRef} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={t.search_placeholder}
+                        className="w-full bg-zinc-900/60 border border-zinc-800 rounded-2xl pl-9 pr-9 py-2 text-sm focus:outline-none focus:border-zinc-600 transition text-zinc-200 placeholder:text-zinc-600" />
+                      {searchQuery && (
+                        <button onClick={() => setSearchQuery('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400 transition">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <button onClick={cycleSortBy} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition font-semibold uppercase tracking-wide shrink-0
+                      lg:border lg:border-zinc-800 lg:bg-zinc-900/60 lg:rounded-2xl lg:px-3 lg:py-2 lg:text-[11px]">
                       <ArrowUpDown className="w-3 h-3" />{sortLabel}
                     </button>
                   </div>
-                  <div className="relative px-1">
+                  <div className="relative px-1 lg:hidden">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600 pointer-events-none" />
                     <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={t.search_placeholder}
                       className="w-full bg-zinc-900/60 border border-zinc-800 rounded-2xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:border-zinc-600 transition text-zinc-200 placeholder:text-zinc-600" />
@@ -723,7 +799,7 @@ const App = ({ toggleLang, lang }) => {
                   </div>
                   <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 divide-y divide-zinc-800/80 overflow-hidden">
                     {!swipeHinted && sortedSubs.length > 0 && (
-                      <div className="px-4 py-2 text-[10px] text-zinc-600 text-center tracking-wide">
+                      <div className="px-4 py-2 text-[10px] text-zinc-600 text-center tracking-wide lg:hidden">
                         {t.swipe_hint}
                       </div>
                     )}
@@ -741,12 +817,14 @@ const App = ({ toggleLang, lang }) => {
                 </section>
               )}
             </div>
+            </div>
           </div>
 
           {/* ════ CALENDAR ════ */}
-          <div ref={tabRefs.calendar} className={`absolute inset-0 overflow-y-auto no-scrollbar pb-32 safe-top ${activeTab === 'calendar' ? 'block' : 'hidden'}`}>
-            <div className="p-4 pt-6 space-y-5">
-              <header className="flex flex-col items-center gap-2 pt-2 mb-2">
+          <div ref={tabRefs.calendar} className={`absolute inset-0 overflow-y-auto no-scrollbar desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'calendar' ? 'block' : 'hidden'}`}>
+            <div className="p-4 pt-6 space-y-5 lg:p-10 lg:pt-8 lg:space-y-7">
+              <PageHeader title={t.calendar_title} subtitle={t.calendar_subtitle} />
+              <header className="flex flex-col items-center gap-2 pt-2 mb-2 lg:hidden">
                 <h2 className="text-lg font-semibold tracking-tight">{t.calendar_title}</h2>
                 <div className="w-9 h-9 rounded-2xl bg-zinc-800 flex items-center justify-center border border-zinc-700">
                   <CalendarDays className="w-4 h-4 text-sky-300" />
@@ -769,6 +847,7 @@ const App = ({ toggleLang, lang }) => {
                   <CalendarSection subscriptions={subscriptions} fmt={fmt} fmtReal={fmtReal} monthly={monthly} month={calMonth} year={calYear}
                     onPrev={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y-1); } else setCalMonth(m => m-1); }}
                     onNext={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y+1); } else setCalMonth(m => m+1); }}
+                    onToday={() => { setCalMonth(now.getMonth()); setCalYear(now.getFullYear()); }}
                     calTotal={calTotal} calYearly={calYearly} isPast={isPast} calMonth={calMonth}
                   />
                 );
@@ -777,9 +856,12 @@ const App = ({ toggleLang, lang }) => {
           </div>
 
           {/* ════ ANALYTICS ════ */}
-          <div ref={tabRefs.analytics} className={`absolute inset-0 overflow-y-auto no-scrollbar pb-32 safe-top ${activeTab === 'analytics' ? 'block' : 'hidden'}`}>
-            <div className="p-4 pt-6 space-y-4">
-              <header className="relative flex items-center justify-between px-1 pt-2 mb-2">
+          <div ref={tabRefs.analytics} className={`absolute inset-0 overflow-y-auto no-scrollbar desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'analytics' ? 'block' : 'hidden'}`}>
+            <div className="p-4 pt-6 space-y-4 lg:p-10 lg:pt-8 lg:space-y-0">
+              <PageHeader title={t.analytics_title} subtitle={t.analytics_subtitle} className="lg:mb-7">
+                <ImportExportMenu subscriptions={subscriptions} onImport={handleImport} />
+              </PageHeader>
+              <header className="relative flex items-center justify-between px-1 pt-2 mb-2 lg:hidden">
                 <div className="w-10 h-10" />{/* spacer */}
                 <div className="flex flex-col items-center gap-2">
                   <h2 className="text-lg font-semibold tracking-tight">{t.analytics_title}</h2>
@@ -789,7 +871,10 @@ const App = ({ toggleLang, lang }) => {
                 </div>
                 <ImportExportMenu subscriptions={subscriptions} onImport={handleImport} />
               </header>
-              <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 p-5 space-y-3">
+
+              {/* Сетка карточек: колонка на мобиле, 2 колонки на десктопе */}
+              <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
+              <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 p-5 space-y-3 lg:col-span-2">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-zinc-400 uppercase tracking-[0.16em]">{t.per_month}</span>
                   <span className="text-base font-semibold">{fmt(totalMonthlyUSD)}</span>
@@ -842,7 +927,7 @@ const App = ({ toggleLang, lang }) => {
                 const totalRange = monthlyTotals.reduce((a, v) => a + v, 0);
 
                 return (
-                  <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 p-5">
+                  <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 p-5 lg:col-span-2 lg:p-6">
                     {/* Заголовок + переключатель */}
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-xs text-zinc-500 uppercase tracking-[0.16em]">{t.trend_title}</p>
@@ -859,25 +944,29 @@ const App = ({ toggleLang, lang }) => {
                     </div>
 
                     {/* Бары */}
-                    <div className="flex items-end gap-1 h-16">
+                    <div className="flex items-end gap-1 lg:gap-2">
                       {monthlyTotals.map((val, i) => {
                         const isCurrentMonth = i === trendRange - 1;
                         const heightPct = maxVal > 0 ? Math.max(5, (val / maxVal) * 100) : 5;
                         return (
-                          <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                            <div className="w-full flex items-end" style={{ height: '48px' }}>
+                          <div key={i} className="group flex-1 flex flex-col items-center gap-1">
+                            {/* Значение — только на десктопе, при наведении */}
+                            <span className="hidden lg:block text-[10px] font-semibold text-zinc-400 opacity-0 group-hover:opacity-100 transition">
+                              {fmt(val)}
+                            </span>
+                            <div className="w-full flex items-end h-12 lg:h-36">
                               <motion.div
                                 key={`${trendRange}-${i}`}
                                 initial={{ height: 0 }}
                                 animate={{ height: `${heightPct}%` }}
                                 transition={{ duration: 0.4, ease: 'easeOut', delay: i * 0.03 }}
-                                className={`w-full rounded-md ${isCurrentMonth ? 'bg-purple-500' : val > 0 ? 'bg-zinc-600' : 'bg-zinc-800'}`}
+                                className={`w-full rounded-md transition-colors ${isCurrentMonth ? 'bg-purple-500' : val > 0 ? 'bg-zinc-600 lg:group-hover:bg-zinc-500' : 'bg-zinc-800'}`}
                                 style={{ minHeight: '3px' }}
                               />
                             </div>
                             {/* Показываем метку только если баров не слишком много */}
-                            {(trendRange <= 6 || i % 2 === 0) && (
-                              <span className={`text-[8px] font-medium leading-none ${isCurrentMonth ? 'text-purple-400' : 'text-zinc-600'}`}>
+                            {(trendRange <= 6 || i % 2 === 0 || isDesktop) && (
+                              <span className={`text-[8px] font-medium leading-none lg:text-[11px] ${isCurrentMonth ? 'text-purple-400' : 'text-zinc-600'}`}>
                                 {monthLabels[months[i].month]}
                               </span>
                             )}
@@ -995,12 +1084,13 @@ const App = ({ toggleLang, lang }) => {
                   </div>
                 );
               })()}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* ── Навбар ── */}
-        <div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 pointer-events-none safe-bottom z-30">
+        {/* ── Навбар (мобильный; на десктопе — боковая панель) ── */}
+        <div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 pointer-events-none safe-bottom z-30 lg:hidden">
           <nav className="bg-zinc-900/90 backdrop-blur-2xl border border-white/10 rounded-full py-3 px-4 max-w-[360px] w-full grid grid-cols-3 shadow-2xl pointer-events-auto">
             <NavItem icon={Home}         label={t.nav_home}      active={activeTab === 'home'}      onClick={() => switchTab('home')} />
             <NavItem icon={CalendarDays} label={t.nav_calendar}  active={activeTab === 'calendar'}  onClick={() => switchTab('calendar')} />
@@ -1018,8 +1108,8 @@ const App = ({ toggleLang, lang }) => {
         <AnimatePresence>
           {toast && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-              className="fixed bottom-24 left-0 right-0 flex justify-center px-4 pointer-events-none z-40">
-              <div className="pointer-events-auto max-w-[420px] w-full bg-zinc-900 border border-red-500/30 rounded-2xl px-4 py-3 flex flex-col gap-2 shadow-xl shadow-red-500/10">
+              className="fixed bottom-24 left-0 right-0 flex justify-center px-4 pointer-events-none z-40 lg:bottom-6 lg:left-auto lg:right-6 lg:justify-end lg:px-0">
+              <div className="pointer-events-auto max-w-[420px] w-full lg:w-[340px] bg-zinc-900 border border-red-500/30 rounded-2xl px-4 py-3 flex flex-col gap-2 shadow-xl shadow-red-500/10">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm">
                     <p className="font-medium text-zinc-50">{t.sub_deleted}</p>
@@ -1041,13 +1131,13 @@ const App = ({ toggleLang, lang }) => {
   {confirmSub && (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center"
+      className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center lg:items-center lg:backdrop-blur-sm"
       onClick={() => setConfirmSub(null)}>
       <motion.div
         initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 400, damping: 35 }}
         onClick={e => e.stopPropagation()}
-        className="w-full max-w-[420px] bg-zinc-900 border border-zinc-700 rounded-t-3xl px-4 pt-5 pb-8 shadow-2xl">
+        className="w-full max-w-[420px] bg-zinc-900 border border-zinc-700 rounded-t-3xl px-4 pt-5 pb-8 shadow-2xl lg:rounded-3xl lg:p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-9 h-9 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
             <Trash2 className="w-4 h-4 text-red-400" />
@@ -1057,16 +1147,18 @@ const App = ({ toggleLang, lang }) => {
             <p className="text-xs text-zinc-500 mt-0.5">{t.delete_confirm_hint || 'Вы уверены?'}</p>
           </div>
         </div>
-        <button
-          onClick={() => { triggerDelete(confirmSub); setConfirmSub(null); }}
-          className="w-full bg-red-600/90 hover:bg-red-600 text-white text-sm font-semibold py-3 rounded-2xl active:scale-[0.98] transition mb-3">
-          {t.sub_delete || 'Delete'}
-        </button>
-        <button
-          onClick={() => setConfirmSub(null)}
-          className="w-full text-zinc-400 text-sm py-2 active:scale-[0.98] transition">
-          {t.modal_cancel || 'Cancel'}
-        </button>
+        <div className="lg:flex lg:flex-row-reverse lg:gap-3">
+          <button
+            onClick={() => { triggerDelete(confirmSub); setConfirmSub(null); }}
+            className="w-full bg-red-600/90 hover:bg-red-600 text-white text-sm font-semibold py-3 rounded-2xl active:scale-[0.98] transition mb-3 lg:mb-0 lg:flex-1">
+            {t.sub_delete || 'Delete'}
+          </button>
+          <button
+            onClick={() => setConfirmSub(null)}
+            className="w-full text-zinc-400 text-sm py-2 active:scale-[0.98] transition hover:text-zinc-200 lg:flex-1 lg:py-3 lg:rounded-2xl lg:border lg:border-zinc-700 lg:hover:bg-zinc-800">
+            {t.modal_cancel || 'Cancel'}
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   )}
@@ -1119,6 +1211,36 @@ const SwipeDemo = () => {
   );
 };
 
+// ─── Строка подписки для онбординга на десктопе ───────────────────────────────
+const DesktopRowDemo = () => {
+  const t = useT();
+  return (
+    <div className="w-full rounded-2xl overflow-hidden border border-zinc-800">
+      <div className="flex items-center gap-3 px-4 py-3.5 bg-zinc-800/40">
+        <div className="w-10 h-10 bg-zinc-800 rounded-2xl border border-zinc-700 flex items-center justify-center shrink-0 overflow-hidden">
+          <img src="https://www.google.com/s2/favicons?sz=32&domain=spotify.com" className="w-5 h-5 object-contain" alt="" />
+        </div>
+        <div className="min-w-0 flex-1 text-left">
+          <p className="text-sm font-medium">Spotify</p>
+          <p className="text-xs text-zinc-500">5 Mar</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-sm font-semibold">$12</p>
+          <p className="text-[10px] text-zinc-500 uppercase">/ {t.sub_per_month}</p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <div className="w-8 h-8 rounded-xl border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+            <Pencil className="w-3.5 h-3.5" />
+          </div>
+          <div className="w-8 h-8 rounded-xl border border-red-500/40 bg-red-500/10 flex items-center justify-center text-red-400">
+            <Trash2 className="w-3.5 h-3.5" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Онбординг ─────────────────────────────────────────────────────────────────
 const getOnboardingSteps = (t) => [
   { icon: Sparkles,    iconColor: 'text-white',      iconBg: 'bg-zinc-800',       ...t.onb_slides[0] },
@@ -1133,6 +1255,7 @@ const getOnboardingSteps = (t) => [
 
 const Onboarding = ({ onDone, toggleLang, lang }) => {
   const t = useT();
+  const isDesktop = useIsDesktop();
   const [step,  setStep]  = useState(0);
   const startX = useRef(0);
   const startY = useRef(0);
@@ -1153,10 +1276,21 @@ const Onboarding = ({ onDone, toggleLang, lang }) => {
     if (dx < 0) goNext(); else goPrev();
   };
 
+  // Стрелки и Enter — навигация с клавиатуры
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'Enter') isLast ? onDone() : setStep(p => p + 1);
+      if (e.key === 'ArrowLeft') setStep(p => (p > 0 ? p - 1 : p));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isLast, onDone]);
+
   return (
-    <div className="min-h-screen bg-black text-white font-sans flex justify-center select-none"
+    <div className="min-h-screen bg-black text-white font-sans flex justify-center select-none lg:items-center lg:p-8"
       onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-      <div className="w-full max-w-[450px] min-h-screen border-x border-zinc-900 bg-black flex flex-col overflow-hidden">
+      <div className="w-full max-w-[450px] min-h-screen border-x border-zinc-900 bg-black flex flex-col overflow-hidden
+        lg:max-w-[560px] lg:min-h-0 lg:h-auto lg:border lg:border-zinc-800 lg:rounded-[40px] lg:shadow-2xl lg:bg-zinc-950">
 
         {/* Тогл языка — только на первом слайде */}
         {step === 0 && toggleLang && (
@@ -1191,10 +1325,10 @@ const Onboarding = ({ onDone, toggleLang, lang }) => {
                 {/* Заголовок */}
                 <h2 className="text-2xl font-bold tracking-tight mb-4">{s.title}</h2>
 
-                {/* Анимация свайпа (только на слайде swipe) */}
+                {/* Управление строкой: свайп на тач-устройствах, кнопки на десктопе */}
                 {s.type === 'swipe' && (
                   <div className="w-full mb-4">
-                    <SwipeDemo />
+                    {isDesktop ? <DesktopRowDemo /> : <SwipeDemo />}
                   </div>
                 )}
 
@@ -1203,6 +1337,23 @@ const Onboarding = ({ onDone, toggleLang, lang }) => {
                   const ua = navigator.userAgent;
                   const isIOS = /iPad|iPhone|iPod/.test(ua);
                   const isAndroid = /Android/.test(ua);
+                  // На десктопе — только инструкция для Chrome/Edge
+                  if (isDesktop && !isIOS && !isAndroid) return (
+                    <div className="w-full mb-4">
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-left space-y-3">
+                        <p className="text-xs text-zinc-500 uppercase tracking-widest">Desktop · Chrome/Edge</p>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-green-500/15 border border-green-500/30 flex items-center justify-center shrink-0">
+                            <Download className="w-4 h-4 text-green-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-white">{t.pwa_desktop_install}</p>
+                            <p className="text-xs text-zinc-500">{t.pwa_desktop_install_hint}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
                   return (
                     <div className="w-full space-y-3 mb-4">
                       {(isIOS || (!isIOS && !isAndroid)) && (
@@ -1271,7 +1422,9 @@ const Onboarding = ({ onDone, toggleLang, lang }) => {
                 })()}
 
                 {/* Описание */}
-                <p className="text-zinc-400 text-sm leading-relaxed">{s.subtitle}</p>
+                <p className="text-zinc-400 text-sm leading-relaxed">
+                  {s.type === 'swipe' && isDesktop ? t.onb_manage_desktop : s.subtitle}
+                </p>
               </motion.div>
             </AnimatePresence>
           </div>
@@ -1286,13 +1439,13 @@ const Onboarding = ({ onDone, toggleLang, lang }) => {
         </div>
 
         {/* Кнопки — всегда внизу */}
-        <div className="px-8 pb-12 space-y-3">
+        <div className="px-8 pb-12 space-y-3 lg:pb-10">
           <button onClick={goNext}
-            className="w-full bg-white text-black font-semibold py-3.5 rounded-2xl active:scale-95 transition text-sm">
+            className="w-full bg-white text-black font-semibold py-3.5 rounded-2xl hover:bg-zinc-200 active:scale-95 transition text-sm">
             {isLast ? 'CheckUrSubs →' : t.onb_next}
           </button>
           {!isLast && (
-            <button onClick={() => onDone(step)} className="w-full text-zinc-500 text-sm py-2">{t.onb_skip}</button>
+            <button onClick={() => onDone(step)} className="w-full text-zinc-500 text-sm py-2 hover:text-zinc-300 transition">{t.onb_skip}</button>
           )}
         </div>
       </div>
@@ -1350,11 +1503,13 @@ const SUPPORT_LINKS = [
   },
 ];
 
-const SupportMenu = () => {
+// align: 'left' — открывается вниз (мобильная шапка), 'top' — вверх (боковая панель)
+const SupportMenu = ({ align = 'left' }) => {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef(null);
+  const menuPos = align === 'top' ? 'left-0 bottom-12' : 'left-0 top-12';
 
   useEffect(() => {
     if (!open) return;
@@ -1374,14 +1529,16 @@ const SupportMenu = () => {
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen(v => !v)}
-        className="w-10 h-10 rounded-full border-2 border-zinc-700 bg-zinc-800 flex items-center justify-center active:scale-95 transition shrink-0">
+        className={`w-10 h-10 border-2 border-zinc-700 bg-zinc-800 flex items-center justify-center hover:border-zinc-600 hover:bg-zinc-700 active:scale-95 transition shrink-0 ${
+          align === 'top' ? 'rounded-2xl' : 'rounded-full'
+        }`}>
         <Heart className="w-4 h-4 text-zinc-300" />
       </button>
       <AnimatePresence>
         {open && (
           <motion.div initial={{ opacity: 0, scale: 0.92, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: -6 }} transition={{ duration: 0.15 }}
-            className="absolute left-0 top-12 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl z-50 w-[220px] overflow-hidden">
+            className={`absolute ${menuPos} bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl z-50 w-[240px] overflow-hidden`}>
             <div className="px-4 py-3 border-b border-zinc-800">
               <p className="text-xs font-semibold text-zinc-200">{t.support_title}</p>
               <p className="text-[11px] text-zinc-500 mt-0.5">{t.support_subtitle}</p>
@@ -1492,7 +1649,7 @@ const ImportExportMenu = ({ subscriptions, onImport }) => {
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen(v => !v)}
-        className="w-10 h-10 rounded-full border-2 border-zinc-700 bg-zinc-800 flex items-center justify-center active:scale-95 transition shrink-0">
+        className="w-10 h-10 rounded-full border-2 border-zinc-700 bg-zinc-800 flex items-center justify-center hover:border-zinc-600 hover:bg-zinc-700 active:scale-95 transition shrink-0">
         <Download className="w-4 h-4 text-zinc-300" />
       </button>
       <AnimatePresence>
@@ -1549,8 +1706,9 @@ const ImportExportMenu = ({ subscriptions, onImport }) => {
 };
 
 // ─── Календарь ─────────────────────────────────────────────────────────────────
-const CalendarSection = ({ subscriptions, fmt, fmtReal, monthly, month, year, onPrev, onNext, calTotal, calYearly, isPast, calMonth }) => {
+const CalendarSection = ({ subscriptions, fmt, fmtReal, monthly, month, year, onPrev, onNext, onToday, calTotal, calYearly, isPast, calMonth }) => {
   const t = useT();
+  const isDesktop   = useIsDesktop();
   const today       = new Date();
   const isToday     = (d) => d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -1590,20 +1748,29 @@ const CalendarSection = ({ subscriptions, fmt, fmtReal, monthly, month, year, on
   const cells = [...Array(offset).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
+      <div className="space-y-3 lg:col-span-2">
       <div className="flex items-center justify-between px-1">
-        <button onClick={onPrev} className="w-8 h-8 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition active:scale-95">
+        <button onClick={onPrev} className="w-8 h-8 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-700 transition active:scale-95">
           <ChevronDown className="w-4 h-4 rotate-90" />
         </button>
-        <p className="text-sm font-semibold">{t.months_full[month]} {year}</p>
-        <button onClick={onNext} className="w-8 h-8 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition active:scale-95">
+        <div className="flex items-center gap-3">
+          <p className="text-sm font-semibold lg:text-lg">{t.months_full[month]} {year}</p>
+          {onToday && (
+            <button onClick={onToday}
+              className="hidden lg:block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 hover:text-zinc-200 border border-zinc-800 hover:border-zinc-700 rounded-xl px-2.5 py-1 transition">
+              {t.today}
+            </button>
+          )}
+        </div>
+        <button onClick={onNext} className="w-8 h-8 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-700 transition active:scale-95">
           <ChevronDown className="w-4 h-4 -rotate-90" />
         </button>
       </div>
       <div className="grid grid-cols-7">
-        {t.days_short.map(d => <div key={d} className="text-center text-[10px] text-zinc-600 font-semibold uppercase tracking-wide py-1">{d}</div>)}
+        {t.days_short.map(d => <div key={d} className="text-center text-[10px] text-zinc-600 font-semibold uppercase tracking-wide py-1 lg:text-left lg:pl-2">{d}</div>)}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-1 lg:gap-1.5">
         {cells.map((day, i) => {
           if (!day) return <div key={`e-${i}`} />;
           const daySubs = subsByDay[day] || [];
@@ -1612,6 +1779,36 @@ const CalendarSection = ({ subscriptions, fmt, fmtReal, monthly, month, year, on
           const total   = daySubs
             .filter(s => !s.status || s.status === 'active')
             .reduce((a, s) => a + (s.period === 'yearly' ? monthly(s) * 12 : monthly(s)), 0);
+
+          // ── Десктоп: крупная ячейка со списком сервисов ──
+          if (isDesktop) return (
+            <div key={day} className={`min-h-[104px] rounded-2xl p-2 flex flex-col border transition
+              ${isToday(day) ? 'bg-white text-black border-white'
+                : hasAny     ? 'bg-zinc-800/60 border-zinc-700 hover:border-zinc-600'
+                             : 'bg-zinc-900/40 border-transparent'}`}>
+              <div className="flex items-baseline justify-between gap-1">
+                <span className={`text-xs font-semibold ${isToday(day) ? 'text-black' : hasAny ? 'text-white' : 'text-zinc-600'}`}>{day}</span>
+                {hasAny && hasActive && (
+                  <span className={`text-[10px] font-bold truncate ${isToday(day) ? 'text-zinc-600' : 'text-amber-400'}`}>{fmt(total)}</span>
+                )}
+              </div>
+              <div className="mt-1.5 space-y-1 overflow-hidden">
+                {daySubs.slice(0, 2).map(s => (
+                  <div key={s.id} className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                      s.status === 'trial' ? 'bg-amber-400' :
+                      s.period === 'yearly' ? 'bg-red-400' : 'bg-purple-400'
+                    }`} />
+                    <span className={`text-[10px] leading-tight truncate ${isToday(day) ? 'text-zinc-700' : 'text-zinc-400'}`}>{s.name}</span>
+                  </div>
+                ))}
+                {daySubs.length > 2 && (
+                  <p className={`text-[10px] pl-3 ${isToday(day) ? 'text-zinc-600' : 'text-zinc-600'}`}>{t.more_count(daySubs.length - 2)}</p>
+                )}
+              </div>
+            </div>
+          );
+
           return (
             <div key={day} className={`relative aspect-square rounded-2xl flex flex-col items-center justify-center
               ${isToday(day) ? 'bg-white text-black' : hasAny ? 'bg-zinc-800 border border-zinc-700' : 'bg-zinc-900/40'}`}>
@@ -1631,19 +1828,22 @@ const CalendarSection = ({ subscriptions, fmt, fmtReal, monthly, month, year, on
           );
         })}
       </div>
-      {/* Суммы — сразу под сеткой */}
-      <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 p-4 space-y-2">
-        <div className="flex justify-between text-sm">
+      </div>
+
+      {/* Суммы + список списаний. На десктопе — правая колонка */}
+      <div className="space-y-3 lg:col-span-1 lg:space-y-4">
+      <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 p-4 space-y-2 lg:p-5">
+        <div className="flex justify-between text-sm gap-3">
           <span className="text-zinc-400">{isPast ? t.spent(t.months_genitive[calMonth ?? month]) : t.expected(t.months_genitive[calMonth ?? month])}</span>
-          <span className="font-semibold">{fmt(calTotal ?? 0)}</span>
+          <span className="font-semibold shrink-0">{fmt(calTotal ?? 0)}</span>
         </div>
-        <div className="flex justify-between text-sm">
+        <div className="flex justify-between text-sm gap-3">
           <span className="text-zinc-400">{t.per_year}</span>
-          <span className="font-semibold">{fmt(calYearly ?? 0)}</span>
+          <span className="font-semibold shrink-0">{fmt(calYearly ?? 0)}</span>
         </div>
       </div>
       {Object.keys(subsByDay).length > 0 && (
-        <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 divide-y divide-zinc-800/80 overflow-hidden mt-2">
+        <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 divide-y divide-zinc-800/80 overflow-hidden mt-2 lg:mt-0">
           {Object.entries(subsByDay).sort(([a],[b]) => Number(a)-Number(b)).flatMap(([day, subs]) =>
             subs.map(sub => (
               <div key={sub.id} className="flex items-center justify-between px-4 py-3 gap-3">
@@ -1666,20 +1866,22 @@ const CalendarSection = ({ subscriptions, fmt, fmtReal, monthly, month, year, on
           )}
         </div>
       )}
+      </div>
     </div>
   );
 };
 
 // ─── Soon ──────────────────────────────────────────────────────────────────────
-const SoonSection = ({ soonSubs, fmtOriginal }) => {
+const SoonSection = ({ soonSubs, fmtOriginal, className = '' }) => {
   const t = useT();
   const ref = useDragScroll();
   return (
-    <section className="space-y-3">
+    <section className={`space-y-3 ${className}`}>
       <SectionTitle icon={CalendarDays} label={t.soon} />
       {soonSubs.length === 0
-        ? <p className="text-sm text-zinc-600 px-1">{t.soon_empty}</p>
-        : <div ref={ref} data-no-tab-swipe className="flex gap-3 overflow-x-auto no-scrollbar px-1 pb-1">
+        ? <p className="text-sm text-zinc-600 px-1 lg:bg-[#1C1C1E] lg:border lg:border-zinc-800/60 lg:rounded-3xl lg:px-5 lg:py-6 lg:text-center">{t.soon_empty}</p>
+        : <div ref={ref} data-no-tab-swipe
+            className="flex gap-3 overflow-x-auto no-scrollbar px-1 pb-1 lg:flex-col lg:overflow-visible lg:px-0">
             {soonSubs.map(sub => <SoonCard key={sub.id} sub={sub} fmtOriginal={fmtOriginal} />)}
           </div>
       }
@@ -1757,19 +1959,22 @@ const SoonCard = ({ sub, fmtOriginal }) => {
   })();
 
   return (
-    <div className="w-[168px] bg-[#1C1C1E] rounded-[28px] p-5 border border-zinc-800 active:scale-[0.97] transition shrink-0 flex flex-col">
-      <div className="flex justify-between items-start mb-4">
+    <div className="w-[168px] bg-[#1C1C1E] rounded-[28px] p-5 border border-zinc-800 active:scale-[0.97] transition shrink-0 flex flex-col
+      lg:w-full lg:flex-row lg:items-center lg:gap-3 lg:rounded-2xl lg:p-4 lg:active:scale-100 lg:hover:border-zinc-700">
+      <div className="flex justify-between items-start mb-4 lg:mb-0 lg:contents">
         <LogoIcon sub={sub} size="md" />
-        <span className={`text-[10px] font-bold px-2 py-1 rounded-xl border shrink-0 ml-2 ${
+        <span className={`text-[10px] font-bold px-2 py-1 rounded-xl border shrink-0 ml-2 lg:order-last lg:ml-0 ${
           daysLeft === 0 ? 'text-red-400 bg-red-500/15 border-red-500/30' :
           daysLeft === 1 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30' :
           'text-white bg-zinc-800 border-zinc-700'
         }`}>{daysLabel ?? sub.date}</span>
       </div>
-      <p className="font-semibold text-sm leading-snug mb-2 flex-1" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{sub.name}</p>
-      <div className="flex items-center justify-between gap-1">
-        <p className="text-zinc-400 text-xs truncate">{fmtOriginal(sub)}</p>
-        {cat && <CategoryBadge cat={cat} tiny />}
+      <div className="lg:min-w-0 lg:flex-1">
+        <p className="font-semibold text-sm leading-snug mb-2 flex-1 lg:mb-0" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{sub.name}</p>
+        <div className="flex items-center justify-between gap-1 lg:justify-start lg:gap-2 lg:mt-0.5">
+          <p className="text-zinc-400 text-xs truncate">{fmtOriginal(sub)}</p>
+          {cat && <CategoryBadge cat={cat} tiny />}
+        </div>
       </div>
     </div>
   );
@@ -1778,6 +1983,7 @@ const SoonCard = ({ sub, fmtOriginal }) => {
 const SubscriptionRow = ({ sub, fmt, fmtOriginal, monthly, onEdit, onDelete }) => {
   const t    = useT();
   const lang = useLang();
+  const isDesktop = useIsDesktop();
   const cat = sub.category ? getCat(sub.category) : null;
   const x = useMotionValue(0);
   const startRef = useRef(null);
@@ -1805,6 +2011,49 @@ const SubscriptionRow = ({ sub, fmt, fmtOriginal, monthly, onEdit, onDelete }) =
       axisLocked.current = true; // горизонталь — фиксируем, не даём перепрыгнуть
     }
   };
+
+  // ── Десктоп: клик по строке — редактирование, действия по наведению ──
+  if (isDesktop) {
+    const meta = [
+      sub.date && sub.date !== '—' ? sub.date : null,
+      sub.status === 'trial' && sub.trial_end ? fmtDateFromISO(sub.trial_end, lang) : null,
+      sub.period === 'yearly' ? `≈ ${fmt(monthly(sub))} / ${t.sub_per_month}` : null,
+    ].filter(Boolean).join(' · ');
+
+    return (
+      <div onClick={onEdit}
+        className="group flex items-center gap-4 px-5 py-3.5 bg-[#1C1C1E] hover:bg-zinc-800/40 transition cursor-pointer">
+        <LogoIcon sub={sub} size="md" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium truncate">{sub.name}</p>
+            {cat && <CategoryBadge cat={cat} tiny />}
+            {sub.status === 'paused' && <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 border border-red-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_paused}</span>}
+            {sub.status === 'trial'  && <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_trial}</span>}
+          </div>
+          <p className="text-xs text-zinc-500 truncate mt-0.5">{meta}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-sm font-semibold">{fmtOriginal(sub)}</p>
+          <p className="text-[10px] text-zinc-500 uppercase tracking-wide">
+            / {sub.period === 'yearly' ? t.sub_per_year : t.sub_per_month}
+          </p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition">
+          <button type="button" title={t.modal_edit}
+            onClick={e => { e.stopPropagation(); onEdit(); }}
+            className="w-8 h-8 rounded-xl border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-500/10 transition">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button type="button" title={t.sub_delete}
+            onClick={e => { e.stopPropagation(); onDelete(); }}
+            className="w-8 h-8 rounded-xl border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative overflow-hidden"
@@ -1984,6 +2233,7 @@ const DatePicker = ({ value, onChange, label }) => {
 const SubModal = ({ initial, currency, onSave, onClose }) => {
   const t    = useT();
   const lang = useLang();
+  const isDesktop = useIsDesktop();
   // Валюта модалки: при редактировании — оригинальная валюта подписки, при добавлении — текущая глобальная
   const [modalCurrency, setModalCurrency] = useState(initial?.currency_code || currency);
   const curr = getCurrency(modalCurrency);
@@ -2042,15 +2292,20 @@ const SubModal = ({ initial, currency, onSave, onClose }) => {
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" />
-      <motion.div initial={{ y: '100%', opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: '100%', opacity: 0 }}
-        transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-        className="fixed bottom-4 left-4 right-4 bg-zinc-900 rounded-[36px] p-7 z-50 border border-zinc-800 max-w-[450px] mx-auto shadow-2xl">
+      <motion.div
+        initial={isDesktop ? { opacity: 0, scale: 0.96, y: 12 } : { y: '100%', opacity: 0 }}
+        animate={isDesktop ? { opacity: 1, scale: 1, y: 0 }      : { y: 0, opacity: 1 }}
+        exit={isDesktop    ? { opacity: 0, scale: 0.96, y: 12 } : { y: '100%', opacity: 0 }}
+        transition={isDesktop ? { duration: 0.16, ease: 'easeOut' } : { type: 'spring', damping: 26, stiffness: 220 }}
+        className={isDesktop
+          ? 'fixed inset-0 m-auto h-fit w-[640px] max-h-[88vh] overflow-y-auto no-scrollbar bg-zinc-900 rounded-[32px] p-8 z-50 border border-zinc-800 shadow-2xl'
+          : 'fixed bottom-4 left-4 right-4 bg-zinc-900 rounded-[36px] p-7 z-50 border border-zinc-800 max-w-[450px] mx-auto shadow-2xl'}>
 
-        <h2 className="text-xl font-semibold mb-5 text-center">{initial ? t.modal_edit : t.modal_new}</h2>
+        <h2 className="text-xl font-semibold mb-5 text-center lg:text-left lg:text-2xl lg:mb-6">{initial ? t.modal_edit : t.modal_new}</h2>
 
-        <div className="space-y-3">
+        <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
           {/* Название + саджест */}
-          <div className="relative">
+          <div className="relative lg:col-span-2">
             <input placeholder={t.modal_name_placeholder}
               className="w-full bg-black border border-zinc-800 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-zinc-500 transition"
               value={name} onChange={e => setName(e.target.value)}
@@ -2091,7 +2346,7 @@ const SubModal = ({ initial, currency, onSave, onClose }) => {
           </div>
 
           {/* Цена + валюта */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 lg:col-span-1">
             <div className="relative flex-1">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">{curr.symbol}</span>
               <input ref={priceRef} type="number" inputMode="decimal" placeholder={t.modal_price_placeholder}
@@ -2102,24 +2357,24 @@ const SubModal = ({ initial, currency, onSave, onClose }) => {
           </div>
 
           {/* Периодичность */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 lg:col-span-1">
             {['monthly', 'yearly'].map(p => (
               <button key={p} type="button" onClick={() => { setPeriod(p); if (p === 'monthly') setMonth(''); }}
-                className={`flex-1 py-3 rounded-2xl text-sm font-medium border transition ${period === p ? 'bg-white text-black border-white' : 'bg-black border-zinc-800 text-zinc-400'}`}>
+                className={`flex-1 py-3 rounded-2xl text-sm font-medium border transition ${period === p ? 'bg-white text-black border-white' : 'bg-black border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'}`}>
                 {p === 'monthly' ? t.modal_monthly : t.modal_yearly}
               </button>
             ))}
           </div>
 
           {/* Статус */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 lg:col-span-2">
             {[
               { id: 'active', label: t.modal_status_active, color: 'text-green-400',  bg: 'bg-green-500/15',  border: 'border-green-500/40'  },
               { id: 'paused', label: t.modal_status_paused, color: 'text-red-400',    bg: 'bg-red-500/15',    border: 'border-red-500/40'    },
               { id: 'trial',  label: t.modal_status_trial,  color: 'text-amber-400',  bg: 'bg-amber-500/15',  border: 'border-amber-500/40'  },
             ].map(s => (
               <button key={s.id} type="button" onClick={() => setStatus(s.id)}
-                className={`flex-1 py-2.5 rounded-2xl text-xs font-semibold border transition ${status === s.id ? `${s.bg} ${s.border} ${s.color}` : 'bg-black border-zinc-800 text-zinc-500'}`}>
+                className={`flex-1 py-2.5 rounded-2xl text-xs font-semibold border transition ${status === s.id ? `${s.bg} ${s.border} ${s.color}` : 'bg-black border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}`}>
                 {s.label}
               </button>
             ))}
@@ -2127,16 +2382,18 @@ const SubModal = ({ initial, currency, onSave, onClose }) => {
 
           {/* Дата окончания пробного */}
           {status === 'trial' && (
-            <DatePicker
-              value={trialEnd}
-              onChange={setTrialEnd}
-              label={t.modal_trial_end}
-            />
+            <div className="lg:col-span-2">
+              <DatePicker
+                value={trialEnd}
+                onChange={setTrialEnd}
+                label={t.modal_trial_end}
+              />
+            </div>
           )}
 
           {/* Дата списания — скрыта для пробных (дата = trial_end) */}
           {status !== 'trial' && (
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 lg:col-span-2">
             {initial && (
               <p className="text-[11px] text-zinc-500 px-1">
                 {period === 'yearly' ? t.modal_billing_date : t.modal_billing_day}
@@ -2157,13 +2414,13 @@ const SubModal = ({ initial, currency, onSave, onClose }) => {
           )}
 
           {/* Категория */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 lg:col-span-2">
             {CATEGORIES.map(cat => {
               const Icon   = cat.icon;
               const active = category === cat.id;
               return (
                 <button key={cat.id} type="button" onClick={() => setCategory(active ? '' : cat.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-medium border transition ${active ? `${cat.bg} ${cat.border} ${cat.color}` : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-medium border transition ${active ? `${cat.bg} ${cat.border} ${cat.color}` : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}`}>
                   <Icon className="w-3 h-3" />{t[cat.labelKey]}
                 </button>
               );
@@ -2177,7 +2434,7 @@ const SubModal = ({ initial, currency, onSave, onClose }) => {
             const labelPre  = lang === 'ru' ? 'Как '          : 'How to ';
             const labelLink = lang === 'ru' ? 'отменить подписку' : 'cancel subscription';
             return (
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 overflow-hidden lg:col-span-2">
                 <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-800">
                   <X className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                   <span className="text-xs text-zinc-400">
@@ -2201,11 +2458,16 @@ const SubModal = ({ initial, currency, onSave, onClose }) => {
           })()}
         </div>
 
-        <button disabled={!canSave} onClick={handleSubmit}
-          className="mt-5 w-full bg-white text-black font-semibold py-3.5 rounded-2xl active:scale-95 transition disabled:opacity-40 text-sm">
-          {initial ? t.modal_save : t.modal_add}
-        </button>
-        <button type="button" onClick={onClose} className="mt-3 mb-2 w-full text-zinc-400 text-sm py-2">{t.modal_cancel}</button>
+        <div className="lg:flex lg:flex-row-reverse lg:gap-3 lg:mt-7">
+          <button disabled={!canSave} onClick={handleSubmit}
+            className="mt-5 w-full bg-white text-black font-semibold py-3.5 rounded-2xl hover:bg-zinc-200 active:scale-95 transition disabled:opacity-40 disabled:hover:bg-white text-sm lg:mt-0 lg:flex-1">
+            {initial ? t.modal_save : t.modal_add}
+          </button>
+          <button type="button" onClick={onClose}
+            className="mt-3 mb-2 w-full text-zinc-400 text-sm py-2 hover:text-zinc-200 transition lg:my-0 lg:flex-1 lg:py-3.5 lg:rounded-2xl lg:border lg:border-zinc-800 lg:hover:bg-zinc-800">
+            {t.modal_cancel}
+          </button>
+        </div>
       </motion.div>
     </>
   );
@@ -2273,6 +2535,82 @@ const NavItem = ({ icon: Icon, label, active, onClick }) => (
     <span className="text-[9px]">{label}</span>
   </button>
 );
+
+// ─── Десктоп: шапка страницы ──────────────────────────────────────────────────
+const PageHeader = ({ title, subtitle, children, className = '' }) => (
+  <header className={`hidden lg:flex items-end justify-between gap-6 ${className}`}>
+    <div className="min-w-0">
+      <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+      {subtitle && <p className="text-sm text-zinc-500 mt-1.5">{subtitle}</p>}
+    </div>
+    {children && <div className="shrink-0 flex items-center gap-2">{children}</div>}
+  </header>
+);
+
+// ─── Десктоп: боковая навигация ───────────────────────────────────────────────
+const SideNavItem = ({ icon: Icon, label, shortcut, active, onClick }) => (
+  <button type="button" onClick={onClick}
+    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-sm font-medium border transition ${
+      active
+        ? 'bg-zinc-800 text-white border-zinc-700'
+        : 'text-zinc-500 border-transparent hover:text-zinc-200 hover:bg-zinc-900'
+    }`}>
+    <Icon className="w-4 h-4 shrink-0" />
+    <span className="truncate">{label}</span>
+    <kbd className={`ml-auto text-[10px] leading-none px-1.5 py-1 rounded-md border ${
+      active ? 'border-zinc-700 text-zinc-400' : 'border-zinc-800 text-zinc-600'
+    }`}>{shortcut}</kbd>
+  </button>
+);
+
+const DesktopSidebar = ({ activeTab, onSwitch, onAdd, lang, toggleLang, count, total }) => {
+  const t = useT();
+  return (
+    <aside className="hidden lg:flex flex-col w-[264px] shrink-0 h-screen sticky top-0 bg-black border-r border-zinc-900 px-5 py-7">
+      <div className="flex items-center gap-3 px-1">
+        <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-lg shrink-0">
+          <Wallet className="w-5 h-5 text-black" />
+        </div>
+        <div className="min-w-0">
+          <p className="font-semibold tracking-tight leading-none">CheckUrSubs</p>
+          <p className="text-[11px] text-zinc-500 mt-1.5 truncate">{t.active_count(count)}</p>
+        </div>
+      </div>
+
+      <button onClick={onAdd}
+        className="mt-7 w-full flex items-center justify-center gap-2 bg-white text-black font-semibold text-sm rounded-2xl py-3 hover:bg-zinc-200 active:scale-[0.97] transition shadow-lg">
+        <Plus className="w-4 h-4" />
+        {t.add_sub}
+      </button>
+
+      <nav className="mt-7 flex flex-col gap-1">
+        <SideNavItem icon={Home}         label={t.nav_home}      shortcut="1" active={activeTab === 'home'}      onClick={() => onSwitch('home')} />
+        <SideNavItem icon={CalendarDays} label={t.nav_calendar}  shortcut="2" active={activeTab === 'calendar'}  onClick={() => onSwitch('calendar')} />
+        <SideNavItem icon={BarChart2}    label={t.nav_analytics} shortcut="3" active={activeTab === 'analytics'} onClick={() => onSwitch('analytics')} />
+      </nav>
+
+      <div className="mt-auto space-y-3">
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-semibold">{t.per_month}</p>
+          <p className="text-2xl font-semibold tracking-tight mt-1">{total}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <SupportMenu align="top" />
+          <button onClick={toggleLang}
+            className="relative flex items-center h-10 flex-1 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-1 hover:border-zinc-700 transition">
+            <motion.div
+              animate={{ x: lang === 'en' ? '100%' : '0%' }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              className="absolute left-1 top-1 bottom-1 w-[calc(50%-4px)] rounded-xl bg-white shadow-sm"
+            />
+            <span className={`relative z-10 flex-1 text-center text-[11px] font-bold tracking-wide transition-colors ${lang === 'ru' ? 'text-black' : 'text-zinc-500'}`}>RU</span>
+            <span className={`relative z-10 flex-1 text-center text-[11px] font-bold tracking-wide transition-colors ${lang === 'en' ? 'text-black' : 'text-zinc-500'}`}>EN</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+};
 
 // ─── Root: онбординг → локальное приложение ───────────────────────────────────
 // Определён последним — все const-компоненты уже объявлены выше
