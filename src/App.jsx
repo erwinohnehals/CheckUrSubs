@@ -1,17 +1,16 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import {
   Home, List, BarChart2, Plus, Pencil, Trash2, CreditCard,
   CalendarDays, ChevronDown, Check, ArrowUpDown, Search, X,
   RefreshCw, Gamepad2, Briefcase, Cloud, Music, BookOpen, Zap,
-  Shield, Heart, Sparkles, SwatchBook, ChevronRight, LogOut,
-  Wifi, Globe, Phone, Server, Tv, MonitorSmartphone, Package, Wallet, MessageCircle, Download, Upload, Bell
+  Shield, Heart, Sparkles, SwatchBook, ChevronRight,
+  Wifi, Globe, Phone, Server, Tv, MonitorSmartphone, Package, Wallet, Download, Upload
 } from 'lucide-react';
-import { supabase } from './lib/supabase';
-import { analytics } from './lib/analytics';
-import { translations, LangContext, useLang, useT } from './lib/i18n';
-import Auth from './Auth';
+import { createSubscriptionStore } from './lib/subscriptionStore';
+import { LangContext, useLang, useT } from './lib/i18n';
 
+const subscriptionStore = createSubscriptionStore(window.localStorage);
 
 // ─── Категории ─────────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -350,50 +349,17 @@ const useTabSwipe = (activeTab, setActiveTab, enabled = true) => {
   return ref;
 };
 
-// VAPID helper
-const urlBase64ToUint8Array = (base64String) => {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
-};
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════════════════════════════════════════
-// ─── Animated Logo Loader ────────────────────────────────────────────────────
-const LogoLoader = () => (
-  <div className="min-h-screen bg-black flex items-center justify-center">
-    <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <style>{`
-        @keyframes c3{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes c2{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes c1{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes ck{from{stroke-dashoffset:36;opacity:0}to{stroke-dashoffset:0;opacity:1}}
-        .lc3{animation:c3 .3s ease-out .05s both}
-        .lc2{animation:c2 .3s ease-out .25s both}
-        .lc1{animation:c1 .3s ease-out .45s both}
-        .lck{animation:ck .5s ease-out .9s both;stroke-dasharray:36;stroke-dashoffset:36}
-      `}</style>
-      <g className="lc3"><rect x="14" y="38" width="52" height="28" rx="7" fill="#1a1a1a" stroke="#252525" strokeWidth="1.5"/></g>
-      <g className="lc2"><rect x="14" y="30" width="52" height="28" rx="7" fill="#141414" stroke="#333" strokeWidth="1.5"/></g>
-      <g className="lc1">
-        <rect x="14" y="22" width="52" height="28" rx="7" fill="#0e0e0e" stroke="#484848" strokeWidth="1.5"/>
-        <rect x="22" y="32" width="18" height="3" rx="1.5" fill="#2a2a2a"/>
-        <rect x="22" y="38" width="12" height="3" rx="1.5" fill="#222"/>
-      </g>
-      <path className="lck" d="M44 26 L52 37 L66 20" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-    </svg>
-  </div>
-);
-
-const App = ({ session, toggleLang, lang }) => {
-  const userId = session.user.id;
+const App = ({ toggleLang, lang }) => {
   const t = useT();
 
-  const [subscriptions, setSubscriptions] = useState([]);
-  const [loading,       setLoading]       = useState(true);
-  const [isOnline,      setIsOnline]      = useState(() => navigator.onLine);
+  const [subscriptions, setSubscriptions] = useState(() =>
+    subscriptionStore.list().map((subscription) => ({
+      ...subscription,
+      billingDay: extractBillingDay(subscription.date),
+    })));
 
   const [currency,     setCurrency]     = useState(() => {
     const saved = localStorage.getItem('currency');
@@ -420,54 +386,6 @@ const App = ({ session, toggleLang, lang }) => {
   const [calMonth,     setCalMonth]     = useState(() => new Date().getMonth());
   const [calYear,      setCalYear]      = useState(() => new Date().getFullYear());
   const [trendRange,   setTrendRange]   = useState(6); // 3 | 6 | 12
-
-  const [pushBanner,   setPushBanner]   = useState(false);
-
-  const VAPID_PUBLIC_KEY = 'BI--t_Ek8gyvTt8tn9LTcceNQgrw7u_e1NQFkrFpSqGZ7s2VBJK2hQ2wPfLJ7lckNBiCRqWno1-jg2Qy4qNXvmo';
-
-  // Проверяем нужно ли показать баннер запроса push
-  useEffect(() => {
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
-    if (Notification.permission === 'granted') return; // уже разрешено
-    if (Notification.permission === 'denied') return;  // уже отклонено
-    if (localStorage.getItem('pushBannerDismissed')) return;
-    // Показываем через 3 секунды после входа — не сразу
-    const t = setTimeout(() => setPushBanner(true), 3000);
-    return () => clearTimeout(t);
-  }, []);
-
-  const subscribePush = async () => {
-    try {
-      // Явно запрашиваем разрешение — часть браузеров не спасает без этого
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        setPushBanner(false);
-        return;
-      }
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
-      // Сохраняем подписку в Supabase
-      await supabase.from('push_subscriptions').upsert({
-        user_id: userId,
-        subscription: JSON.stringify(sub.toJSON()), // toJSON() гарантирует { endpoint, keys: { p256dh, auth } }
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
-      setPushBanner(false);
-      analytics.pushEnabled();
-    } catch (e) {
-      console.error('Push subscribe error:', e);
-      setPushBanner(false);
-    }
-  };
-
-  const dismissPushBanner = () => {
-    localStorage.setItem('pushBannerDismissed', '1');
-    setPushBanner(false);
-    analytics.pushDismissed();
-  };
 
   const curr = getCurrency(currency);
   const rate = rates[currency] ?? DEFAULT_RATES[currency] ?? 1;
@@ -503,7 +421,6 @@ const App = ({ session, toggleLang, lang }) => {
   const switchTab = (tab) => {
     setActiveTab(tab);
     setSearchQuery('');
-    analytics.tabSwitched(tab);
   };
 
   // Сбрасываем скролл вкладки при каждом переключении на неё
@@ -512,36 +429,6 @@ const App = ({ session, toggleLang, lang }) => {
   }, [activeTab]);
 
   const swipeRef = useTabSwipe(activeTab, switchTab, !isModalOpen);
-
-  // ── Загрузка подписок из Supabase ──────────────────────────────────────────
-  useEffect(() => {
-    setLoading(true);
-    analytics.identify(userId, session.user.email);
-    const MIN_DURATION = 1500; // даём анимации лоадера доиграть до конца
-    const t0 = Date.now();
-    supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-      .then(({ data, error }) => {
-        if (!error && data) {
-          setSubscriptions(data.map(s => ({ ...s, billingDay: extractBillingDay(s.date) })));
-        }
-        const elapsed = Date.now() - t0;
-        const remaining = Math.max(0, MIN_DURATION - elapsed);
-        setTimeout(() => setLoading(false), remaining);
-      });
-  }, [userId]);
-
-  // ── Онлайн/офлайн детектор ──────────────────────────────────────────────────
-  useEffect(() => {
-    const up   = () => setIsOnline(true);
-    const down = () => setIsOnline(false);
-    window.addEventListener('online',  up);
-    window.addEventListener('offline', down);
-    return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down); };
-  }, []);
 
   // ── Курсы валют ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -571,16 +458,22 @@ const App = ({ session, toggleLang, lang }) => {
       s.status === 'trial' && s.trial_end && s.trial_end <= today && !activatingRef.current.has(s.id)
     );
     if (toActivate.length === 0) return;
-    toActivate.forEach(async (s) => {
+    toActivate.forEach((s) => {
       activatingRef.current.add(s.id);
       const endDate = new Date(s.trial_end);
       const newDate = `${endDate.getDate()} ${MONTHS_SHORT[endDate.getMonth()]}`;
-      const { data } = await supabase.from('subscriptions')
-        .update({ status: 'active', trial_end: null, date: newDate })
-        .eq('id', s.id).select().single();
-      if (data) setSubscriptions(prev => prev.map(p =>
-        p.id === s.id ? { ...p, status: 'active', trial_end: null, date: newDate, billingDay: endDate.getDate() } : p
-      ));
+      const updated = subscriptionStore.update(s.id, {
+        status: 'active',
+        trial_end: null,
+        date: newDate,
+      });
+      if (updated) {
+        setSubscriptions(prev => prev.map(p =>
+          p.id === s.id
+            ? { ...updated, billingDay: endDate.getDate() }
+            : p
+        ));
+      }
     });
   }, [subscriptions]);
 
@@ -589,11 +482,11 @@ const App = ({ session, toggleLang, lang }) => {
   const totalMonthlyUSD = activeSubs.reduce((a, s) => a + monthly(s), 0);
   const totalYearlyUSD  = totalMonthlyUSD * 12;
 
-  const openAdd  = () => { if (!isOnline) return; setEditingSub(null); setIsModalOpen(true); };
-  const openEdit = (s) => { if (!isOnline) return; setEditingSub(s);   setIsModalOpen(true); };
+  const openAdd  = () => { setEditingSub(null); setIsModalOpen(true); };
+  const openEdit = (s) => { setEditingSub(s);   setIsModalOpen(true); };
 
-  // ── CRUD через Supabase ────────────────────────────────────────────────────
-  const handleSave = async (payload) => {
+  // ── Локальное хранение подписок ────────────────────────────────────────────
+  const handleSave = (payload) => {
     const row = {
       name:          payload.name,
       price:         payload.price,
@@ -604,32 +497,28 @@ const App = ({ session, toggleLang, lang }) => {
       logo:          payload.logo || '',
       status:        payload.status || 'active',
       trial_end:     payload.trial_end || null,
-      user_id:       userId,
     };
 
     if (editingSub) {
-      const { data, error } = await supabase
-        .from('subscriptions').update(row).eq('id', editingSub.id).select().single();
-      if (!error && data) {
+      const updated = subscriptionStore.update(editingSub.id, row);
+      if (updated) {
         setSubscriptions(prev => prev.map(s =>
-          s.id === editingSub.id ? { ...data, billingDay: extractBillingDay(data.date) } : s
+          s.id === editingSub.id
+            ? { ...updated, billingDay: extractBillingDay(updated.date) }
+            : s
         ));
-        analytics.subscriptionEdited(payload.name, payload.category);
       }
     } else {
-      const { data, error } = await supabase
-        .from('subscriptions').insert({ ...row, created_at: new Date().toISOString() }).select().single();
-      if (!error && data) {
-        setSubscriptions(prev => [...prev, { ...data, billingDay: extractBillingDay(data.date) }]);
-        analytics.subscriptionAdded(payload.name, payload.category, payload.period, payload.currencyCode);
-      }
+      const created = subscriptionStore.create(row);
+      setSubscriptions(prev => [
+        ...prev,
+        { ...created, billingDay: extractBillingDay(created.date) },
+      ]);
     }
     setIsModalOpen(false); setEditingSub(null);
   };
 
-  const triggerDelete = async (sub) => {
-    if (!isOnline) return;
-  
+  const triggerDelete = (sub) => {
     // если висел предыдущий toast — просто закрываем его
     if (toast?.timeoutId) {
       clearTimeout(toast.timeoutId);
@@ -638,25 +527,7 @@ const App = ({ session, toggleLang, lang }) => {
   
     // убираем из UI сразу
     setSubscriptions(prev => prev.filter(s => s.id !== sub.id));
-  
-    const { error } = await supabase
-      .from('subscriptions')
-      .delete()
-      .eq('id', sub.id);
-  
-    if (error) {
-      console.error('Delete error:', error);
-  
-      // откат UI, если удаление в БД не прошло
-      setSubscriptions(prev => {
-        const exists = prev.some(s => s.id === sub.id);
-        if (exists) return prev;
-        return [...prev, { ...sub, billingDay: extractBillingDay(sub.date) }];
-      });
-      return;
-    }
-  
-    analytics.subscriptionDeleted(sub.name, sub.category);
+    subscriptionStore.remove(sub.id);
   
     const timeoutId = window.setTimeout(() => {
       setToast(null);
@@ -665,46 +536,22 @@ const App = ({ session, toggleLang, lang }) => {
     setToast({ sub, timeoutId });
   };
   
-  const undoDelete = async () => {
+  const undoDelete = () => {
     if (!toast) return;
   
     clearTimeout(toast.timeoutId);
     const sub = toast.sub;
-  
-    const row = {
-      id: sub.id,
-      user_id: sub.user_id,
-      name: sub.name,
-      price: sub.price,
-      currency_code: sub.currency_code,
-      date: sub.date,
-      period: sub.period,
-      category: sub.category,
-      logo: sub.logo || '',
-      status: sub.status || 'active',
-      trial_end: sub.trial_end || null,
-      created_at: sub.created_at,
-    };
-  
-    const { data, error } = await supabase
-      .from('subscriptions')
-      .insert(row)
-      .select()
-      .single();
-  
-    if (error) {
-      console.error('Undo insert error:', error);
-      setToast(null);
-      return;
-    }
+    const restored = subscriptionStore.restore(sub);
   
     setSubscriptions(prev => {
-      const exists = prev.some(s => s.id === data.id);
+      const exists = prev.some(s => s.id === restored.id);
       if (exists) return prev;
-      return [...prev, { ...data, billingDay: extractBillingDay(data.date) }];
+      return [...prev, {
+        ...restored,
+        billingDay: extractBillingDay(restored.date),
+      }];
     });
   
-    analytics.subscriptionDeleteUndone();
     setToast(null);
   };
 
@@ -729,64 +576,21 @@ const App = ({ session, toggleLang, lang }) => {
     total: activeSubs.filter(s => s.category === cat.id).reduce((a, s) => a + monthly(s), 0),
   })).filter(c => c.subs.length > 0);
 
-  const handleLogout = () => { analytics.loggedOut(); supabase.auth.signOut(); };
-
-  const handleDeleteAccount = async () => {
-    try {
-      // Удаляем все данные пользователя из всех таблиц
-      await supabase.from('subscriptions').delete().eq('user_id', userId);
-      await supabase.from('push_subscriptions').delete().eq('user_id', userId);
-      await supabase.from('push_logs').delete().eq('user_id', userId);
-      // Удаляем аккаунт через edge function (нужен service role для auth.admin.deleteUser)
-      // Если нет такой функции — просто разлогиниваем после очистки данных
-      await supabase.functions.invoke('delete-user', { body: { user_id: userId } }).catch(() => {});
-      analytics.loggedOut();
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.error('Delete account error:', e);
-      // Даже если что-то не удалилось — разлогиниваем
-      await supabase.auth.signOut();
-    }
+  const handleImport = (rows) => {
+    const imported = subscriptionStore.importRows(rows);
+    if (!imported.length) return;
+    setSubscriptions(prev => [
+      ...prev,
+      ...imported.map(subscription => ({
+        ...subscription,
+        billingDay: extractBillingDay(subscription.date),
+      })),
+    ]);
   };
-
-  const handleImport = async (rows) => {
-    const existing = new Set(subscriptions.map(s => s.name + '|' + s.price + '|' + s.period));
-    const fresh = rows.filter(r => !existing.has(r.name + '|' + r.price + '|' + r.period));
-    if (!fresh.length) return;
-    const toInsert = fresh.map(r => ({
-      user_id:       session.user.id,
-      name:          r.name          || '',
-      price:         parseFloat(r.price) || 0,
-      currency_code: r.currency_code  || 'USD',
-      period:        r.period         || 'monthly',
-      category:      r.category       || 'other',
-      logo:          r.logo           || '',
-      status:        r.status         || 'active',
-      date:          r.date           || '',
-      trial_end:     r.trial_end      || null,
-    }));
-    const { data } = await supabase.from('subscriptions').insert(toInsert).select();
-    if (data) setSubscriptions(prev => [...prev, ...data]);
-  };
-
-  if (loading) return <LogoLoader />;
 
   return (
     <div className="min-h-screen bg-black text-white font-sans flex justify-center select-none">
       <div className="w-full max-w-[450px] min-h-screen border-x border-zinc-900 bg-black flex flex-col relative overflow-hidden">
-
-        {/* ── Офлайн баннер ── */}
-        <AnimatePresence>
-          {!isOnline && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.18 }}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-zinc-900 border-b border-zinc-800">
-              <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
-              <p className="text-[11px] text-zinc-500 tracking-wide">{t.offline_banner}</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Контент со свайпом между вкладками */}
         <div ref={el => { swipeRef.current = el; }} className="flex-1 relative overflow-hidden">
@@ -811,42 +615,14 @@ const App = ({ session, toggleLang, lang }) => {
                     <span className={`relative z-10 flex-1 text-center text-[10px] font-bold tracking-wide transition-colors ${lang === 'ru' ? 'text-black' : 'text-zinc-500'}`}>RU</span>
                     <span className={`relative z-10 flex-1 text-center text-[10px] font-bold tracking-wide transition-colors ${lang === 'en' ? 'text-black' : 'text-zinc-500'}`}>EN</span>
                   </button>
-                  <AvatarMenu session={session} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} />
                 </div>
               </header>
-
-              {/* Push-баннер */}
-              <AnimatePresence>
-                {pushBanner && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex items-center gap-3 bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-3">
-                    <div className="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center shrink-0">
-                      <Bell className="w-4 h-4 text-violet-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium leading-tight">{t.push_title}</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">{t.push_subtitle}</p>
-                    </div>
-                    <button onClick={subscribePush}
-                      className="text-xs font-semibold text-violet-400 bg-violet-500/15 border border-violet-500/30 px-3 py-1.5 rounded-xl shrink-0 active:scale-95 transition">
-                      {t.push_enable}
-                    </button>
-                    <button onClick={dismissPushBanner} className="text-zinc-600 hover:text-zinc-400 transition shrink-0">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
 
               <section className="bg-gradient-to-b from-zinc-800/40 to-zinc-900/20 border border-zinc-800 rounded-[40px] p-6 text-center shadow-2xl">
                 <p className="text-zinc-500 uppercase text-[10px] tracking-[0.22em] font-semibold mb-2">{t.per_month}</p>
                 <h2 className="text-6xl font-bold tracking-tighter mb-3">{fmt(totalMonthlyUSD)}</h2>
                 <div className="flex items-center justify-center gap-2">
-                  <CurrencySelector value={currency} onChange={(c) => { setCurrency(c); localStorage.setItem('currencyManual', '1'); analytics.currencyChanged(c); }} />
+                  <CurrencySelector value={currency} onChange={(c) => { setCurrency(c); localStorage.setItem('currencyManual', '1'); }} />
                   <button onClick={() => { setRatesLoading(true); fetchRates().then(r => { if (r) setRates(r); setRatesLoading(false); }); }}
                     className="w-7 h-7 flex items-center justify-center rounded-full bg-zinc-800/70 border border-zinc-700 text-zinc-400 hover:text-zinc-200 transition active:scale-95">
                     <RefreshCw className={`w-3 h-3 ${ratesLoading ? 'animate-spin' : ''}`} />
@@ -1575,20 +1351,9 @@ const SUPPORT_LINKS = [
 ];
 
 const SupportMenu = () => {
-  // логирование клика по донату
-  const logDonateClick = async (platform, action) => {
-    const { data } = await supabase.auth.getUser();
-    await supabase.from('donate_clicks').insert({
-      platform,
-      action,
-      user_id: data?.user?.id ?? null,
-    });
-  };
   const t = useT();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [wordText, setWordText] = useState('');
-  const [wordStatus, setWordStatus] = useState(null); // 'sending' | 'sent' | 'error'
   const ref = useRef(null);
 
   useEffect(() => {
@@ -1604,16 +1369,6 @@ const SupportMenu = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  };
-
-  const sendWord = async () => {
-    if (!wordText.trim()) return;
-    setWordStatus('sending');
-    const { error } = await supabase.from('messages').insert({ text: wordText.trim() });
-    if (error) { setWordStatus('error'); return; }
-    setWordStatus('sent');
-    setWordText('');
-    setTimeout(() => setWordStatus(null), 3000);
   };
 
   return (
@@ -1640,42 +1395,18 @@ const SupportMenu = () => {
                 </div>
                 {link.url ? (
                   <a href={link.url} target="_blank" rel="noopener noreferrer"
-                  onClick={() => { setOpen(false); logDonateClick(link.id, 'open'); }}
+                  onClick={() => setOpen(false)}
                     className={`block w-full text-center text-xs font-semibold py-1.5 rounded-lg ${link.color} bg-black/20 active:scale-95 transition`}>
                     {t.support_open}
                   </a>
                 ) : (
-                  <button onClick={() => { copyAddress(link.address); logDonateClick(link.id, 'copy_address'); }}
+                  <button onClick={() => copyAddress(link.address)}
                     className={`w-full text-xs font-semibold py-1.5 rounded-lg ${link.color} bg-black/20 active:scale-95 transition`}>
                     {copied ? t.support_copied : t.support_copy}
                   </button>
                 )}
               </div>
             ))}
-            {/* Добрым словом */}
-            <div className="mx-3 mb-3 rounded-xl border border-pink-500/30 bg-pink-500/10 p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <MessageCircle className="w-4 h-4 text-pink-400" />
-                <span className="text-sm font-semibold text-zinc-100">{t.support_word}</span>
-              </div>
-              {wordStatus === 'sent'
-                ? <p className="text-xs text-pink-400 text-center py-1">{t.support_word_thanks}</p>
-                : <>
-                    <textarea
-                      value={wordText}
-                      onChange={e => setWordText(e.target.value)}
-                      placeholder={t.support_word_placeholder}
-                      rows={3}
-                      className="w-full bg-black/20 rounded-lg text-xs text-zinc-200 placeholder-zinc-600 px-2.5 py-2 resize-none outline-none border border-transparent focus:border-pink-500/40 transition"
-                    />
-                    <button onClick={sendWord} disabled={!wordText.trim() || wordStatus === 'sending'}
-                      className="w-full mt-2 text-xs font-semibold py-1.5 rounded-lg text-pink-400 bg-black/20 active:scale-95 transition disabled:opacity-40">
-                      {wordStatus === 'sending' ? t.support_word_sending : t.support_word_send}
-                    </button>
-                    {wordStatus === 'error' && <p className="text-[10px] text-red-400 text-center mt-1">{t.support_word_error}</p>}
-                  </>
-              }
-            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1814,138 +1545,6 @@ const ImportExportMenu = ({ subscriptions, onImport }) => {
         )}
       </AnimatePresence>
     </div>
-  );
-};
-
-// ─── Модалка подтверждения удаления аккаунта ──────────────────────────────────
-const DeleteAccountModal = ({ onConfirm, onCancel }) => {
-  const t = useT();
-  const [inputValue, setInputValue] = useState('');
-  const [loading, setLoading] = useState(false);
-  const confirmWord = t.delete_confirm_word || 'DELETE';
-  const isReady = inputValue.trim().toUpperCase() === confirmWord.toUpperCase();
-
-  const handleConfirm = async () => {
-    if (!isReady) return;
-    setLoading(true);
-    await onConfirm();
-  };
-
-  return (
-    <>
-      <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60]"
-        onClick={onCancel}
-      />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.92, y: 24 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.92, y: 24 }}
-        transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] w-[calc(100vw-32px)] max-w-[380px] bg-zinc-950 border border-zinc-800 rounded-3xl p-6 shadow-2xl"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/30 flex items-center justify-center mx-auto mb-4">
-          <Trash2 className="w-5 h-5 text-red-400" />
-        </div>
-        <h2 className="text-lg font-semibold text-center mb-2">
-          {t.delete_account_title || 'Delete account'}
-        </h2>
-        <p className="text-sm text-zinc-400 text-center leading-relaxed mb-5">
-          {t.delete_account_desc || 'All your subscriptions and data will be permanently erased. This action cannot be undone.'}
-        </p>
-        <p className="text-xs text-zinc-500 text-center mb-2">
-          {t.delete_type_to_confirm
-            ? t.delete_type_to_confirm.replace('{word}', confirmWord)
-            : `Type ${confirmWord} to confirm`}
-        </p>
-        <input
-          type="text"
-          value={inputValue}
-          onChange={e => setInputValue(e.target.value)}
-          placeholder={confirmWord}
-          autoCapitalize="none"
-          className="w-full bg-black border border-zinc-800 focus:border-red-500/60 rounded-2xl px-4 py-3 text-sm text-center font-semibold tracking-widest text-white placeholder-zinc-700 outline-none transition mb-4"
-        />
-        <button
-          onClick={handleConfirm}
-          disabled={!isReady || loading}
-          className={`w-full py-3 rounded-2xl text-sm font-semibold transition active:scale-95 mb-2 ${isReady && !loading ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'}`}
-        >
-          {loading ? (t.delete_account_loading || 'Deleting...') : (t.delete_account_confirm || 'Delete everything')}
-        </button>
-        <button onClick={onCancel} disabled={loading}
-          className="w-full py-2.5 rounded-2xl text-sm text-zinc-400 hover:text-zinc-200 transition">
-          {t.modal_cancel || 'Cancel'}
-        </button>
-      </motion.div>
-    </>
-  );
-};
-
-const AvatarMenu = ({ session, onLogout, onDeleteAccount }) => {
-  const t = useT();
-  const [open, setOpen] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('touchstart', handler);
-    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler); };
-  }, [open]);
-
-  const user = session?.user;
-  const avatarUrl = user?.user_metadata?.avatar_url;
-  const email = user?.email || '';
-  const initials = email ? email[0].toUpperCase() : '?';
-
-  return (
-    <>
-      <div ref={ref} className="relative">
-        <button onClick={() => setOpen(v => !v)}
-          className="w-10 h-10 rounded-full overflow-hidden border-2 border-zinc-700 active:scale-95 transition shrink-0">
-          {avatarUrl
-            ? <img src={avatarUrl} className="w-full h-full object-cover" alt="" />
-            : <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-sm font-semibold text-zinc-300">{initials}</div>
-          }
-        </button>
-        <AnimatePresence>
-          {open && (
-            <motion.div initial={{ opacity: 0, scale: 0.92, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: -6 }} transition={{ duration: 0.15 }}
-              className="absolute right-0 top-12 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl z-50 min-w-[200px] overflow-hidden">
-              <div className="px-4 py-3 border-b border-zinc-800">
-                <p className="text-xs text-zinc-400 truncate">{email}</p>
-              </div>
-              <button onClick={() => { setOpen(false); onLogout(); }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-zinc-800 transition active:bg-zinc-700">
-                <LogOut className="w-4 h-4" />
-                {t.logout}
-              </button>
-              <div className="h-px bg-zinc-800/60 mx-3" />
-              <button onClick={() => { setOpen(false); setShowDeleteModal(true); }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-500 hover:bg-zinc-800 hover:text-red-400 transition active:bg-zinc-700">
-                <Trash2 className="w-4 h-4" />
-                {t.delete_account || 'Delete account'}
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      <AnimatePresence>
-        {showDeleteModal && (
-          <DeleteAccountModal
-            onConfirm={async () => { await onDeleteAccount(); setShowDeleteModal(false); }}
-            onCancel={() => setShowDeleteModal(false)}
-          />
-        )}
-      </AnimatePresence>
-    </>
   );
 };
 
@@ -2675,10 +2274,9 @@ const NavItem = ({ icon: Icon, label, active, onClick }) => (
   </button>
 );
 
-// ─── Root: онбординг → авторизация → приложение ────────────────────────────────
+// ─── Root: онбординг → локальное приложение ───────────────────────────────────
 // Определён последним — все const-компоненты уже объявлены выше
 export default function Root() {
-  const [session,   setSession]   = useState(undefined);
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem('onboarded') === '1');
   const [lang,      setLang]      = useState(() => {
     const saved = localStorage.getItem('lang');
@@ -2694,39 +2292,18 @@ export default function Root() {
     localStorage.setItem('lang', next);
   };
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
-      setSession(s);
-      if (event === 'SIGNED_IN' && (window.location.search || window.location.hash)) {
-        window.history.replaceState(null, '', window.location.pathname);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (session === undefined) return <LogoLoader />;
-
   if (!onboarded) return (
     <LangContext.Provider value={lang}>
-      <Onboarding toggleLang={toggleLang} lang={lang} onDone={(skippedAt) => {
-        if (skippedAt !== undefined) analytics.onboardingSkipped(skippedAt);
-        else analytics.onboardingCompleted();
+      <Onboarding toggleLang={toggleLang} lang={lang} onDone={() => {
         setOnboarded(true);
         localStorage.setItem('onboarded', '1');
       }} />
     </LangContext.Provider>
   );
-  if (!session) return (
-    <LangContext.Provider value={lang}>
-      <Auth />
-    </LangContext.Provider>
-  );
+
   return (
     <LangContext.Provider value={lang}>
-      <App session={session} toggleLang={toggleLang} lang={lang} />
+      <App toggleLang={toggleLang} lang={lang} />
     </LangContext.Provider>
   );
 }

@@ -45,7 +45,7 @@ export const translations = {
 
     // Импорт / Экспорт
     io_title:          'Данные',
-    io_subtitle:       'Экспорт и импорт подписок',
+    io_subtitle:       'Хранятся только на этом устройстве',
     io_export:         'Экспорт',
     io_export_csv:     'Скачать CSV',
     io_export_json:    'Скачать JSON',
@@ -248,7 +248,7 @@ export const translations = {
 
     // Импорт / Экспорт
     io_title:          'Данные',
-    io_subtitle:       'Экспорт и импорт подписок',
+    io_subtitle:       'Хранятся только на этом устройстве',
     io_export:         'Экспорт',
     io_export_csv:     'Скачать CSV',
     io_export_json:    'Скачать JSON',
@@ -268,7 +268,7 @@ export const translations = {
 
     // Import / Export
     io_title:          'Data',
-    io_subtitle:       'Export and import subscriptions',
+    io_subtitle:       'Stored only on this device',
     io_export:         'Export',
     io_export_csv:     'Download CSV',
     io_export_json:    'Download JSON',

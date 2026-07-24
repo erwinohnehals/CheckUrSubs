@@ -28,34 +28,6 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ─── Push уведомления ─────────────────────────────────────────────────────────
-self.addEventListener('push', (event) => {
-  let data = { title: 'CheckUrSubs', body: 'Скоро списание подписки' };
-  try { data = event.data.json(); } catch {}
-  event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body:     data.body,
-      icon:     '/icon-192.png',
-      badge:    '/icon-96.png',
-      tag:      data.tag || 'checkursubs',
-      renotify: true,
-      data:     { url: data.url || '/' },
-    })
-  );
-});
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  const url = event.notification.data?.url || '/';
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      const existing = list.find(c => c.url.includes(self.location.origin));
-      if (existing) return existing.focus();
-      return clients.openWindow(url);
-    })
-  );
-});
-
 // ─── Fetch: стратегия кэширования ─────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
@@ -63,7 +35,7 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // Supabase и внешние запросы — никогда не кэшируем
+  // Внешние запросы — никогда не кэшируем
   if (!url.origin.includes(self.location.hostname)) return;
 
   // index.html и навигационные запросы — всегда сеть, кэш только как fallback
