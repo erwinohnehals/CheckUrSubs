@@ -646,13 +646,7 @@ const App = ({ toggleLang, lang }) => {
           <div ref={tabRefs.home} className={`absolute inset-0 overflow-y-auto no-scrollbar desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'home' ? 'block' : 'hidden'}`}>
             <div className="p-4 space-y-5 lg:p-10 lg:pt-8 lg:space-y-7">
               {/* Заголовок — десктоп */}
-              <PageHeader title={t.nav_home} subtitle={t.home_subtitle}>
-                <button onClick={openAdd}
-                  className="flex items-center gap-2 bg-white text-black font-semibold text-sm rounded-2xl px-5 py-3 hover:bg-zinc-200 active:scale-[0.97] transition shadow-lg">
-                  <Plus className="w-4 h-4" />
-                  {t.add_sub}
-                </button>
-              </PageHeader>
+              <PageHeader title={t.nav_home} subtitle={t.home_subtitle} />
 
               <header className="relative flex items-center justify-between px-1 pt-2 lg:hidden">
                 <SupportMenu />
@@ -728,7 +722,7 @@ const App = ({ toggleLang, lang }) => {
                 </div>
               </section>
 
-              {/* Кнопка добавить — на десктопе живёт в шапке */}
+              {/* Кнопка добавить — на десктопе живёт в боковой навигации */}
               <div className="flex justify-center -mt-1 lg:hidden">
                 <button onClick={openAdd}
                   className="w-2/3 flex items-center justify-center gap-2 bg-white text-black font-semibold text-sm rounded-2xl py-3.5 active:scale-[0.97] transition shadow-lg">
