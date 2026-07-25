@@ -983,7 +983,8 @@ const FilterBar = ({ kind, onKind, place, onPlace, group, onGroup, locations, ha
         )}
       </div>
 
-      {summary && <p className="text-[11px] text-ink-3 px-1">{summary}</p>}
+      {/* Padding statt Margin — space-y der Hülle würde ein mt- überschreiben */}
+      {summary && <p className="text-[11px] text-ink-3 px-1 pt-1 pb-4">{summary}</p>}
     </div>
   );
 };
@@ -999,7 +1000,9 @@ const FilterSelect = ({ icon: Icon, label, active, value, options, onChange }) =
       <button type="button" onClick={() => setOpen(o => !o)}
         className={`inline-flex h-10 items-center gap-1.5 max-w-[190px] border rounded-lg px-3 text-xs font-medium transition
           ${active
-            ? 'bg-ink text-surface border-ink'
+            // Wie die Segmentpille (§3.2): gehobene Fläche statt Umkehrung —
+            // eine weiße Füllung dehnt sich optisch und wirkt größer als der Rest
+            ? 'bg-surface-sunken text-ink border-border shadow-sm'
             : 'bg-surface border-border text-ink-2 hover:bg-surface-3 hover:text-ink'}`}>
         <Icon className="w-3.5 h-3.5 shrink-0" />
         <span className="truncate">{label}</span>
@@ -1022,51 +1025,52 @@ const FilterSelect = ({ icon: Icon, label, active, value, options, onChange }) =
 // ─── Liste der Einträge ───────────────────────────────────────────────────────
 // Die Zeilen kaskadieren herein: 250ms, 50ms Versatz, 20px Aufstieg (§4.3)
 const EntryList = ({ groups, count, docCounts, searchQuery, menuKey, fmt, fmtOriginal, monthly,
-  grouped, filtered, hint, onOpen, onEdit, onDelete }) => {
+  groupBy, filtered, hint, onOpen, onEdit, onDelete }) => {
   const t = useT();
   const listRef = useRef(null);
+  const grouped = groupBy !== 'none';
 
   useLayoutEffect(() => {
     if (listRef.current) staggerIn(listRef.current.querySelectorAll('[data-row]'));
   }, [searchQuery, grouped, menuKey]);
 
-  // Gruppiert atmet jede Gruppe als eigene Karte, ungruppiert bleibt es eine Tafel
-  const shell = grouped ? 'space-y-3 lg:space-y-4' : `${CARD} overflow-hidden`;
-  const block = grouped ? `${CARD} overflow-hidden` : '';
+  // Gruppiert trägt jede Gruppe ihre Überschrift als leise Bildunterschrift über
+  // der eigenen Karte (§2.4) — ungruppiert bleibt alles eine durchgehende Tafel.
+  const shell = grouped ? 'space-y-5 lg:space-y-6' : `${CARD} overflow-hidden`;
+  const board = grouped ? `${CARD} overflow-hidden ` : '';
 
   return (
     <div ref={listRef} className={shell}>
       {hint && count > 0 && (
-        <div className={`px-4 py-2 text-[11px] text-ink-3 text-center lg:hidden
-          ${grouped ? block : 'border-b border-border'}`}>{hint}</div>
+        <div className={`text-[11px] text-ink-3 text-center lg:hidden
+          ${grouped ? 'px-1' : 'px-4 py-2 border-b border-border'}`}>{hint}</div>
       )}
       {groups.map(group => (
-        <section key={group.id} className={block}>
+        <section key={group.id} className={grouped ? 'space-y-2' : undefined}>
           {grouped && (
-            <header className="flex items-center justify-between gap-3 px-4 py-2.5 bg-surface-3
-              border-b border-border">
+            <header className="flex items-center justify-between gap-3 px-1">
               <span className="flex items-center gap-2 min-w-0">
                 {group.icon && <group.icon className="w-3.5 h-3.5 text-ink-3 shrink-0" />}
-                <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-2 truncate">
+                <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-ink-2 truncate">
                   {group.label}
                 </span>
               </span>
-              <span className="text-[11px] text-ink-3 shrink-0">
+              <span className="text-[11px] text-ink-3 shrink-0 tabular-nums">
                 {t.entries_count(group.entries.length)} · {fmt(group.total)}
               </span>
             </header>
           )}
-          <div className="divide-y divide-border">
+          <div className={`${board}divide-y divide-border`}>
             {group.entries.map(entry => (
               <EntryRow key={entry.id} entry={entry} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
-                docCount={docCounts[entry.id] || 0}
+                docCount={docCounts[entry.id] || 0} hideLocation={groupBy === 'location'}
                 onOpen={() => onOpen(entry)} onEdit={() => onEdit(entry)} onDelete={() => onDelete(entry)} />
             ))}
           </div>
         </section>
       ))}
       {count === 0 && (searchQuery || filtered) && (
-        <div className={`flex flex-col items-center gap-2 px-4 py-10 text-center ${block}`}>
+        <div className={`${board}flex flex-col items-center gap-2 px-4 py-10 text-center`}>
           <Search className="w-5 h-5 text-ink-3" />
           <p className="text-sm text-ink-3">
             {searchQuery ? t.nothing_found(searchQuery) : t.filter_empty}
@@ -1678,7 +1682,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                     groups={groupedEntries} count={sortedEntries.length}
                     docCounts={docCounts} searchQuery={searchQuery} menuKey={kindFilter}
                     fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
-                    grouped={groupBy !== 'none'} filtered={filtersActive}
+                    groupBy={groupBy} filtered={filtersActive}
                     hint={!swipeHinted ? t.swipe_hint : null}
                     onOpen={openDetail} onEdit={openEdit} onDelete={setConfirmEntry} />
                 </section>
@@ -3055,7 +3059,8 @@ const useSwipeRow = ({ onLeft, onRight, onTap, max = 90, threshold = 70 }) => {
   return { ref, handlers: { onPointerDown, onPointerMove, onPointerUp: end, onPointerCancel: end, onClick } };
 };
 
-const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onOpen, onEdit, onDelete, docCount = 0 }) => {
+const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onOpen, onEdit, onDelete, docCount = 0,
+  hideLocation = false }) => {
   const t    = useT();
   const lang = useLang();
   const isDesktop = useIsDesktop();
@@ -3079,7 +3084,8 @@ const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onOpen, onEdit, onDelete, 
   if (isDesktop) {
     const meta = [
       entry.provider || null,
-      entry.location || null,
+      // Bei Gruppierung nach Adresse steht sie schon in der Überschrift
+      hideLocation ? null : entry.location || null,
       fmtBillingDate(entry.date, t, lang),
       entry.status === 'trial' && entry.trial_end ? fmtDateFromISO(entry.trial_end, lang, t.months_short) : null,
       entry.period === 'yearly' ? `≈ ${fmt(monthly(entry))} / ${t.sub_per_month}` : null,
