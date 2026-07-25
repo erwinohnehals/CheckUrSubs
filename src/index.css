@@ -9,6 +9,26 @@
 /* Dunkelmodus hängt an der Klasse, nicht an der Media Query */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ─── Schriftzug ───────────────────────────────────────────────────────────────
+   Platform trägt allein den Namen im Kopf — nur Fett und Leicht werden geladen,
+   der Rest der Anwendung bleibt bei DM Sans. `swap` hält den Schriftzug während
+   des Ladens sichtbar; er steht über dem Falz und darf nicht blinken. */
+@font-face {
+  font-family: 'Platform';
+  src: url('./assets/fonts/Platform-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Platform';
+  src: url('./assets/fonts/Platform-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ─── Farbmarken ───────────────────────────────────────────────────────────── */
 :root {
   /* Hell — warmes Creme */
@@ -80,6 +100,9 @@
 
   --font-sans: 'DM Sans Variable', 'DM Sans', -apple-system, BlinkMacSystemFont,
     'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+
+  /* Nur für den Schriftzug — fällt auf die Hausschrift zurück */
+  --font-logo: 'Platform', var(--font-sans);
 }
 
 /* ─── Grundlagen ───────────────────────────────────────────────────────────── */

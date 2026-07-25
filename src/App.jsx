@@ -1103,6 +1103,24 @@ const ThemeToggle = ({ theme, onToggle, label }) => (
   </button>
 );
 
+// ─── Schriftzug ───────────────────────────────────────────────────────────────
+// Platform trägt den Namen fett, das Kaufmanns-Und bleibt leicht — der Gewichts-
+// sprung trennt die beiden Wortteile, ohne ein Leerzeichen zu setzen.
+const Wordmark = ({ className = '' }) => {
+  const [head, ...rest] = APP_NAME.split('&');
+  return (
+    <span className={`font-logo font-bold tracking-tight ${className}`}>
+      {head}
+      {rest.length > 0 && (
+        <>
+          <span className="font-light">&</span>
+          {rest.join('&')}
+        </>
+      )}
+    </span>
+  );
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1517,7 +1535,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
       <DesktopSidebar
         activeTab={activeTab} onSwitch={switchTab} onAdd={openAdd}
         lang={lang} toggleLang={toggleLang} theme={theme} toggleTheme={toggleTheme}
-        count={activeEntries.length} total={fmt(totalMonthlyUSD)}
+        total={fmt(totalMonthlyUSD)}
       />
 
       <div className="w-full max-w-[450px] min-h-screen border-x border-border bg-surface flex flex-col relative overflow-hidden
@@ -1534,7 +1552,10 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
 
               <header className="relative flex items-center justify-between gap-2 px-1 pt-2 lg:hidden">
                 <SupportMenu />
-                <h1 className="text-base font-semibold tracking-tight whitespace-nowrap">{APP_NAME}</h1>
+                <div className="flex items-center gap-2 min-w-0">
+                  <BrandMark className="w-10 h-8 rounded-md p-0.5" />
+                  <h1 className="whitespace-nowrap"><Wordmark className="text-base" /></h1>
+                </div>
                 <div className="flex items-center gap-2">
                   <ThemeToggle theme={theme} onToggle={toggleTheme} label={t.theme_toggle} />
                   <LangToggle lang={lang} toggleLang={toggleLang} />
@@ -4904,9 +4925,17 @@ const PageHeader = ({ title, subtitle, children, className = '' }) => (
   </header>
 );
 
+const BrandMark = ({ className = '' }) => (
+  <img
+    src="/goldgeld-logo.png"
+    alt=""
+    className={`block shrink-0 border border-border bg-white object-contain ${className}`}
+  />
+);
+
 // ─── Десктоп: боковая навигация ───────────────────────────────────────────────
 // Auch hier gleitet die Markierung — senkrecht statt waagerecht.
-const DesktopSidebar = ({ activeTab, onSwitch, onAdd, lang, toggleLang, theme, toggleTheme, count, total }) => {
+const DesktopSidebar = ({ activeTab, onSwitch, onAdd, lang, toggleLang, theme, toggleTheme, total }) => {
   const t = useT();
   const items = [
     { id: 'home',      label: t.nav_home,      icon: Home,         shortcut: '1' },
@@ -4917,13 +4946,8 @@ const DesktopSidebar = ({ activeTab, onSwitch, onAdd, lang, toggleLang, theme, t
   return (
     <aside className="hidden lg:flex flex-col w-[264px] shrink-0 h-screen sticky top-0 bg-surface border-r border-border px-5 py-7">
       <div className="flex items-center gap-3 px-1">
-        <div className="w-10 h-10 rounded-lg bg-ink flex items-center justify-center shrink-0">
-          <Wallet className="w-5 h-5 text-surface" strokeWidth={1.75} />
-        </div>
-        <div className="min-w-0">
-          <p className="font-semibold tracking-tight leading-none">{APP_NAME}</p>
-          <p className="text-[11px] text-ink-3 mt-1.5 truncate">{t.active_count(count)}</p>
-        </div>
+        <BrandMark className="w-14 h-10 rounded-lg p-1" />
+        <Wordmark className="text-[23px] leading-none min-w-0 block truncate" />
       </div>
 
       <button onClick={onAdd} className={btn('primary', 'md', 'mt-7 w-full py-3')}>
