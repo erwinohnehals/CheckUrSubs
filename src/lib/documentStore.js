@@ -54,7 +54,11 @@ const withStore = async (mode, run) => {
   });
 };
 
-const stripBlob = ({ blob, ...meta }) => meta;
+const stripBlob = (record) => {
+  const meta = { ...record };
+  delete meta.blob;
+  return meta;
+};
 
 export const isAvailable = () => Boolean(globalThis.indexedDB);
 

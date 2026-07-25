@@ -1,7 +1,7 @@
 // Версия меняется автоматически при каждом деплое через timestamp
 // Vite подставляет его через vite.config.js
 const CACHE_VERSION = self.__CACHE_VERSION__ || 'dev';
-const CACHE_NAME    = `checkursubs-${CACHE_VERSION}`;
+const CACHE_NAME    = `goldgeld-${CACHE_VERSION}`;
 
 // ─── Install: ничего не кэшируем заранее, всё lazy ────────────────────────────
 self.addEventListener('install', () => {

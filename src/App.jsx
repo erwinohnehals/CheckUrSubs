@@ -1,51 +1,66 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import {
   Home, List, BarChart2, Plus, Pencil, Trash2, CreditCard,
   CalendarDays, ChevronDown, Check, ArrowUpDown, Search, X,
-  RefreshCw, Gamepad2, Briefcase, Cloud, Music, BookOpen, Zap,
-  Shield, Heart, Sparkles, SwatchBook, ChevronRight,
-  Wifi, Globe, Phone, Server, Tv, MonitorSmartphone, Package, Wallet, Download, Upload
+  RefreshCw, Gamepad2, Briefcase, Music, BookOpen, Zap,
+  Shield, Heart, Sparkles, Wifi, Globe, Phone, Server, Tv, Package,
+  Wallet, Download, Upload, Smartphone, Droplets, Car, Radio, Dumbbell,
+  Users, Lock, Eye, EyeOff, Copy, ExternalLink, Paperclip, FileText,
+  AlertTriangle, KeyRound, Flame, Plug, Trash, HeartPulse, ClipboardList
 } from 'lucide-react';
-import { createSubscriptionStore } from './lib/subscriptionStore';
-import { LangContext, useLang, useT } from './lib/i18n';
+import { createEntryStore, newId } from './lib/entryStore';
+import { LangContext, useLang, useT, APP_NAME } from './lib/i18n';
+import {
+  templateFor, COMMON_FIELDS, label as fieldLabel, optionLabel, CUSTOM_FIELD_TYPES,
+} from './lib/fieldTemplates';
+import * as vault from './lib/vault';
+import * as documentStore from './lib/documentStore';
 
-const subscriptionStore = createSubscriptionStore(window.localStorage);
+const entryStore = createEntryStore(window.localStorage);
 
-// ─── Категории ─────────────────────────────────────────────────────────────────
+// ─── Kategorien ────────────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { id: 'entertainment', labelKey: 'cat_entertainment', icon: Music,     color: 'text-pink-400',   bg: 'bg-pink-500/15',   border: 'border-pink-500/30',   bar: 'bg-pink-500'   },
-  { id: 'work',          labelKey: 'cat_work',          icon: Briefcase, color: 'text-blue-400',   bg: 'bg-blue-500/15',   border: 'border-blue-500/30',   bar: 'bg-blue-500'   },
-  { id: 'internet',      labelKey: 'cat_internet',      icon: Globe,     color: 'text-sky-400',    bg: 'bg-sky-500/15',    border: 'border-sky-500/30',    bar: 'bg-sky-500'    },
-  { id: 'games',         labelKey: 'cat_games',         icon: Gamepad2,  color: 'text-green-400',  bg: 'bg-green-500/15',  border: 'border-green-500/30',  bar: 'bg-green-500'  },
-  { id: 'education',     labelKey: 'cat_education',     icon: BookOpen,  color: 'text-amber-400',  bg: 'bg-amber-500/15',  border: 'border-amber-500/30',  bar: 'bg-amber-500'  },
-  { id: 'vpn',           labelKey: 'cat_vpn',           icon: Shield,    color: 'text-violet-400', bg: 'bg-violet-500/15', border: 'border-violet-500/30', bar: 'bg-violet-500' },
-  { id: 'health',        labelKey: 'cat_health',        icon: Heart,     color: 'text-rose-400',   bg: 'bg-rose-500/15',   border: 'border-rose-500/30',   bar: 'bg-rose-500'   },
-  { id: 'banking',       labelKey: 'cat_banking',       icon: Wallet,    color: 'text-emerald-400',bg: 'bg-emerald-500/15',border: 'border-emerald-500/30',bar: 'bg-emerald-500'},
-  { id: 'telecom',       labelKey: 'cat_telecom',       icon: Phone,     color: 'text-cyan-400',   bg: 'bg-cyan-500/15',   border: 'border-cyan-500/30',   bar: 'bg-cyan-500'   },
-  { id: 'ai',            labelKey: 'cat_ai',            icon: Sparkles,  color: 'text-purple-400', bg: 'bg-purple-500/15', border: 'border-purple-500/30', bar: 'bg-purple-500' },
-  { id: 'other',         labelKey: 'cat_other',         icon: Zap,       color: 'text-zinc-400',   bg: 'bg-zinc-500/15',   border: 'border-zinc-500/30',   bar: 'bg-zinc-500'   },
+  { id: 'insurance',     labelKey: 'cat_insurance',     icon: Shield,     color: 'text-indigo-400', bg: 'bg-indigo-500/15', border: 'border-indigo-500/30', bar: 'bg-indigo-500' },
+  { id: 'health',        labelKey: 'cat_health',        icon: HeartPulse, color: 'text-rose-400',   bg: 'bg-rose-500/15',   border: 'border-rose-500/30',   bar: 'bg-rose-500'   },
+  { id: 'energy',        labelKey: 'cat_energy',        icon: Plug,       color: 'text-yellow-400', bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', bar: 'bg-yellow-500' },
+  { id: 'water',         labelKey: 'cat_water',         icon: Droplets,   color: 'text-cyan-400',   bg: 'bg-cyan-500/15',   border: 'border-cyan-500/30',   bar: 'bg-cyan-500'   },
+  { id: 'housing',       labelKey: 'cat_housing',       icon: Home,       color: 'text-orange-400', bg: 'bg-orange-500/15', border: 'border-orange-500/30', bar: 'bg-orange-500' },
+  { id: 'internet',      labelKey: 'cat_internet',      icon: Wifi,       color: 'text-sky-400',    bg: 'bg-sky-500/15',    border: 'border-sky-500/30',    bar: 'bg-sky-500'    },
+  { id: 'mobile',        labelKey: 'cat_mobile',        icon: Smartphone, color: 'text-teal-400',   bg: 'bg-teal-500/15',   border: 'border-teal-500/30',   bar: 'bg-teal-500'   },
+  { id: 'transport',     labelKey: 'cat_transport',     icon: Car,        color: 'text-lime-400',   bg: 'bg-lime-500/15',   border: 'border-lime-500/30',   bar: 'bg-lime-500'   },
+  { id: 'broadcast',     labelKey: 'cat_broadcast',     icon: Radio,      color: 'text-slate-300',  bg: 'bg-slate-500/15',  border: 'border-slate-500/30',  bar: 'bg-slate-500'  },
+  { id: 'banking',       labelKey: 'cat_banking',       icon: Wallet,     color: 'text-emerald-400',bg: 'bg-emerald-500/15',border: 'border-emerald-500/30',bar: 'bg-emerald-500'},
+  { id: 'fitness',       labelKey: 'cat_fitness',       icon: Dumbbell,   color: 'text-red-400',    bg: 'bg-red-500/15',    border: 'border-red-500/30',    bar: 'bg-red-500'    },
+  { id: 'membership',    labelKey: 'cat_membership',    icon: Users,      color: 'text-fuchsia-400',bg: 'bg-fuchsia-500/15',border: 'border-fuchsia-500/30',bar: 'bg-fuchsia-500'},
+  { id: 'entertainment', labelKey: 'cat_entertainment', icon: Music,      color: 'text-pink-400',   bg: 'bg-pink-500/15',   border: 'border-pink-500/30',   bar: 'bg-pink-500'   },
+  { id: 'work',          labelKey: 'cat_work',          icon: Briefcase,  color: 'text-blue-400',   bg: 'bg-blue-500/15',   border: 'border-blue-500/30',   bar: 'bg-blue-500'   },
+  { id: 'ai',            labelKey: 'cat_ai',            icon: Sparkles,   color: 'text-purple-400', bg: 'bg-purple-500/15', border: 'border-purple-500/30', bar: 'bg-purple-500' },
+  { id: 'games',         labelKey: 'cat_games',         icon: Gamepad2,   color: 'text-green-400',  bg: 'bg-green-500/15',  border: 'border-green-500/30',  bar: 'bg-green-500'  },
+  { id: 'education',     labelKey: 'cat_education',     icon: BookOpen,   color: 'text-amber-400',  bg: 'bg-amber-500/15',  border: 'border-amber-500/30',  bar: 'bg-amber-500'  },
+  { id: 'vpn',           labelKey: 'cat_vpn',           icon: Lock,       color: 'text-violet-400', bg: 'bg-violet-500/15', border: 'border-violet-500/30', bar: 'bg-violet-500' },
+  { id: 'other',         labelKey: 'cat_other',         icon: Package,    color: 'text-zinc-400',   bg: 'bg-zinc-500/15',   border: 'border-zinc-500/30',   bar: 'bg-zinc-500'   },
 ];
 const getCat = (id) => CATEGORIES.find(c => c.id === id) || null;
 
-// ─── Валюты ────────────────────────────────────────────────────────────────────
-const CURRENCIES    = [
-  { code: 'EUR', symbol: '€', label: 'EUR (€)' },
-  { code: 'USD', symbol: '$', label: 'USD ($)' },
-  { code: 'RUB', symbol: '₽', label: 'RUB (₽)' },
-  { code: 'GBP', symbol: '£', label: 'GBP (£)' },
+// ─── Währungen ─────────────────────────────────────────────────────────────────
+const CURRENCIES = [
+  { code: 'EUR', symbol: '€',   label: 'EUR (€)' },
+  { code: 'CHF', symbol: 'CHF', label: 'CHF' },
+  { code: 'USD', symbol: '$',   label: 'USD ($)' },
+  { code: 'GBP', symbol: '£',   label: 'GBP (£)' },
 ];
 const DEFAULT_CURRENCY = 'EUR';
 const getCurrency   = (code) => CURRENCIES.find(c => c.code === code) || CURRENCIES[0];
-const DEFAULT_RATES = { USD: 1, EUR: 0.92, RUB: 90, GBP: 0.79 };
+const DEFAULT_RATES = { USD: 1, EUR: 0.92, CHF: 0.88, GBP: 0.79 };
 
 const fetchRates = async () => {
   try {
     const res  = await fetch('https://open.er-api.com/v6/latest/USD');
     const data = await res.json();
     if (data.result !== 'success') return null;
-    const { USD, EUR, RUB, GBP } = data.rates;
-    const rates = { USD: 1, EUR, RUB, GBP };
+    const { USD, EUR, CHF, GBP } = data.rates;
+    const rates = { USD: 1, EUR, CHF, GBP };
     localStorage.setItem('fxRates',   JSON.stringify(rates));
     localStorage.setItem('fxRatesAt', Date.now().toString());
     return rates;
@@ -57,144 +72,191 @@ const loadRates = () => {
     const raw = localStorage.getItem('fxRates');
     const at  = Number(localStorage.getItem('fxRatesAt') || 0);
     if (raw && Date.now() - at < 4 * 60 * 60 * 1000) return JSON.parse(raw);
-  } catch {}
+  } catch { /* Cache unbrauchbar — Fallback-Kurse reichen */ }
   return null;
 };
 
-// ─── Константы ────────────────────────────────────────────────────────────────
-const MONTHS_SHORT    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const MONTHS_RU       = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-const MONTHS_GENITIVE = ['январе','феврале','марте','апреле','мае','июне','июле','августе','сентябре','октябре','ноябре','декабре'];
+// ─── Konstanten ───────────────────────────────────────────────────────────────
+// Kanonische Monatskürzel — so liegen jährliche Abbuchungsdaten gespeichert
+// ("8 Mar"). Angezeigt wird immer die übersetzte Variante aus t.months_short.
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const TABS         = ['home', 'calendar', 'analytics'];
+const LOCALES      = { de: 'de-DE', en: 'en-US' };
+const localeOf     = (lang) => LOCALES[lang] || LOCALES.de;
 
-// Короткие названия месяцев по-русски (для дат вида "14 мар")
-const MONTHS_SHORT_RU = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
-
-// Единая утилита форматирования даты из ISO-строки (trial_end и т.п.)
-// Возвращает "14 Mar" для EN и "14 мар" для RU — без смешивания
-const fmtDateFromISO = (isoStr, lang, style = 'short') => {
+// ISO-Datum → "14. Mär" (de) bzw. "14 Mar" (en)
+const fmtDateFromISO = (isoStr, lang, months) => {
   const d = new Date(isoStr);
   if (isNaN(d)) return '';
-  const day = d.getDate();
-  const m   = d.getMonth();
-  if (style === 'short') {
-    return lang === 'ru' ? `${day} ${MONTHS_SHORT_RU[m]}` : `${day} ${MONTHS_SHORT[m]}`;
-  }
-  // long — для аналитики и датапикера
-  return lang === 'ru'
-    ? `${day} ${MONTHS_RU[m].toLowerCase()}`
-    : `${day} ${MONTHS_SHORT[m]}`;
+  const short = months?.[d.getMonth()] ?? MONTHS_SHORT[d.getMonth()];
+  return lang === 'de' ? `${d.getDate()}. ${short}` : `${d.getDate()} ${short}`;
 };
-const DAYS_RU         = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
-const TABS            = ['home', 'calendar', 'analytics'];
 
-// ─── Каталог известных сервисов (для автосаджеста) ─────────────────────────────
+// Gespeichertes Abbuchungsdatum ("24" oder "8 Mar") übersetzt anzeigen
+const fmtBillingDate = (raw, t, lang) => {
+  if (!raw || raw === '—') return null;
+
+  const [day, month] = String(raw).trim().split(/\s+/);
+  const suffix = lang === 'de' ? '.' : '';
+  const index = month ? MONTHS_SHORT.indexOf(month) : -1;
+
+  return index >= 0 ? `${day}${suffix} ${t.months_short[index]}` : `${day}${suffix}`;
+};
+
+// Geldbetrag in der Anzeige-Währung, lokalisiert formatiert
+const fmtMoney = (value, code, lang) => {
+  const fraction = Math.abs(value % 1) < 0.005 ? 0 : 2;
+  try {
+    return new Intl.NumberFormat(localeOf(lang), {
+      style: 'currency',
+      currency: code,
+      minimumFractionDigits: fraction,
+      maximumFractionDigits: fraction,
+    }).format(value);
+  } catch {
+    return `${getCurrency(code).symbol}${value.toFixed(fraction)}`;
+  }
+};
+
+// ─── Anbieterkatalog (Autovervollständigung) ──────────────────────────────────
 const SERVICE_CATALOG = [
-  { name: 'Spotify',              aliases: ['спотифай','спотифай','spotify'], domain: 'spotify.com',        category: 'entertainment', serviceType: 'music',
-    cancelUrl: 'https://www.spotify.com/account/subscription/', cancelSteps: ['Settings → Subscription', 'Change or cancel plan', 'Cancel Premium'] },
-  { name: 'Netflix',              aliases: ['нетфликс','нетфлекс'],           domain: 'netflix.com',        category: 'entertainment', serviceType: 'video',
-    cancelUrl: 'https://www.netflix.com/cancelplan', cancelSteps: ['Account → Membership', 'Cancel Membership', 'Confirm cancellation'] },
-  { name: 'YouTube Premium',      aliases: ['ютуб','ютуб премиум','youtube'], domain: 'youtube.com',        category: 'entertainment', serviceType: 'video',
-    cancelUrl: 'https://www.youtube.com/paid_memberships', cancelSteps: ['Manage membership', 'Cancel membership', 'Confirm'] },
-  { name: 'Apple Music',          aliases: ['эпл мьюзик','эпл музик'],        domain: 'apple.com',          category: 'entertainment', serviceType: 'music',
-    cancelUrl: 'https://music.apple.com/account/subscriptions', cancelSteps: ['Settings → Apple ID → Subscriptions', 'Apple Music', 'Cancel subscription'] },
-  { name: 'Apple TV+',            aliases: ['эпл тв'],                        domain: 'apple.com',          category: 'entertainment', serviceType: 'video',
-    cancelUrl: 'https://tv.apple.com/settings', cancelSteps: ['Settings → Apple ID → Subscriptions', 'Apple TV+', 'Cancel subscription'] },
-  { name: 'Twitch',               aliases: ['твич'],                          domain: 'twitch.tv',          category: 'entertainment' },
-  { name: 'Disney+',              aliases: ['дисней'],                        domain: 'disneyplus.com',     category: 'entertainment', serviceType: 'video',
-    cancelUrl: 'https://www.disneyplus.com/account', cancelSteps: ['Account → Subscription', 'Cancel subscription', 'Confirm cancellation'] },
-  { name: 'HBO Max',              aliases: ['хбо'],                           domain: 'hbomax.com',         category: 'entertainment', serviceType: 'video',
-    cancelUrl: 'https://www.max.com/settings/subscription', cancelSteps: ['Settings → Subscription', 'Cancel plan', 'Confirm'] },
-  { name: 'Hulu',                 aliases: ['хулу'],                          domain: 'hulu.com',           category: 'entertainment', serviceType: 'video',
-    cancelUrl: 'https://secure.hulu.com/account/cancel', cancelSteps: ['Account → Cancel', 'Continue to cancel', 'Confirm cancellation'] },
-  { name: 'Paramount+',           aliases: ['парамаунт'],                     domain: 'paramountplus.com',  category: 'entertainment', serviceType: 'video',
-    cancelUrl: 'https://www.paramountplus.com/account/subscriptions/', cancelSteps: ['Account → Subscription', 'Cancel plan', 'Confirm'] },
-  { name: 'Amazon Prime',         aliases: ['амазон','амазон прайм'],         domain: 'amazon.com',         category: 'entertainment', serviceType: 'video',
-    cancelUrl: 'https://www.amazon.com/mc/pipelines/cancellation', cancelSteps: ['Account → Prime membership', 'End membership', 'Confirm cancellation'] },
-  { name: 'Claude Pro',           aliases: ['клод'],                          domain: 'anthropic.com',      category: 'work', serviceType: 'ai',
-    cancelUrl: 'https://claude.ai/settings', cancelSteps: ['Settings → Billing', 'Cancel plan', 'Confirm cancellation'] },
-  { name: 'ChatGPT Plus',         aliases: ['чатгпт','гпт','chatgpt'],        domain: 'openai.com',         category: 'work', serviceType: 'ai',
-    cancelUrl: 'https://chat.openai.com/settings', cancelSteps: ['Settings → Subscription', 'Manage subscription', 'Cancel plan'] },
-  { name: 'Notion',               aliases: ['ноушн','ноtion'],                domain: 'notion.so',          category: 'work',
-    cancelUrl: 'https://www.notion.so/profile/billing', cancelSteps: ['Settings → Plans', 'Downgrade to Free', 'Confirm'] },
-  { name: 'Figma',                aliases: ['фигма'],                         domain: 'figma.com',          category: 'work',
-    cancelUrl: 'https://www.figma.com/settings/billing', cancelSteps: ['Settings → Plans', 'Downgrade to Starter', 'Confirm'] },
-  { name: 'Linear',               aliases: ['линеар'],                        domain: 'linear.app',         category: 'work' },
-  { name: 'Slack',                aliases: ['слак'],                          domain: 'slack.com',          category: 'work',
-    cancelUrl: 'https://slack.com/intl/en-us/help/articles/218947117', cancelSteps: ['Settings → Billing', 'Downgrade to Free', 'Confirm'] },
-  { name: 'Zoom',                 aliases: ['зум'],                           domain: 'zoom.us',            category: 'work',
-    cancelUrl: 'https://zoom.us/billing', cancelSteps: ['Billing → Current Plans', 'Cancel plan', 'Confirm cancellation'] },
-  { name: 'Loom',                 aliases: ['лум'],                           domain: 'loom.com',           category: 'work' },
-  { name: 'Adobe Creative Cloud', aliases: ['адоб','адобе','adobe'],          domain: 'adobe.com',          category: 'work',
-    cancelUrl: 'https://account.adobe.com/plans', cancelSteps: ['Plans → Manage plan', 'Cancel plan', 'Confirm — note early cancellation fee'] },
-  { name: 'Grammarly',            aliases: ['грамарли'],                      domain: 'grammarly.com',      category: 'work',
-    cancelUrl: 'https://account.grammarly.com/subscription', cancelSteps: ['Subscription → Cancel', 'Continue to cancel', 'Confirm'] },
-  { name: 'Canva',                aliases: ['канва'],                         domain: 'canva.com',          category: 'work',
-    cancelUrl: 'https://www.canva.com/settings/purchase-history', cancelSteps: ['Account → Billing', 'Cancel Pro', 'Confirm cancellation'] },
-  { name: 'Miro',                 aliases: ['миро'],                          domain: 'miro.com',           category: 'work' },
-  { name: 'GitHub Copilot',       aliases: ['гитхаб','github'],               domain: 'github.com',         category: 'work',
-    cancelUrl: 'https://github.com/settings/copilot', cancelSteps: ['Settings → Copilot', 'Disable Copilot', 'Confirm cancellation'] },
-  { name: 'Cursor',               aliases: ['курсор'],                        domain: 'cursor.com',         category: 'work', serviceType: 'ai',
-    cancelUrl: 'https://cursor.com/settings', cancelSteps: ['Settings → Billing', 'Cancel subscription', 'Confirm'] },
-  { name: 'Perplexity',           aliases: ['перплексити'],                   domain: 'perplexity.ai',      category: 'work', serviceType: 'ai',
-    cancelUrl: 'https://www.perplexity.ai/settings/account', cancelSteps: ['Settings → Subscription', 'Cancel Pro', 'Confirm'] },
-  { name: 'Vercel',               aliases: ['версель'],                       domain: 'vercel.com',         category: 'work',
-    cancelUrl: 'https://vercel.com/dashboard/settings/billing', cancelSteps: ['Settings → Plans', 'Downgrade to Hobby', 'Confirm'] },
-  { name: 'iCloud',               aliases: ['айклауд','icloud'],              domain: 'apple.com',          category: 'internet', serviceType: 'storage',
-    cancelUrl: 'https://support.apple.com/en-us/108922', cancelSteps: ['Settings → Apple ID → iCloud', 'Manage storage', 'Change storage plan → Downgrade'] },
-  { name: 'Google One',           aliases: ['гугл ван','гугл','google one'],  domain: 'google.com',         category: 'internet', serviceType: 'storage',
-    cancelUrl: 'https://one.google.com/storage', cancelSteps: ['Manage storage plan', 'Downgrade plan', 'Confirm'] },
-  { name: 'Dropbox',              aliases: ['дропбокс'],                      domain: 'dropbox.com',        category: 'internet', serviceType: 'storage',
-    cancelUrl: 'https://www.dropbox.com/account/plan', cancelSteps: ['Settings → Plan', 'Cancel plan', 'Confirm cancellation'] },
-  { name: '1Password',            aliases: ['1пасворд','ванпасворд'],         domain: '1password.com',      category: 'internet',
-    cancelUrl: 'https://my.1password.com/profile/billing', cancelSteps: ['Billing → Cancel subscription', 'Confirm cancellation'] },
-  { name: 'Тинькофф Про',        aliases: ['тинькофф','тинькофф про','tinkoff pro','тинько'], domain: 'tinkoff.ru', category: 'banking' },
-  { name: 'СберПрайм',           aliases: ['сбер прайм','сберпрайм','сбер'], domain: 'sber.ru',            category: 'banking' },
-  { name: 'Альфа-Банк',          aliases: ['альфа','альфабанк'],             domain: 'alfabank.ru',        category: 'banking' },
-  { name: 'МТС',                 aliases: ['мтс','mts'],                     domain: 'mts.ru',             category: 'telecom' },
-  { name: 'Билайн',              aliases: ['билайн','beeline'],              domain: 'beeline.ru',         category: 'telecom' },
-  { name: 'МегаФон',             aliases: ['мегафон','megafon'],             domain: 'megafon.ru',         category: 'telecom' },
-  { name: 'Т2',                  aliases: ['т2','теле2','tele2'],             domain: 'tele2.ru',           category: 'telecom' },
-  { name: 'Xbox Game Pass',       aliases: ['иксбокс','xbox'],                domain: 'xbox.com',           category: 'games',
-    cancelUrl: 'https://account.microsoft.com/services', cancelSteps: ['Services → Game Pass', 'Cancel subscription', 'Confirm'] },
-  { name: 'PlayStation Plus',     aliases: ['плойка','пс','ps plus'],         domain: 'playstation.com',    category: 'games',
-    cancelUrl: 'https://www.playstation.com/acct/mgmt', cancelSteps: ['Account → Subscriptions', 'PlayStation Plus', 'Cancel subscription'] },
-  { name: 'Steam',                aliases: ['стим'],                          domain: 'steampowered.com',   category: 'games' },
-  { name: 'Duolingo',             aliases: ['дуолинго'],                      domain: 'duolingo.com',       category: 'education',
-    cancelUrl: 'https://www.duolingo.com/settings/super', cancelSteps: ['Settings → Super Duolingo', 'Cancel subscription', 'Confirm'] },
-  { name: 'Coursera',             aliases: ['курсера'],                       domain: 'coursera.org',       category: 'education',
-    cancelUrl: 'https://www.coursera.org/account-profile', cancelSteps: ['Settings → Subscriptions', 'Cancel subscription', 'Confirm cancellation'] },
-  { name: 'Skillshare',           aliases: ['скилшер'],                       domain: 'skillshare.com',     category: 'education',
-    cancelUrl: 'https://www.skillshare.com/account/membership', cancelSteps: ['Account → Membership', 'Cancel membership', 'Confirm'] },
-  { name: 'Udemy',                aliases: ['юдеми'],                         domain: 'udemy.com',          category: 'education' },
-  { name: 'Masterclass',          aliases: ['мастеркласс'],                   domain: 'masterclass.com',    category: 'education',
-    cancelUrl: 'https://www.masterclass.com/account/subscription', cancelSteps: ['Account → Subscription', 'Cancel plan', 'Confirm cancellation'] },
-  { name: 'NordVPN',              aliases: ['норд впн','nordvpn'],            domain: 'nordvpn.com',        category: 'vpn',
-    cancelUrl: 'https://my.nordaccount.com/dashboard/nordvpn/subscriptions/', cancelSteps: ['Subscriptions → Cancel', 'Confirm cancellation'] },
-  { name: 'ExpressVPN',           aliases: ['экспресс впн'],                  domain: 'expressvpn.com',     category: 'vpn',
-    cancelUrl: 'https://www.expressvpn.com/subscriptions', cancelSteps: ['Subscriptions → Cancel subscription', 'Confirm'] },
-  { name: 'Telegram Premium',     aliases: ['телеграм','тг','telegram'],      domain: 'telegram.org',       category: 'other',
-    cancelUrl: 'https://t.me/PremiumBot', cancelSteps: ['Open @PremiumBot in Telegram', 'Manage subscription', 'Cancel'] },
-  { name: 'Discord Nitro',        aliases: ['дискорд','discord'],             domain: 'discord.com',        category: 'entertainment',
-    cancelUrl: 'https://discord.com/settings/subscriptions', cancelSteps: ['Settings → Subscriptions', 'Cancel Nitro', 'Confirm'] },
-  { name: 'VK Музыка',            aliases: ['вк музыка','вк'],               domain: 'vk.com',             category: 'entertainment', serviceType: 'music' },
-  { name: 'Яндекс Плюс',         aliases: ['яндекс плюс','яплюс','яндекс'], domain: 'ya.ru',              category: 'entertainment', serviceType: 'music',
-    cancelUrl: 'https://plus.yandex.ru/portal/settings', cancelSteps: ['Настройки → Подписка', 'Отключить Плюс', 'Подтвердить'] },
-  { name: 'Кинопоиск',            aliases: ['кинопоиск'],                     domain: 'kinopoisk.ru',       category: 'entertainment', serviceType: 'video',
-    cancelUrl: 'https://plus.yandex.ru/portal/settings', cancelSteps: ['Настройки → Подписка', 'Отключить', 'Подтвердить'] },
-  { name: 'START',                aliases: ['старт'],                         domain: 'start.ru',           category: 'entertainment', serviceType: 'video',
-    cancelUrl: 'https://start.ru/profile/subscription', cancelSteps: ['Профиль → Подписка', 'Отменить подписку', 'Подтвердить'] },
-  { name: 'Иви',                  aliases: ['ivi'],                           domain: 'ivi.ru',             category: 'entertainment', serviceType: 'video',
-    cancelUrl: 'https://www.ivi.ru/profile/subscription', cancelSteps: ['Профиль → Подписка', 'Отменить', 'Подтвердить'] },
-  // ── Утилитарные — с иконками Lucide вместо favicon ──
-  { name: 'Интернет',   aliases: ['инет','internet','провайдер'],            lucideIcon: Globe,   category: 'internet'  },
-  { name: 'Связь',      aliases: ['телефон','мобильная связь','оператор'],   lucideIcon: Phone,   category: 'telecom'   },
-  { name: 'Сервер',     aliases: ['server','хостинг','хост','vps','вдс'],    lucideIcon: Server,  category: 'internet'  },
-  { name: 'Wi-Fi',      aliases: ['вайфай','wifi','роутер'],                 lucideIcon: Wifi,    category: 'internet'  },
-  { name: 'ТВ',         aliases: ['телевидение','тв','tv','cable'],          lucideIcon: Tv,      category: 'entertainment' },
-  { name: 'Подписка',   aliases: ['subscription'],                           lucideIcon: Package, category: 'other'     },
+  // ── Strom, Gas & Wasser ──
+  { name: 'E.ON',             aliases: ['eon'],                    domain: 'eon.de',            category: 'energy' },
+  { name: 'Vattenfall',       aliases: [],                         domain: 'vattenfall.de',     category: 'energy' },
+  { name: 'EnBW',             aliases: ['enbw'],                   domain: 'enbw.com',          category: 'energy' },
+  { name: 'Yello Strom',      aliases: ['yello'],                  domain: 'yello.de',          category: 'energy' },
+  { name: 'LichtBlick',       aliases: ['lichtblick'],             domain: 'lichtblick.de',     category: 'energy' },
+  { name: 'Octopus Energy',   aliases: ['octopus'],                domain: 'octopusenergy.de',  category: 'energy' },
+  { name: 'Rheinenergie',     aliases: ['rheinenergie'],           domain: 'rheinenergie.com',  category: 'energy' },
+  { name: 'Stadtwerke',       aliases: ['stadtwerk'],              lucideIcon: Plug,            category: 'energy' },
+  { name: 'Strom',            aliases: ['electricity'],            lucideIcon: Zap,             category: 'energy' },
+  { name: 'Gas',              aliases: ['erdgas'],                 lucideIcon: Flame,           category: 'energy' },
+  { name: 'Wasser',           aliases: ['water', 'wasserwerke'],   lucideIcon: Droplets,        category: 'water'  },
+  { name: 'Abfallentsorgung', aliases: ['müll', 'muell', 'abfall'], lucideIcon: Trash,          category: 'water'  },
+
+  // ── Internet & Mobilfunk ──
+  { name: 'Telekom',          aliases: ['deutsche telekom', 'magenta'], domain: 'telekom.de',   category: 'internet' },
+  { name: 'Vodafone',         aliases: [],                         domain: 'vodafone.de',       category: 'internet' },
+  { name: 'O₂',               aliases: ['o2', 'telefonica'],       domain: 'o2online.de',       category: 'mobile'   },
+  { name: '1&1',              aliases: ['1und1', 'einsundeins'],   domain: '1und1.de',          category: 'internet' },
+  { name: 'congstar',         aliases: ['congstar'],               domain: 'congstar.de',       category: 'mobile'   },
+  { name: 'ALDI TALK',        aliases: ['alditalk', 'aldi'],       domain: 'alditalk.de',       category: 'mobile'   },
+  { name: 'PYUR',             aliases: ['pyur'],                   domain: 'pyur.com',          category: 'internet' },
+  { name: 'Internet',         aliases: ['provider', 'dsl', 'glasfaser'], lucideIcon: Wifi,      category: 'internet' },
+  { name: 'Mobilfunk',        aliases: ['handy', 'mobile', 'sim'], lucideIcon: Smartphone,      category: 'mobile'   },
+  { name: 'Server / Hosting', aliases: ['server', 'hosting', 'vps'], lucideIcon: Server,        category: 'work'     },
+
+  // ── Versicherungen ──
+  { name: 'HUK-COBURG',       aliases: ['huk'],                    domain: 'huk.de',            category: 'insurance' },
+  { name: 'Allianz',          aliases: [],                         domain: 'allianz.de',        category: 'insurance' },
+  { name: 'AXA',              aliases: [],                         domain: 'axa.de',            category: 'insurance' },
+  { name: 'ERGO',             aliases: [],                         domain: 'ergo.de',           category: 'insurance' },
+  { name: 'Debeka',           aliases: [],                         domain: 'debeka.de',         category: 'insurance' },
+  { name: 'CosmosDirekt',     aliases: ['cosmos'],                 domain: 'cosmosdirekt.de',   category: 'insurance' },
+  { name: 'HanseMerkur',      aliases: ['hanse merkur'],           domain: 'hansemerkur.de',    category: 'insurance' },
+  { name: 'R+V Versicherung', aliases: ['r+v', 'ruv'],             domain: 'ruv.de',            category: 'insurance' },
+  { name: 'SIGNAL IDUNA',     aliases: ['signal iduna'],           domain: 'signal-iduna.de',   category: 'insurance' },
+  { name: 'Getsafe',          aliases: ['getsafe'],                domain: 'hellogetsafe.com',  category: 'insurance' },
+  { name: 'CHECK24',          aliases: ['check24'],                domain: 'check24.de',        category: 'insurance' },
+  { name: 'Versicherung',     aliases: ['haftpflicht', 'hausrat', 'insurance'], lucideIcon: Shield, category: 'insurance' },
+
+  // ── Krankenkassen ──
+  { name: 'Techniker Krankenkasse', aliases: ['tk', 'techniker'],  domain: 'tk.de',             category: 'health' },
+  { name: 'AOK',              aliases: ['aok'],                    domain: 'aok.de',            category: 'health' },
+  { name: 'Barmer',           aliases: ['barmer'],                 domain: 'barmer.de',         category: 'health' },
+  { name: 'DAK-Gesundheit',   aliases: ['dak'],                    domain: 'dak.de',            category: 'health' },
+  { name: 'IKK classic',      aliases: ['ikk'],                    domain: 'ikk-classic.de',    category: 'health' },
+  { name: 'Krankenkasse',     aliases: ['krankenversicherung'],    lucideIcon: HeartPulse,      category: 'health' },
+
+  // ── Wohnen & Rundfunk ──
+  { name: 'Miete',            aliases: ['wohnung', 'rent'],        lucideIcon: Home,            category: 'housing' },
+  { name: 'Vonovia',          aliases: ['vonovia'],                domain: 'vonovia.de',        category: 'housing' },
+  { name: 'Rundfunkbeitrag',  aliases: ['gez', 'ard zdf'],         domain: 'rundfunkbeitrag.de', category: 'broadcast' },
+
+  // ── Mobilität ──
+  { name: 'Deutschlandticket', aliases: ['49 euro ticket', 'dticket'], domain: 'bahn.de',       category: 'transport' },
+  { name: 'Deutsche Bahn',    aliases: ['db', 'bahncard'],         domain: 'bahn.de',           category: 'transport' },
+  { name: 'ADAC',             aliases: ['adac'],                   domain: 'adac.de',           category: 'transport' },
+
+  // ── Bank & Finanzen ──
+  { name: 'Sparkasse',        aliases: ['sparkasse'],              domain: 'sparkasse.de',      category: 'banking' },
+  { name: 'DKB',              aliases: ['dkb'],                    domain: 'dkb.de',            category: 'banking' },
+  { name: 'ING',              aliases: ['ing diba'],               domain: 'ing.de',            category: 'banking' },
+  { name: 'N26',              aliases: ['n26'],                    domain: 'n26.com',           category: 'banking' },
+  { name: 'Commerzbank',      aliases: [],                         domain: 'commerzbank.de',    category: 'banking' },
+  { name: 'comdirect',        aliases: ['comdirect'],              domain: 'comdirect.de',      category: 'banking' },
+  { name: 'Trade Republic',   aliases: ['traderepublic'],          domain: 'traderepublic.com', category: 'banking' },
+
+  // ── Fitness & Mitgliedschaften ──
+  { name: 'McFIT',            aliases: ['mcfit'],                  domain: 'mcfit.com',         category: 'fitness' },
+  { name: 'FitX',             aliases: ['fitx'],                   domain: 'fitx.de',           category: 'fitness' },
+  { name: 'Urban Sports Club', aliases: ['urban sports'],          domain: 'urbansportsclub.com', category: 'fitness' },
+  { name: 'clever fit',       aliases: ['cleverfit'],              domain: 'clever-fit.com',    category: 'fitness' },
+  { name: 'Mitgliedschaft',   aliases: ['verein', 'membership'],   lucideIcon: Users,           category: 'membership' },
+
+  // ── Streaming & Unterhaltung ──
+  { name: 'Spotify',          aliases: ['spotify'],                domain: 'spotify.com',       category: 'entertainment',
+    cancelUrl: 'https://www.spotify.com/account/subscription/', cancelSteps: ['Konto → Abo', 'Plan ändern oder kündigen', 'Premium kündigen'] },
+  { name: 'Netflix',          aliases: [],                         domain: 'netflix.com',       category: 'entertainment',
+    cancelUrl: 'https://www.netflix.com/cancelplan', cancelSteps: ['Konto → Mitgliedschaft', 'Mitgliedschaft kündigen', 'Kündigung bestätigen'] },
+  { name: 'YouTube Premium',  aliases: ['youtube'],                domain: 'youtube.com',       category: 'entertainment',
+    cancelUrl: 'https://www.youtube.com/paid_memberships', cancelSteps: ['Mitgliedschaft verwalten', 'Kündigen', 'Bestätigen'] },
+  { name: 'Disney+',          aliases: ['disney'],                 domain: 'disneyplus.com',    category: 'entertainment',
+    cancelUrl: 'https://www.disneyplus.com/account', cancelSteps: ['Konto → Abo', 'Abo kündigen', 'Bestätigen'] },
+  { name: 'Amazon Prime',     aliases: ['amazon', 'prime'],        domain: 'amazon.de',         category: 'entertainment',
+    cancelUrl: 'https://www.amazon.de/mc/pipelines/cancellation', cancelSteps: ['Konto → Prime-Mitgliedschaft', 'Mitgliedschaft beenden', 'Bestätigen'] },
+  { name: 'Sky',              aliases: ['sky'],                    domain: 'sky.de',            category: 'entertainment' },
+  { name: 'WOW',              aliases: ['wow tv'],                 domain: 'wowtv.de',          category: 'entertainment' },
+  { name: 'DAZN',             aliases: ['dazn'],                   domain: 'dazn.com',          category: 'entertainment' },
+  { name: 'RTL+',             aliases: ['rtl plus', 'tvnow'],      domain: 'rtlplus.de',        category: 'entertainment' },
+  { name: 'Joyn',             aliases: ['joyn'],                   domain: 'joyn.de',           category: 'entertainment' },
+  { name: 'Apple Music',      aliases: ['apple music'],            domain: 'apple.com',         category: 'entertainment',
+    cancelUrl: 'https://music.apple.com/account/subscriptions', cancelSteps: ['Einstellungen → Apple-ID → Abos', 'Apple Music', 'Abo kündigen'] },
+  { name: 'Apple TV+',        aliases: ['apple tv'],               domain: 'apple.com',         category: 'entertainment' },
+  { name: 'Twitch',           aliases: [],                         domain: 'twitch.tv',         category: 'entertainment' },
+  { name: 'Discord Nitro',    aliases: ['discord'],                domain: 'discord.com',       category: 'entertainment',
+    cancelUrl: 'https://discord.com/settings/subscriptions', cancelSteps: ['Einstellungen → Abos', 'Nitro kündigen', 'Bestätigen'] },
+  { name: 'Telegram Premium', aliases: ['telegram'],               domain: 'telegram.org',      category: 'other' },
+  { name: 'TV / Kabel',       aliases: ['kabel', 'fernsehen'],     lucideIcon: Tv,              category: 'entertainment' },
+
+  // ── Arbeit, Software & KI ──
+  { name: 'Claude Pro',       aliases: ['claude', 'anthropic'],    domain: 'anthropic.com',     category: 'ai',
+    cancelUrl: 'https://claude.ai/settings', cancelSteps: ['Settings → Billing', 'Plan kündigen', 'Bestätigen'] },
+  { name: 'ChatGPT Plus',     aliases: ['chatgpt', 'openai'],      domain: 'openai.com',        category: 'ai',
+    cancelUrl: 'https://chat.openai.com/settings', cancelSteps: ['Settings → Subscription', 'Manage subscription', 'Plan kündigen'] },
+  { name: 'Perplexity',       aliases: ['perplexity'],             domain: 'perplexity.ai',     category: 'ai' },
+  { name: 'Cursor',           aliases: ['cursor'],                 domain: 'cursor.com',        category: 'ai' },
+  { name: 'Notion',           aliases: ['notion'],                 domain: 'notion.so',         category: 'work' },
+  { name: 'Figma',            aliases: ['figma'],                  domain: 'figma.com',         category: 'work' },
+  { name: 'Slack',            aliases: ['slack'],                  domain: 'slack.com',         category: 'work' },
+  { name: 'Zoom',             aliases: ['zoom'],                   domain: 'zoom.us',           category: 'work' },
+  { name: 'Adobe Creative Cloud', aliases: ['adobe'],              domain: 'adobe.com',         category: 'work',
+    cancelUrl: 'https://account.adobe.com/plans', cancelSteps: ['Abos → Abo verwalten', 'Abo kündigen', 'Bestätigen — auf Kündigungsgebühr achten'] },
+  { name: 'Canva',            aliases: ['canva'],                  domain: 'canva.com',         category: 'work' },
+  { name: 'GitHub',           aliases: ['github', 'copilot'],      domain: 'github.com',        category: 'work' },
+  { name: 'Vercel',           aliases: ['vercel'],                 domain: 'vercel.com',        category: 'work' },
+  { name: 'Google One',       aliases: ['google'],                 domain: 'google.com',        category: 'work' },
+  { name: 'iCloud+',          aliases: ['icloud'],                 domain: 'apple.com',         category: 'work' },
+  { name: 'Dropbox',          aliases: ['dropbox'],                domain: 'dropbox.com',       category: 'work' },
+  { name: '1Password',        aliases: ['1password'],              domain: '1password.com',     category: 'work' },
+
+  // ── Spiele & Bildung ──
+  { name: 'Xbox Game Pass',   aliases: ['xbox', 'gamepass'],       domain: 'xbox.com',          category: 'games' },
+  { name: 'PlayStation Plus', aliases: ['playstation', 'ps plus'], domain: 'playstation.com',   category: 'games' },
+  { name: 'Nintendo Switch Online', aliases: ['nintendo'],         domain: 'nintendo.de',       category: 'games' },
+  { name: 'Steam',            aliases: ['steam'],                  domain: 'steampowered.com',  category: 'games' },
+  { name: 'Duolingo',         aliases: ['duolingo'],               domain: 'duolingo.com',      category: 'education' },
+  { name: 'Coursera',         aliases: ['coursera'],               domain: 'coursera.org',      category: 'education' },
+  { name: 'Babbel',           aliases: ['babbel'],                 domain: 'babbel.com',        category: 'education' },
+  { name: 'Udemy',            aliases: ['udemy'],                  domain: 'udemy.com',         category: 'education' },
+
+  // ── VPN ──
+  { name: 'NordVPN',          aliases: ['nord vpn'],               domain: 'nordvpn.com',       category: 'vpn' },
+  { name: 'Proton VPN',       aliases: ['proton'],                 domain: 'protonvpn.com',     category: 'vpn' },
+  { name: 'Abo',              aliases: ['subscription', 'sonstiges'], lucideIcon: Package,      category: 'other' },
 ];
 
-// Ищет запись в каталоге по имени или алиасам
+// Sucht einen Katalogeintrag über Name oder Alias
 const getCatalogEntry = (name) => {
   const q = (name || '').toLowerCase().trim();
   if (!q) return null;
@@ -204,23 +266,32 @@ const getCatalogEntry = (name) => {
   ) || null;
 };
 
-const getLogoUrl = (sub) => {
-  if (sub.logo) return sub.logo;
-  const entry = getCatalogEntry(sub.name);
-  if (entry?.lucideIcon) return null; // иконка Lucide — не favicon
-  if (entry?.domain) return `https://www.google.com/s2/favicons?sz=64&domain=${entry.domain}`;
-  // Фоллбэк — угадываем домен
-  const first = (sub.name || '').toLowerCase().trim().split(/\s+/)[0].replace(/[^a-z0-9]/g, '');
-  if (!first) return null;
-  return `https://www.google.com/s2/favicons?sz=64&domain=${first}.com`;
+const faviconUrl = (domain, size = 64) =>
+  `https://www.google.com/s2/favicons?sz=${size}&domain=${domain}`;
+
+const getLogoUrl = (entry) => {
+  if (entry.logo) return entry.logo;
+
+  const catalogEntry = getCatalogEntry(entry.name) || getCatalogEntry(entry.provider);
+  if (catalogEntry?.lucideIcon) return null; // Lucide-Icon statt Favicon
+  if (catalogEntry?.domain) return faviconUrl(catalogEntry.domain);
+
+  // Fallback — Domain aus dem hinterlegten Portal-Link oder dem Namen raten
+  if (entry.url) {
+    try { return faviconUrl(new URL(entry.url).hostname); } catch { /* kein gültiger Link */ }
+  }
+
+  const first = (entry.name || '').toLowerCase().trim().split(/\s+/)[0].replace(/[^a-z0-9]/g, '');
+  return first ? faviconUrl(`${first}.de`) : null;
 };
 
-const getLucideIcon = (sub) => {
-  const entry = getCatalogEntry(sub.name);
-  return entry?.lucideIcon || null;
+const getLucideIcon = (entry) => {
+  const catalogEntry = getCatalogEntry(entry.name) || getCatalogEntry(entry.provider);
+  if (catalogEntry?.lucideIcon) return catalogEntry.lucideIcon;
+  return catalogEntry ? null : getCat(entry.category)?.icon || null;
 };
 
-// ─── Утилиты ───────────────────────────────────────────────────────────────────
+// ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
 const extractBillingDay = (raw) => {
   if (!raw) return null;
   const m = String(raw).match(/\d+/);
@@ -229,7 +300,7 @@ const extractBillingDay = (raw) => {
   return (Number.isFinite(d) && d >= 1 && d <= 31) ? d : null;
 };
 
-// "8 Mar" → 2 (0-based, как Date.getMonth())
+// "8 Mar" → 2 (nullbasiert, wie Date.getMonth())
 const extractBillingMonth = (raw) => {
   if (!raw) return null;
   const parts = String(raw).trim().split(/\s+/);
@@ -238,33 +309,68 @@ const extractBillingMonth = (raw) => {
   return idx >= 0 ? idx : null;
 };
 
-const isDueWithinDays = (sub, days = 7) => {
+const startOfToday = () => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+};
+
+const daysUntil = (isoDate) => {
+  if (!isoDate) return null;
+  const target = new Date(isoDate);
+  if (isNaN(target)) return null;
+  const day = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  return Math.round((day - startOfToday()) / 86400000);
+};
+
+// Vertragsende minus Kündigungsfrist — bis dahin muss die Kündigung raus sein.
+// Bei automatischer Verlängerung rollt die Frist auf das nächste Vertragsjahr.
+const cancelByDate = (entry) => {
+  if (!entry?.contract_end || !entry.notice_period_months) return null;
+
+  const end = new Date(entry.contract_end);
+  if (isNaN(end)) return null;
+
+  const today = startOfToday();
+  const deadline = new Date(end);
+  deadline.setMonth(deadline.getMonth() - entry.notice_period_months);
+
+  if (deadline >= today || !entry.auto_renew) {
+    return deadline.toISOString().split('T')[0];
+  }
+
+  // Verlängerter Vertrag: nächstes Ende suchen, das noch vor uns liegt
+  const rolled = new Date(deadline);
+  while (rolled < today) rolled.setFullYear(rolled.getFullYear() + 1);
+  return rolled.toISOString().split('T')[0];
+};
+
+const isDueWithinDays = (entry, days = 7) => {
   const now        = new Date();
-  const billingDay = sub.billingDay ?? extractBillingDay(sub.date);
+  const billingDay = entry.billingDay ?? extractBillingDay(entry.date);
   if (!billingDay) return false;
 
-  // Годовые — только если сейчас тот же месяц списания
-  if (sub.period === 'yearly') {
-    const billingMonth = extractBillingMonth(sub.date);
+  // Jährliche nur, wenn der Abbuchungsmonat der aktuelle ist
+  if (entry.period === 'yearly') {
+    const billingMonth = extractBillingMonth(entry.date);
     if (billingMonth === null || billingMonth !== now.getMonth()) return false;
   }
 
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const today = startOfToday();
   const thisMonth = new Date(today.getFullYear(), today.getMonth(), billingDay);
   const target = thisMonth >= today ? thisMonth : new Date(today.getFullYear(), today.getMonth() + 1, billingDay);
   const diff = Math.round((target - today) / 86400000);
   return diff >= 0 && diff <= days;
 };
 
-// price в оригинальной валюте → USD для суммирования
+// Preis in Originalwährung → USD als gemeinsame Rechengröße
 const toUSD = (price, currencyCode, rates) => {
   const rate = rates?.[currencyCode] ?? DEFAULT_RATES[currencyCode] ?? 1;
   return Number(price || 0) / rate;
 };
 
-const monthlyUSD = (sub, rates) => {
-  const p = toUSD(sub.price ?? sub.price_usd ?? sub.priceUSD ?? 0, sub.currency_code || DEFAULT_CURRENCY, rates);
-  return sub.period === 'yearly' ? p / 12 : p;
+const monthlyUSD = (entry, rates) => {
+  const p = toUSD(entry.price ?? 0, entry.currency_code || DEFAULT_CURRENCY, rates);
+  return entry.period === 'yearly' ? p / 12 : p;
 };
 
 // ─── Хук drag-scroll (горизонталь) ────────────────────────────────────────────
@@ -364,6 +470,43 @@ const useIsDesktop = () => {
   return isDesktop;
 };
 
+// ─── Hook: Zustand des Passwort-Tresors ───────────────────────────────────────
+const useVault = () => {
+  const [configured, setConfigured] = useState(() => vault.isConfigured());
+  const [unlocked,   setUnlocked]   = useState(() => vault.isUnlocked());
+
+  return {
+    available: vault.isAvailable(),
+    configured,
+    unlocked,
+    async create(passphrase) {
+      await vault.setup(passphrase);
+      setConfigured(true);
+      setUnlocked(true);
+    },
+    async unlock(passphrase) {
+      const ok = await vault.unlock(passphrase);
+      setUnlocked(ok);
+      return ok;
+    },
+    lock() {
+      vault.lock();
+      setUnlocked(false);
+    },
+    reset() {
+      vault.reset();
+      setConfigured(false);
+      setUnlocked(false);
+    },
+    sync() {
+      setConfigured(vault.isConfigured());
+      setUnlocked(vault.isUnlocked());
+    },
+    encrypt: vault.encrypt,
+    decrypt: vault.decrypt,
+  };
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -371,31 +514,23 @@ const App = ({ toggleLang, lang }) => {
   const t = useT();
   const isDesktop = useIsDesktop();
 
-  const [subscriptions, setSubscriptions] = useState(() =>
-    subscriptionStore.list().map((subscription) => ({
-      ...subscription,
-      billingDay: extractBillingDay(subscription.date),
+  const [entries, setSubscriptions] = useState(() =>
+    entryStore.list().map((entry) => ({
+      ...entry,
+      billingDay: extractBillingDay(entry.date),
     })));
 
-  const [currency,     setCurrency]     = useState(() => {
-    const saved = localStorage.getItem('currency');
-    if (saved) return saved;
-    return lang === 'ru' ? 'RUB' : DEFAULT_CURRENCY;
-  });
+  const [currency,     setCurrency]     = useState(() =>
+    localStorage.getItem('currency') || DEFAULT_CURRENCY);
   const [rates,        setRates]        = useState(() => loadRates() || DEFAULT_RATES);
   const [ratesLoading, setRatesLoading] = useState(false);
   const [activeTab,    setActiveTab]    = useState('home');
   const [isModalOpen,  setIsModalOpen]  = useState(false);
-  const [editingSub,   setEditingSub]   = useState(null);
-
-  // При смене языка — менять валюту на дефолт, если юзер не выбирал вручную
-  useEffect(() => {
-    if (!localStorage.getItem('currencyManual')) {
-      setCurrency(lang === 'ru' ? 'RUB' : DEFAULT_CURRENCY);
-    }
-  }, [lang]);
+  const [editingEntry,   setEditingEntry]   = useState(null);
+  const [docCounts,    setDocCounts]    = useState({});
+  const vaultState = useVault();
   const [toast,        setToast]        = useState(null);
-  const [confirmSub,   setConfirmSub]   = useState(null);
+  const [confirmEntry,   setConfirmEntry]   = useState(null);
   const [sortBy,       setSortBy]       = useState('name');
   const [searchQuery,  setSearchQuery]  = useState('');
   const [swipeHinted,  setSwipeHinted]  = useState(() => localStorage.getItem('swipeHinted') === '1');
@@ -403,34 +538,20 @@ const App = ({ toggleLang, lang }) => {
   const [calYear,      setCalYear]      = useState(() => new Date().getFullYear());
   const [trendRange,   setTrendRange]   = useState(6); // 3 | 6 | 12
 
-  const curr = getCurrency(currency);
   const rate = rates[currency] ?? DEFAULT_RATES[currency] ?? 1;
-  const fmt  = (usd) => {
-    const v = usd * rate;
-    const formatted = v % 1 === 0
-      ? Math.round(v).toLocaleString('ru-RU')
-      : v.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    return `${curr.symbol}${formatted}`;
-  };
+  const fmt  = (usd) => fmtMoney(usd * rate, currency, lang);
 
-  // Удобная обёртка с текущими курсами
-  const monthly = (sub) => monthlyUSD(sub, rates);
+  // Bequeme Hülle mit den aktuellen Kursen
+  const monthly = (entry) => monthlyUSD(entry, rates);
 
-  // Реальная сумма списания: для годовых — полная, для месячных — месячная
-  const realUSD = (sub) => {
-    const p = toUSD(sub.price ?? sub.price_usd ?? sub.priceUSD ?? 0, sub.currency_code || DEFAULT_CURRENCY, rates);
-    return p; // всегда полная сумма подписки
-  };
-  const fmtReal = (sub) => fmt(sub.period === 'yearly' ? realUSD(sub) : monthly(sub));
+  // Tatsächliche Abbuchung: jährlich der volle Betrag, monatlich der Monatsbetrag
+  const realUSD = (entry) =>
+    toUSD(entry.price ?? 0, entry.currency_code || DEFAULT_CURRENCY, rates);
+  const fmtReal = (entry) => fmt(entry.period === 'yearly' ? realUSD(entry) : monthly(entry));
 
-  // Оригинальная цена подписки — всегда в той валюте, в которой добавлена
-  const fmtOriginal = (sub) => {
-    const p    = Number(sub.price ?? sub.price_usd ?? sub.priceUSD ?? 0);
-    const code = sub.currency_code || DEFAULT_CURRENCY;
-    const c    = getCurrency(code);
-    const v    = sub.period === 'yearly' ? p : p;
-    return `${c.symbol}${v % 1 === 0 ? v.toFixed(0) : v.toFixed(2)}`;
-  };
+  // Originalbetrag — immer in der Währung, in der er erfasst wurde
+  const fmtOriginal = (entry) =>
+    fmtMoney(Number(entry.price ?? 0), entry.currency_code || DEFAULT_CURRENCY, lang);
 
   const tabRefs = { home: useRef(null), calendar: useRef(null), analytics: useRef(null) };
 
@@ -446,6 +567,14 @@ const App = ({ toggleLang, lang }) => {
 
   const swipeRef = useTabSwipe(activeTab, switchTab, !isModalOpen && !isDesktop);
 
+  // ── Anzahl hinterlegter Dokumente je Eintrag ───────────────────────────────
+  const refreshDocCounts = useCallback(() => {
+    if (!documentStore.isAvailable()) return;
+    documentStore.countsByEntry().then(setDocCounts).catch(() => {});
+  }, []);
+
+  useEffect(() => { refreshDocCounts(); }, [refreshDocCounts]);
+
   // ── Клавиатура (десктоп) ───────────────────────────────────────────────────
   const searchRef = useRef(null);
   useEffect(() => {
@@ -453,13 +582,13 @@ const App = ({ toggleLang, lang }) => {
     const onKey = (e) => {
       const typing = ['INPUT', 'TEXTAREA'].includes(e.target?.tagName) || e.target?.isContentEditable;
       if (e.key === 'Escape') {
-        if (isModalOpen) { setIsModalOpen(false); setEditingSub(null); }
-        else if (confirmSub) setConfirmSub(null);
+        if (isModalOpen) { setIsModalOpen(false); setEditingEntry(null); }
+        else if (confirmEntry) setConfirmEntry(null);
         else if (typing) e.target.blur();
         return;
       }
-      if (isModalOpen || confirmSub || typing || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === 'n' || e.key === 'т') { e.preventDefault(); setEditingSub(null); setIsModalOpen(true); }
+      if (isModalOpen || confirmEntry || typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'n' || e.key === 'т') { e.preventDefault(); setEditingEntry(null); setIsModalOpen(true); }
       if (e.key === '/') { e.preventDefault(); switchTab('home'); setTimeout(() => searchRef.current?.focus(), 0); }
       if (e.key === '1') switchTab('home');
       if (e.key === '2') switchTab('calendar');
@@ -467,7 +596,7 @@ const App = ({ toggleLang, lang }) => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isDesktop, isModalOpen, confirmSub]);
+  }, [isDesktop, isModalOpen, confirmEntry]);
 
   // ── Курсы валют ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -482,18 +611,18 @@ const App = ({ toggleLang, lang }) => {
   }, [currency]);
 
   useEffect(() => {
-    if (!swipeHinted && subscriptions.length > 0) {
+    if (!swipeHinted && entries.length > 0) {
       const t = setTimeout(() => { setSwipeHinted(true); localStorage.setItem('swipeHinted', '1'); }, 3000);
       return () => clearTimeout(t);
     }
-  }, [subscriptions.length, swipeHinted]);
+  }, [entries.length, swipeHinted]);
 
   // Авто-активация пробных у которых trial_end прошёл
   const activatingRef = useRef(new Set());
   useEffect(() => {
-    if (subscriptions.length === 0) return;
+    if (entries.length === 0) return;
     const today = new Date().toISOString().split('T')[0];
-    const toActivate = subscriptions.filter(s =>
+    const toActivate = entries.filter(s =>
       s.status === 'trial' && s.trial_end && s.trial_end <= today && !activatingRef.current.has(s.id)
     );
     if (toActivate.length === 0) return;
@@ -501,7 +630,7 @@ const App = ({ toggleLang, lang }) => {
       activatingRef.current.add(s.id);
       const endDate = new Date(s.trial_end);
       const newDate = `${endDate.getDate()} ${MONTHS_SHORT[endDate.getMonth()]}`;
-      const updated = subscriptionStore.update(s.id, {
+      const updated = entryStore.update(s.id, {
         status: 'active',
         trial_end: null,
         date: newDate,
@@ -514,73 +643,68 @@ const App = ({ toggleLang, lang }) => {
         ));
       }
     });
-  }, [subscriptions]);
+  }, [entries]);
 
   // Только активные считаются в суммах (пробные и паузные = 0)
-  const activeSubs  = subscriptions.filter(s => !s.status || s.status === 'active');
-  const totalMonthlyUSD = activeSubs.reduce((a, s) => a + monthly(s), 0);
+  const activeEntries  = entries.filter(s => !s.status || s.status === 'active');
+  const totalMonthlyUSD = activeEntries.reduce((a, s) => a + monthly(s), 0);
   const totalYearlyUSD  = totalMonthlyUSD * 12;
 
-  const openAdd  = () => { setEditingSub(null); setIsModalOpen(true); };
-  const openEdit = (s) => { setEditingSub(s);   setIsModalOpen(true); };
+  const openAdd  = () => { setEditingEntry(null); setIsModalOpen(true); };
+  const openEdit = (s) => { setEditingEntry(s);   setIsModalOpen(true); };
 
-  // ── Локальное хранение подписок ────────────────────────────────────────────
+  // ── Lokale Ablage ──────────────────────────────────────────────────────────
   const handleSave = (payload) => {
-    const row = {
-      name:          payload.name,
-      price:         payload.price,
-      currency_code: payload.currencyCode,
-      date:          payload.date,
-      period:        payload.period,
-      category:      payload.category,
-      logo:          payload.logo || '',
-      status:        payload.status || 'active',
-      trial_end:     payload.trial_end || null,
-    };
+    const { id, ...row } = payload;
 
-    if (editingSub) {
-      const updated = subscriptionStore.update(editingSub.id, row);
+    if (editingEntry) {
+      const updated = entryStore.update(editingEntry.id, row);
       if (updated) {
         setSubscriptions(prev => prev.map(s =>
-          s.id === editingSub.id
+          s.id === editingEntry.id
             ? { ...updated, billingDay: extractBillingDay(updated.date) }
             : s
         ));
       }
     } else {
-      const created = subscriptionStore.create(row);
+      const created = entryStore.create({ ...row, id });
       setSubscriptions(prev => [
         ...prev,
         { ...created, billingDay: extractBillingDay(created.date) },
       ]);
     }
-    setIsModalOpen(false); setEditingSub(null);
+    refreshDocCounts();
+    setIsModalOpen(false); setEditingEntry(null);
   };
 
-  const triggerDelete = (sub) => {
-    // если висел предыдущий toast — просто закрываем его
+  const triggerDelete = (entry) => {
+    // Hing noch ein Toast — den einfach schließen
     if (toast?.timeoutId) {
       clearTimeout(toast.timeoutId);
       setToast(null);
     }
-  
-    // убираем из UI сразу
-    setSubscriptions(prev => prev.filter(s => s.id !== sub.id));
-    subscriptionStore.remove(sub.id);
-  
+
+    // Sofort aus der Liste nehmen
+    setSubscriptions(prev => prev.filter(s => s.id !== entry.id));
+    entryStore.remove(entry.id);
+
+    // Dokumente erst löschen, wenn das Rückgängig-Fenster zu ist
     const timeoutId = window.setTimeout(() => {
       setToast(null);
+      documentStore.removeAllFor(entry.id)
+        .then(refreshDocCounts)
+        .catch(() => {});
     }, 5000);
-  
-    setToast({ sub, timeoutId });
+
+    setToast({ entry, timeoutId });
   };
-  
+
   const undoDelete = () => {
     if (!toast) return;
   
     clearTimeout(toast.timeoutId);
-    const sub = toast.sub;
-    const restored = subscriptionStore.restore(sub);
+    const entry = toast.entry;
+    const restored = entryStore.restore(entry);
   
     setSubscriptions(prev => {
       const exists = prev.some(s => s.id === restored.id);
@@ -594,12 +718,31 @@ const App = ({ toggleLang, lang }) => {
     setToast(null);
   };
 
-  const soonSubs = activeSubs
+  const soonEntries = activeEntries
     .filter(s => isDueWithinDays(s, 7))
     .sort((a, b) => (a.billingDay || 99) - (b.billingDay || 99));
 
-  const sortedSubs = [...subscriptions]
-    .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+  // Kündigungsfristen der nächsten 90 Tage — inklusive bereits verstrichener
+  const deadlineEntries = entries
+    .filter(s => s.status !== 'paused')
+    .map(s => ({ entry: s, date: cancelByDate(s) }))
+    .filter(({ date }) => date !== null)
+    .map(item => ({ ...item, days: daysUntil(item.date) }))
+    .filter(({ days }) => days !== null && days <= 90)
+    .sort((a, b) => a.days - b.days);
+
+  const matchesSearch = (entry, query) => {
+    if (!query) return true;
+    const haystack = [
+      entry.name, entry.provider, entry.notes,
+      ...Object.values(entry.fields || {}),
+      ...(entry.custom || []).flatMap(field => [field.label, field.value]),
+    ].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(query);
+  };
+
+  const sortedEntries = [...entries]
+    .filter(s => matchesSearch(s, searchQuery.trim().toLowerCase()))
     .sort((a, b) => {
       if (sortBy === 'price') return monthly(b) - monthly(a);
       if (sortBy === 'date')  return (a.billingDay || 99) - (b.billingDay || 99);
@@ -611,18 +754,18 @@ const App = ({ toggleLang, lang }) => {
 
   const byCategory = CATEGORIES.map(cat => ({
     ...cat,
-    subs:  activeSubs.filter(s => s.category === cat.id),
-    total: activeSubs.filter(s => s.category === cat.id).reduce((a, s) => a + monthly(s), 0),
-  })).filter(c => c.subs.length > 0);
+    entries:  activeEntries.filter(s => s.category === cat.id),
+    total: activeEntries.filter(s => s.category === cat.id).reduce((a, s) => a + monthly(s), 0),
+  })).filter(c => c.entries.length > 0);
 
   const handleImport = (rows) => {
-    const imported = subscriptionStore.importRows(rows);
+    const imported = entryStore.importRows(rows);
     if (!imported.length) return;
     setSubscriptions(prev => [
       ...prev,
-      ...imported.map(subscription => ({
-        ...subscription,
-        billingDay: extractBillingDay(subscription.date),
+      ...imported.map(entry => ({
+        ...entry,
+        billingDay: extractBillingDay(entry.date),
       })),
     ]);
   };
@@ -633,7 +776,7 @@ const App = ({ toggleLang, lang }) => {
       <DesktopSidebar
         activeTab={activeTab} onSwitch={switchTab} onAdd={openAdd}
         lang={lang} toggleLang={toggleLang}
-        count={activeSubs.length} total={fmt(totalMonthlyUSD)}
+        count={activeEntries.length} total={fmt(totalMonthlyUSD)}
       />
 
       <div className="w-full max-w-[450px] min-h-screen border-x border-zinc-900 bg-black flex flex-col relative overflow-hidden
@@ -650,7 +793,7 @@ const App = ({ toggleLang, lang }) => {
 
               <header className="relative flex items-center justify-between px-1 pt-2 lg:hidden">
                 <SupportMenu />
-                <h1 className="absolute left-1/2 -translate-x-1/2 text-lg font-semibold tracking-tight whitespace-nowrap">CheckUrSubs</h1>
+                <h1 className="absolute left-1/2 -translate-x-1/2 text-lg font-semibold tracking-tight whitespace-nowrap">{APP_NAME}</h1>
                 <div className="flex items-center gap-2">
                   {/* Переключатель языка — тогл */}
                   <button onClick={toggleLang}
@@ -662,7 +805,7 @@ const App = ({ toggleLang, lang }) => {
                       className="absolute w-[28px] h-[22px] rounded-full bg-white shadow-sm"
                     />
                     {/* Лейблы */}
-                    <span className={`relative z-10 flex-1 text-center text-[10px] font-bold tracking-wide transition-colors ${lang === 'ru' ? 'text-black' : 'text-zinc-500'}`}>RU</span>
+                    <span className={`relative z-10 flex-1 text-center text-[10px] font-bold tracking-wide transition-colors ${lang === 'de' ? 'text-black' : 'text-zinc-500'}`}>DE</span>
                     <span className={`relative z-10 flex-1 text-center text-[10px] font-bold tracking-wide transition-colors ${lang === 'en' ? 'text-black' : 'text-zinc-500'}`}>EN</span>
                   </button>
                 </div>
@@ -685,9 +828,9 @@ const App = ({ toggleLang, lang }) => {
                 </div>
                 <div className="flex items-center justify-center flex-wrap gap-2 mt-3 lg:justify-start">
                   {(() => {
-                    const active  = subscriptions.filter(s => !s.status || s.status === 'active').length;
-                    const paused  = subscriptions.filter(s => s.status === 'paused').length;
-                    const trial   = subscriptions.filter(s => s.status === 'trial').length;
+                    const active  = entries.filter(s => !s.status || s.status === 'active').length;
+                    const paused  = entries.filter(s => s.status === 'paused').length;
+                    const trial   = entries.filter(s => s.status === 'trial').length;
                     return <>
                       <div className="inline-flex items-center gap-2 bg-green-500/10 text-green-400 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-[0.16em]">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
@@ -731,10 +874,14 @@ const App = ({ toggleLang, lang }) => {
                 </button>
               </div>
 
-              <SoonSection soonSubs={soonSubs} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
-                className="lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:self-start" />
+              <div className="space-y-5 lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:self-start lg:space-y-6">
+                <SoonSection soonEntries={soonEntries} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly} />
+                {(deadlineEntries.length > 0 || entries.length > 0) && (
+                  <DeadlinesSection deadlines={deadlineEntries} onOpen={openEdit} />
+                )}
+              </div>
 
-              {subscriptions.length === 0 ? (
+              {entries.length === 0 ? (
                 /* ── Empty state ── */
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
@@ -792,16 +939,17 @@ const App = ({ toggleLang, lang }) => {
                     )}
                   </div>
                   <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 divide-y divide-zinc-800/80 overflow-hidden">
-                    {!swipeHinted && sortedSubs.length > 0 && (
+                    {!swipeHinted && sortedEntries.length > 0 && (
                       <div className="px-4 py-2 text-[10px] text-zinc-600 text-center tracking-wide lg:hidden">
                         {t.swipe_hint}
                       </div>
                     )}
-                    {sortedSubs.map(sub => (
-                      <SubscriptionRow key={sub.id} sub={sub} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
-                        onEdit={() => openEdit(sub)} onDelete={() => setConfirmSub(sub)} />
+                    {sortedEntries.map(entry => (
+                      <EntryRow key={entry.id} entry={entry} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
+                        docCount={docCounts[entry.id] || 0}
+                        onEdit={() => openEdit(entry)} onDelete={() => setConfirmEntry(entry)} />
                     ))}
-                    {sortedSubs.length === 0 && searchQuery && (
+                    {sortedEntries.length === 0 && searchQuery && (
                       <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
                         <Search className="w-6 h-6 text-zinc-700" />
                         <p className="text-sm text-zinc-500">{t.nothing_found(searchQuery)}</p>
@@ -827,18 +975,18 @@ const App = ({ toggleLang, lang }) => {
               {(() => {
                 const now    = new Date();
                 const isPast = calYear < now.getFullYear() || (calYear === now.getFullYear() && calMonth < now.getMonth());
-                const calSubs = subscriptions.filter(sub => sub.status !== 'paused');
-                const activCalSubs = calSubs.filter(s => !s.status || s.status === 'active');
-                const calTotal = activCalSubs.reduce((a, s) => {
+                const calEntries = entries.filter(entry => entry.status !== 'paused');
+                const activeCalEntries = calEntries.filter(s => !s.status || s.status === 'active');
+                const calTotal = activeCalEntries.reduce((a, s) => {
                   if (s.period === 'yearly') {
                     const billingMonth = extractBillingMonth(s.date);
                     return billingMonth === calMonth ? a + monthly(s) * 12 : a;
                   }
                   return a + monthly(s);
                 }, 0);
-                const calYearly = activCalSubs.reduce((a, s) => a + monthly(s) * 12, 0);
+                const calYearly = activeCalEntries.reduce((a, s) => a + monthly(s) * 12, 0);
                 return (
-                  <CalendarSection subscriptions={subscriptions} fmt={fmt} fmtReal={fmtReal} monthly={monthly} month={calMonth} year={calYear}
+                  <CalendarSection entries={entries} fmt={fmt} fmtReal={fmtReal} monthly={monthly} month={calMonth} year={calYear}
                     onPrev={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y-1); } else setCalMonth(m => m-1); }}
                     onNext={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y+1); } else setCalMonth(m => m+1); }}
                     onToday={() => { setCalMonth(now.getMonth()); setCalYear(now.getFullYear()); }}
@@ -853,7 +1001,7 @@ const App = ({ toggleLang, lang }) => {
           <div ref={tabRefs.analytics} className={`absolute inset-0 overflow-y-auto no-scrollbar desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'analytics' ? 'block' : 'hidden'}`}>
             <div className="p-4 pt-6 space-y-4 lg:p-10 lg:pt-8 lg:space-y-0">
               <PageHeader title={t.analytics_title} subtitle={t.analytics_subtitle} className="lg:mb-7">
-                <ImportExportMenu subscriptions={subscriptions} onImport={handleImport} />
+                <ImportExportMenu entries={entries} onImport={handleImport} vaultState={vaultState} />
               </PageHeader>
               <header className="relative flex items-center justify-between px-1 pt-2 mb-2 lg:hidden">
                 <div className="w-10 h-10" />{/* spacer */}
@@ -863,7 +1011,7 @@ const App = ({ toggleLang, lang }) => {
                     <BarChart2 className="w-4 h-4 text-purple-300" />
                   </div>
                 </div>
-                <ImportExportMenu subscriptions={subscriptions} onImport={handleImport} />
+                <ImportExportMenu entries={entries} onImport={handleImport} vaultState={vaultState} />
               </header>
 
               {/* Сетка карточек: колонка на мобиле, 2 колонки на десктопе */}
@@ -881,7 +1029,7 @@ const App = ({ toggleLang, lang }) => {
               {/* ── Тренд расходов по месяцам ── */}
               {(() => {
                 const now = new Date();
-                const monthLabels = lang === 'ru' ? MONTHS_SHORT_RU : MONTHS_SHORT;
+                const monthLabels = t.months_short;
 
                 // Строим диапазон месяцев (trendRange штук, включая текущий)
                 const months = Array.from({ length: trendRange }, (_, i) => {
@@ -891,7 +1039,7 @@ const App = ({ toggleLang, lang }) => {
 
                 // Для каждого месяца считаем реальные списания по датам биллинга
                 const monthlyTotals = months.map(({ month, year }) => {
-                  return subscriptions.reduce((sum, s) => {
+                  return entries.reduce((sum, s) => {
                     if (s.status === 'paused') return sum;
                     if (s.status === 'trial') return sum; // пробные не списываются
 
@@ -931,7 +1079,7 @@ const App = ({ toggleLang, lang }) => {
                             className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg transition ${
                               trendRange === r ? 'bg-zinc-600 text-white' : 'text-zinc-500 hover:text-zinc-300'
                             }`}>
-                            {r}{lang === 'ru' ? 'м' : 'm'}
+                            {r}{t.trend_unit}
                           </button>
                         ))}
                       </div>
@@ -972,7 +1120,7 @@ const App = ({ toggleLang, lang }) => {
                     {/* Итог за период */}
                     <div className="flex justify-between items-center mt-3 pt-3 border-t border-zinc-800">
                       <span className="text-[10px] text-zinc-500">
-                        {lang === 'ru' ? `За ${trendRange} мес.` : `Last ${trendRange}mo`}
+                        {t.trend_last(trendRange)}
                       </span>
                       <span className="text-sm font-semibold">{fmt(totalRange)}</span>
                     </div>
@@ -994,7 +1142,7 @@ const App = ({ toggleLang, lang }) => {
                             </div>
                             <div>
                               <p className="text-sm font-medium">{t[cat.labelKey]}</p>
-                              <p className="text-[10px] text-zinc-500">{cat.subs.length}</p>
+                              <p className="text-[10px] text-zinc-500">{cat.entries.length}</p>
                             </div>
                           </div>
                           <div className="text-right shrink-0">
@@ -1014,17 +1162,17 @@ const App = ({ toggleLang, lang }) => {
               {/* По подпискам */}
               <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 p-5 space-y-4">
                 <p className="text-xs text-zinc-500 uppercase tracking-[0.16em]">{t.by_subscriptions}</p>
-                {activeSubs.length === 0 && <p className="text-sm text-zinc-500">{t.add_first_sub}</p>}
-                {[...activeSubs].sort((a, b) => monthly(b) - monthly(a)).map(sub => {
-                  const share = totalMonthlyUSD ? (monthly(sub) / totalMonthlyUSD) * 100 : 0;
+                {activeEntries.length === 0 && <p className="text-sm text-zinc-500">{t.add_first_sub}</p>}
+                {[...activeEntries].sort((a, b) => monthly(b) - monthly(a)).map(entry => {
+                  const share = totalMonthlyUSD ? (monthly(entry) / totalMonthlyUSD) * 100 : 0;
                   return (
-                    <div key={sub.id} className="space-y-1.5">
+                    <div key={entry.id} className="space-y-1.5">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <LogoIcon sub={sub} size="sm" />
+                          <LogoIcon entry={entry} size="sm" />
                           <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{sub.name}</p>
-                            <p className="text-xs text-zinc-500">{fmt(monthly(sub))} / {t.sub_per_month}</p>
+                            <p className="text-sm font-medium truncate">{entry.name}</p>
+                            <p className="text-xs text-zinc-500">{fmt(monthly(entry))} / {t.sub_per_month}</p>
                           </div>
                         </div>
                         <p className="text-sm font-semibold shrink-0">{share.toFixed(0)}<span className="text-xs text-zinc-500 ml-0.5">%</span></p>
@@ -1039,18 +1187,18 @@ const App = ({ toggleLang, lang }) => {
               </div>
               {/* Пробный период — внизу */}
               {(() => {
-                const trialSubs = subscriptions.filter(s => s.status === 'trial');
-                if (trialSubs.length === 0) return null;
+                const trialEntries = entries.filter(s => s.status === 'trial');
+                if (trialEntries.length === 0) return null;
                 return (
                   <div className="bg-[#1C1C1E] rounded-3xl border border-amber-500/20 p-5 space-y-3">
                     <p className="text-xs text-amber-400/70 uppercase tracking-[0.16em]">{t.trial_period}</p>
-                    {trialSubs.map(sub => (
-                      <div key={sub.id} className="flex items-center justify-between gap-3">
+                    {trialEntries.map(entry => (
+                      <div key={entry.id} className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <LogoIcon sub={sub} size="sm" />
+                          <LogoIcon entry={entry} size="sm" />
                           <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{sub.name}</p>
-                            {sub.trial_end && <p className="text-[10px] text-zinc-500">{fmtDateFromISO(sub.trial_end, lang, 'long')}</p>}
+                            <p className="text-sm font-medium truncate">{entry.name}</p>
+                            {entry.trial_end && <p className="text-[10px] text-zinc-500">{fmtDateFromISO(entry.trial_end, lang, t.months_short)}</p>}
                           </div>
                         </div>
                         <p className="text-sm text-zinc-500 shrink-0">—</p>
@@ -1061,16 +1209,16 @@ const App = ({ toggleLang, lang }) => {
               })()}
               {/* На паузе — внизу */}
               {(() => {
-                const pausedSubs = subscriptions.filter(s => s.status === 'paused');
-                if (pausedSubs.length === 0) return null;
+                const pausedEntries = entries.filter(s => s.status === 'paused');
+                if (pausedEntries.length === 0) return null;
                 return (
                   <div className="bg-[#1C1C1E] rounded-3xl border border-red-500/20 p-5 space-y-3">
                     <p className="text-xs text-red-400/70 uppercase tracking-[0.16em]">{t.on_pause}</p>
-                    {pausedSubs.map(sub => (
-                      <div key={sub.id} className="flex items-center justify-between gap-3">
+                    {pausedEntries.map(entry => (
+                      <div key={entry.id} className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <LogoIcon sub={sub} size="sm" />
-                          <p className="text-sm font-medium truncate">{sub.name}</p>
+                          <LogoIcon entry={entry} size="sm" />
+                          <p className="text-sm font-medium truncate">{entry.name}</p>
                         </div>
                         <p className="text-sm text-zinc-500 shrink-0">—</p>
                       </div>
@@ -1094,8 +1242,9 @@ const App = ({ toggleLang, lang }) => {
 
         <AnimatePresence>
           {isModalOpen && (
-            <SubModal key={editingSub?.id || 'new'} initial={editingSub} currency={currency}
-              onSave={handleSave} onClose={() => { setIsModalOpen(false); setEditingSub(null); }} />
+            <EntryModal key={editingEntry?.id || 'new'} initial={editingEntry} currency={currency}
+              vaultState={vaultState} onDocsChange={refreshDocCounts}
+              onSave={handleSave} onClose={() => { setIsModalOpen(false); setEditingEntry(null); }} />
           )}
         </AnimatePresence>
 
@@ -1107,7 +1256,7 @@ const App = ({ toggleLang, lang }) => {
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm">
                     <p className="font-medium text-zinc-50">{t.sub_deleted}</p>
-                    <p className="text-xs text-zinc-400 truncate">{toast.sub?.name}</p>
+                    <p className="text-xs text-zinc-400 truncate">{toast.entry?.name}</p>
                   </div>
                   <button onClick={undoDelete} className="text-xs font-semibold text-red-400 px-3 py-1.5 rounded-full bg-red-500/15 border border-red-500/40 active:scale-95 transition shrink-0">
                     {t.undo}
@@ -1122,11 +1271,11 @@ const App = ({ toggleLang, lang }) => {
                 </AnimatePresence>
 
 <AnimatePresence>
-  {confirmSub && (
+  {confirmEntry && (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center lg:items-center lg:backdrop-blur-sm"
-      onClick={() => setConfirmSub(null)}>
+      onClick={() => setConfirmEntry(null)}>
       <motion.div
         initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 400, damping: 35 }}
@@ -1137,18 +1286,18 @@ const App = ({ toggleLang, lang }) => {
             <Trash2 className="w-4 h-4 text-red-400" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-zinc-100">{t.sub_delete || 'Delete'} «{confirmSub.name}»?</p>
+            <p className="text-sm font-semibold text-zinc-100">{t.sub_delete || 'Delete'} «{confirmEntry.name}»?</p>
             <p className="text-xs text-zinc-500 mt-0.5">{t.delete_confirm_hint || 'Вы уверены?'}</p>
           </div>
         </div>
         <div className="lg:flex lg:flex-row-reverse lg:gap-3">
           <button
-            onClick={() => { triggerDelete(confirmSub); setConfirmSub(null); }}
+            onClick={() => { triggerDelete(confirmEntry); setConfirmEntry(null); }}
             className="w-full bg-red-600/90 hover:bg-red-600 text-white text-sm font-semibold py-3 rounded-2xl active:scale-[0.98] transition mb-3 lg:mb-0 lg:flex-1">
             {t.sub_delete || 'Delete'}
           </button>
           <button
-            onClick={() => setConfirmSub(null)}
+            onClick={() => setConfirmEntry(null)}
             className="w-full text-zinc-400 text-sm py-2 active:scale-[0.98] transition hover:text-zinc-200 lg:flex-1 lg:py-3 lg:rounded-2xl lg:border lg:border-zinc-700 lg:hover:bg-zinc-800">
             {t.modal_cancel || 'Cancel'}
           </button>
@@ -1294,7 +1443,7 @@ const Onboarding = ({ onDone, toggleLang, lang }) => {
               <motion.div className="absolute w-[28px] h-[22px] bg-white rounded-full shadow"
                 animate={{ x: lang === 'en' ? 32 : 0 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }} />
-              <span className={`relative z-10 flex-1 text-center text-[10px] font-bold tracking-wide transition-colors ${lang === 'ru' ? 'text-black' : 'text-zinc-500'}`}>RU</span>
+              <span className={`relative z-10 flex-1 text-center text-[10px] font-bold tracking-wide transition-colors ${lang === 'de' ? 'text-black' : 'text-zinc-500'}`}>DE</span>
               <span className={`relative z-10 flex-1 text-center text-[10px] font-bold tracking-wide transition-colors ${lang === 'en' ? 'text-black' : 'text-zinc-500'}`}>EN</span>
             </button>
           </div>
@@ -1436,7 +1585,7 @@ const Onboarding = ({ onDone, toggleLang, lang }) => {
         <div className="px-8 pb-12 space-y-3 lg:pb-10">
           <button onClick={goNext}
             className="w-full bg-white text-black font-semibold py-3.5 rounded-2xl hover:bg-zinc-200 active:scale-95 transition text-sm">
-            {isLast ? 'CheckUrSubs →' : t.onb_next}
+            {isLast ? `${APP_NAME} →` : t.onb_next}
           </button>
           {!isLast && (
             <button onClick={() => onDone(step)} className="w-full text-zinc-500 text-sm py-2 hover:text-zinc-300 transition">{t.onb_skip}</button>
@@ -1567,7 +1716,7 @@ const SupportMenu = ({ align = 'left' }) => {
 
 
 // ─── Import / Export Menu ─────────────────────────────────────────────────────
-const ImportExportMenu = ({ subscriptions, onImport }) => {
+const ImportExportMenu = ({ entries, onImport, vaultState }) => {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [importStatus, setImportStatus] = useState(null); // null | 'ok' | 'err'
@@ -1583,22 +1732,34 @@ const ImportExportMenu = ({ subscriptions, onImport }) => {
     return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler); };
   }, [open]);
 
-  // ── Экспорт ──────────────────────────────────────────────────────────────────
-  const exportCSV = () => {
-    const headers = ['name','price','currency_code','period','category','status','date','trial_end'];
-    const rows = subscriptions.map(s =>
-      headers.map(h => {
-        const v = s[h] ?? '';
-        return typeof v === 'string' && v.includes(',') ? `"${v}"` : v;
-      }).join(',')
-    );
-    const csv = [headers.join(','), ...rows].join('\n');
-    download('checkursubs-export.csv', 'text/csv', csv);
+  // ── Export ─────────────────────────────────────────────────────────────────
+  // CSV bleibt die flache Übersicht; alles Strukturierte steckt im JSON.
+  const CSV_HEADERS = [
+    'name', 'provider', 'price', 'currency_code', 'period', 'category', 'status',
+    'date', 'trial_end', 'contract_start', 'contract_end', 'notice_period_months', 'url',
+  ];
+
+  const csvCell = (value) => {
+    const text = String(value ?? '');
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
 
+  const exportCSV = () => {
+    const rows = entries.map(entry => CSV_HEADERS.map(h => csvCell(entry[h])).join(','));
+    download('gold-und-geld-export.csv', 'text/csv', [CSV_HEADERS.join(','), ...rows].join('\n'));
+  };
+
+  // Verschlüsselte Passwörter kommen mit — zusammen mit den Tresor-Metadaten
+  // lassen sie sich auf einem anderen Gerät mit demselben Master-Passwort öffnen.
   const exportJSON = () => {
-    const data = subscriptions.map(({ id, user_id, created_at, ...rest }) => rest);
-    download('checkursubs-export.json', 'application/json', JSON.stringify(data, null, 2));
+    const payload = {
+      app: APP_NAME,
+      version: 2,
+      exported_at: new Date().toISOString(),
+      vault: vault.readMeta(),
+      entries: entries.map(({ billingDay, ...rest }) => rest),
+    };
+    download('gold-und-geld-export.json', 'application/json', JSON.stringify(payload, null, 2));
   };
 
   const download = (filename, mime, content) => {
@@ -1609,34 +1770,52 @@ const ImportExportMenu = ({ subscriptions, onImport }) => {
     URL.revokeObjectURL(a.href);
   };
 
-  // ── Импорт ───────────────────────────────────────────────────────────────────
+  // ── Import ─────────────────────────────────────────────────────────────────
+  const parseCSV = (text) => {
+    const lines = text.trim().split(/\r?\n/);
+    const headers = lines[0].split(',').map(h => h.trim());
+    return lines.slice(1).map(line => {
+      const values = line.split(',');
+      return Object.fromEntries(headers.map((h, i) =>
+        [h, (values[i] ?? '').trim().replace(/^"|"$/g, '')]));
+    });
+  };
+
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
+
     const text = await file.text();
+
     try {
       let rows = [];
+
       if (file.name.endsWith('.json')) {
         const parsed = JSON.parse(text);
-        rows = Array.isArray(parsed) ? parsed : [];
+        rows = Array.isArray(parsed) ? parsed : parsed?.entries ?? [];
+
+        // Tresor übernehmen, solange lokal keiner existiert — sonst sind die
+        // mitgelieferten Passwörter mit dem hiesigen Schlüssel nicht lesbar.
+        const importedVault = Array.isArray(parsed) ? null : parsed?.vault;
+        if (importedVault && !vault.adoptMeta(importedVault) && !vault.sameVault(importedVault)) {
+          rows = rows.map(({ login_secret, ...rest }) => rest);
+        }
       } else {
-        // CSV
-        const lines = text.trim().split('\n');
-        const headers = lines[0].split(',');
-        rows = lines.slice(1).map(line => {
-          const vals = line.split(',');
-          return Object.fromEntries(headers.map((h, i) => [h.trim(), (vals[i] ?? '').trim().replace(/^"|"$/g, '')]));
-        });
+        rows = parseCSV(text);
       }
+
       if (!rows.length || !rows[0].name) throw new Error('bad format');
+
       await onImport(rows);
+      vaultState?.sync();
       setImportMsg(t.io_import_ok(rows.length));
       setImportStatus('ok');
     } catch {
       setImportMsg(t.io_import_err);
       setImportStatus('err');
     }
+
     setTimeout(() => setImportStatus(null), 3500);
   };
 
@@ -1672,6 +1851,7 @@ const ImportExportMenu = ({ subscriptions, onImport }) => {
                   JSON
                 </button>
               </div>
+              <p className="text-[10px] text-zinc-500 mt-2">{t.io_docs_note}</p>
             </div>
 
             {/* Импорт */}
@@ -1700,7 +1880,7 @@ const ImportExportMenu = ({ subscriptions, onImport }) => {
 };
 
 // ─── Календарь ─────────────────────────────────────────────────────────────────
-const CalendarSection = ({ subscriptions, fmt, fmtReal, monthly, month, year, onPrev, onNext, onToday, calTotal, calYearly, isPast, calMonth }) => {
+const CalendarSection = ({ entries, fmt, fmtReal, monthly, month, year, onPrev, onNext, onToday, calTotal, calYearly, isPast, calMonth }) => {
   const t = useT();
   const isDesktop   = useIsDesktop();
   const today       = new Date();
@@ -1708,35 +1888,35 @@ const CalendarSection = ({ subscriptions, fmt, fmtReal, monthly, month, year, on
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const offset      = (new Date(year, month, 1).getDay() + 6) % 7;
 
-  const visibleSubs = subscriptions.filter(sub => {
-    if (sub.status === 'paused') return false;
+  const visibleSubs = entries.filter(entry => {
+    if (entry.status === 'paused') return false;
     return true;
   });
 
   const subsByDay = {};
-  visibleSubs.forEach(sub => {
+  visibleSubs.forEach(entry => {
     // Пробные — отображаем на дату окончания пробного периода
-    if (sub.status === 'trial') {
-      if (!sub.trial_end) return;
-      const end = new Date(sub.trial_end);
+    if (entry.status === 'trial') {
+      if (!entry.trial_end) return;
+      const end = new Date(entry.trial_end);
       if (end.getFullYear() !== year || end.getMonth() !== month) return;
       const d = end.getDate();
       if (!subsByDay[d]) subsByDay[d] = [];
-      subsByDay[d].push(sub);
+      subsByDay[d].push(entry);
       return;
     }
 
-    const d = sub.billingDay ?? extractBillingDay(sub.date);
+    const d = entry.billingDay ?? extractBillingDay(entry.date);
     if (!d || d < 1 || d > daysInMonth) return;
 
     // Годовые — только в тот месяц когда реально списывается
-    if (sub.period === 'yearly') {
-      const billingMonth = extractBillingMonth(sub.date);
+    if (entry.period === 'yearly') {
+      const billingMonth = extractBillingMonth(entry.date);
       if (billingMonth === null || billingMonth !== month) return;
     }
 
     if (!subsByDay[d]) subsByDay[d] = [];
-    subsByDay[d].push(sub);
+    subsByDay[d].push(entry);
   });
 
   const cells = [...Array(offset).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
@@ -1838,22 +2018,22 @@ const CalendarSection = ({ subscriptions, fmt, fmtReal, monthly, month, year, on
       </div>
       {Object.keys(subsByDay).length > 0 && (
         <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 divide-y divide-zinc-800/80 overflow-hidden mt-2 lg:mt-0">
-          {Object.entries(subsByDay).sort(([a],[b]) => Number(a)-Number(b)).flatMap(([day, subs]) =>
-            subs.map(sub => (
-              <div key={sub.id} className="flex items-center justify-between px-4 py-3 gap-3">
+          {Object.entries(subsByDay).sort(([a],[b]) => Number(a)-Number(b)).flatMap(([day, entries]) =>
+            entries.map(entry => (
+              <div key={entry.id} className="flex items-center justify-between px-4 py-3 gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <LogoIcon sub={sub} size="sm" />
+                  <LogoIcon entry={entry} size="sm" />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-medium truncate">{sub.name}</p>
-                      {sub.status === 'trial' && <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.modal_status_trial.toLowerCase()}</span>}
+                      <p className="text-sm font-medium truncate">{entry.name}</p>
+                      {entry.status === 'trial' && <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.modal_status_trial.toLowerCase()}</span>}
                     </div>
-                    <p className="text-xs text-zinc-500">{day} {MONTHS_SHORT[month]}</p>
+                    <p className="text-xs text-zinc-500">{day}. {t.months_short[month]}</p>
                   </div>
                 </div>
-                {sub.status === 'trial'
+                {entry.status === 'trial'
                   ? <p className="text-xs text-zinc-500 shrink-0">{t.not_billing}</p>
-                  : <p className="text-sm font-semibold shrink-0">{fmtReal(sub)}</p>
+                  : <p className="text-sm font-semibold shrink-0">{fmtReal(entry)}</p>
                 }
               </div>
             ))
@@ -1866,24 +2046,80 @@ const CalendarSection = ({ subscriptions, fmt, fmtReal, monthly, month, year, on
 };
 
 // ─── Soon ──────────────────────────────────────────────────────────────────────
-const SoonSection = ({ soonSubs, fmtOriginal, className = '' }) => {
+const SoonSection = ({ soonEntries, fmtOriginal, className = '' }) => {
   const t = useT();
   const ref = useDragScroll();
   return (
     <section className={`space-y-3 ${className}`}>
       <SectionTitle icon={CalendarDays} label={t.soon} />
-      {soonSubs.length === 0
+      {soonEntries.length === 0
         ? <p className="text-sm text-zinc-600 px-1 lg:bg-[#1C1C1E] lg:border lg:border-zinc-800/60 lg:rounded-3xl lg:px-5 lg:py-6 lg:text-center">{t.soon_empty}</p>
         : <div ref={ref} data-no-tab-swipe
             className="flex gap-3 overflow-x-auto no-scrollbar px-1 pb-1 lg:flex-col lg:overflow-visible lg:px-0">
-            {soonSubs.map(sub => <SoonCard key={sub.id} sub={sub} fmtOriginal={fmtOriginal} />)}
+            {soonEntries.map(entry => <SoonCard key={entry.id} entry={entry} fmtOriginal={fmtOriginal} />)}
           </div>
       }
     </section>
   );
 };
 
-// ─── Компоненты ────────────────────────────────────────────────────────────────
+// ─── Kündigungsfristen ────────────────────────────────────────────────────────
+// Farbe folgt der Dringlichkeit: verstrichen · unter 30 Tagen · darüber
+const deadlineTone = (days) =>
+  days < 0  ? { text: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/30'    }
+: days <= 30 ? { text: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/30'  }
+:              { text: 'text-zinc-400',   bg: 'bg-zinc-500/10',   border: 'border-zinc-600/40'   };
+
+const deadlineText = (days, t) => {
+  if (days < 0)  return t.deadline_passed;
+  if (days === 0) return t.deadline_today;
+  if (days === 1) return t.deadline_tomorrow;
+  return t.deadline_days(days);
+};
+
+const DeadlineBadge = ({ days }) => {
+  const t = useT();
+  const tone = deadlineTone(days);
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-lg shrink-0 border ${tone.text} ${tone.bg} ${tone.border}`}>
+      <AlertTriangle className="w-2.5 h-2.5" />{deadlineText(days, t)}
+    </span>
+  );
+};
+
+const DeadlinesSection = ({ deadlines, onOpen, className = '' }) => {
+  const t    = useT();
+  const lang = useLang();
+
+  return (
+    <section className={`space-y-3 ${className}`}>
+      <SectionTitle icon={AlertTriangle} label={t.deadlines_title} />
+      {deadlines.length === 0 ? (
+        <p className="text-sm text-zinc-600 px-1 lg:bg-[#1C1C1E] lg:border lg:border-zinc-800/60 lg:rounded-3xl lg:px-5 lg:py-6 lg:text-center">
+          {t.deadlines_empty}
+        </p>
+      ) : (
+        <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 divide-y divide-zinc-800/80 overflow-hidden">
+          {deadlines.map(({ entry, date, days }) => (
+            <button key={entry.id} type="button" onClick={() => onOpen(entry)}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-800/40 transition">
+              <LogoIcon entry={entry} size="sm" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{entry.name}</p>
+                <p className="text-xs text-zinc-500 truncate">
+                  {t.deadline_until} {fmtDateFromISO(date, lang, t.months_short)}
+                </p>
+              </div>
+              <DeadlineBadge days={days} />
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
+// ─── Komponenten ──────────────────────────────────────────────────────────────
 const SectionTitle = ({ icon: Icon, label }) => (
   <div className="flex items-center gap-2 px-1">
     <Icon className="w-4 h-4 text-zinc-400" strokeWidth={2} />
@@ -1891,12 +2127,12 @@ const SectionTitle = ({ icon: Icon, label }) => (
   </div>
 );
 
-const LogoIcon = ({ sub, size = 'md' }) => {
+const LogoIcon = ({ entry, size = 'md' }) => {
   const [err, setErr] = useState(false);
   const wrap = size === 'sm' ? 'w-8 h-8' : 'w-10 h-10';
   const img  = size === 'sm' ? 'w-5 h-5' : 'w-6 h-6';
-  const LucideIcon = getLucideIcon(sub);
-  const url  = !err && !LucideIcon ? getLogoUrl(sub) : null;
+  const LucideIcon = getLucideIcon(entry);
+  const url  = !err && !LucideIcon ? getLogoUrl(entry) : null;
   return (
     <div className={`${wrap} bg-zinc-800 rounded-2xl flex items-center justify-center border border-zinc-700 overflow-hidden shrink-0`}>
       {LucideIcon
@@ -1923,21 +2159,21 @@ const CategoryBadge = ({ cat, tiny = false }) => {
   );
 };
 
-const SoonCard = ({ sub, fmtOriginal }) => {
+const SoonCard = ({ entry, fmtOriginal }) => {
   const t    = useT();
   const lang = useLang();
-  const cat  = sub.category ? getCat(sub.category) : null;
+  const cat  = entry.category ? getCat(entry.category) : null;
 
   // Считаем сколько дней до списания
   const daysLeft = (() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     let target;
-    if (sub.status === 'trial' && sub.trial_end) {
-      target = new Date(sub.trial_end);
+    if (entry.status === 'trial' && entry.trial_end) {
+      target = new Date(entry.trial_end);
       target.setHours(0, 0, 0, 0);
     } else {
-      const day = sub.billingDay ?? extractBillingDay(sub.date);
+      const day = entry.billingDay ?? extractBillingDay(entry.date);
       if (!day) return null;
       target = new Date(today.getFullYear(), today.getMonth(), day);
       if (target < today) target.setMonth(target.getMonth() + 1);
@@ -1947,26 +2183,26 @@ const SoonCard = ({ sub, fmtOriginal }) => {
 
   const daysLabel = (() => {
     if (daysLeft === null) return null;
-    if (daysLeft === 0) return lang === 'ru' ? 'сегодня' : 'today';
-    if (daysLeft === 1) return lang === 'ru' ? 'завтра'  : 'tomorrow';
-    return lang === 'ru' ? `через ${daysLeft} дн.` : `in ${daysLeft}d`;
+    if (daysLeft === 0) return t.deadline_today;
+    if (daysLeft === 1) return t.deadline_tomorrow;
+    return lang === 'de' ? `in ${daysLeft} T.` : `in ${daysLeft}d`;
   })();
 
   return (
     <div className="w-[168px] bg-[#1C1C1E] rounded-[28px] p-5 border border-zinc-800 active:scale-[0.97] transition shrink-0 flex flex-col
       lg:w-full lg:flex-row lg:items-center lg:gap-3 lg:rounded-2xl lg:p-4 lg:active:scale-100 lg:hover:border-zinc-700">
       <div className="flex justify-between items-start mb-4 lg:mb-0 lg:contents">
-        <LogoIcon sub={sub} size="md" />
+        <LogoIcon entry={entry} size="md" />
         <span className={`text-[10px] font-bold px-2 py-1 rounded-xl border shrink-0 ml-2 lg:order-last lg:ml-0 ${
           daysLeft === 0 ? 'text-red-400 bg-red-500/15 border-red-500/30' :
           daysLeft === 1 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30' :
           'text-white bg-zinc-800 border-zinc-700'
-        }`}>{daysLabel ?? sub.date}</span>
+        }`}>{daysLabel ?? entry.date}</span>
       </div>
       <div className="lg:min-w-0 lg:flex-1">
-        <p className="font-semibold text-sm leading-snug mb-2 flex-1 lg:mb-0" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{sub.name}</p>
+        <p className="font-semibold text-sm leading-snug mb-2 flex-1 lg:mb-0" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{entry.name}</p>
         <div className="flex items-center justify-between gap-1 lg:justify-start lg:gap-2 lg:mt-0.5">
-          <p className="text-zinc-400 text-xs truncate">{fmtOriginal(sub)}</p>
+          <p className="text-zinc-400 text-xs truncate">{fmtOriginal(entry)}</p>
           {cat && <CategoryBadge cat={cat} tiny />}
         </div>
       </div>
@@ -1974,11 +2210,13 @@ const SoonCard = ({ sub, fmtOriginal }) => {
   );
 };
 
-const SubscriptionRow = ({ sub, fmt, fmtOriginal, monthly, onEdit, onDelete }) => {
+const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onEdit, onDelete, docCount = 0 }) => {
   const t    = useT();
   const lang = useLang();
   const isDesktop = useIsDesktop();
-  const cat = sub.category ? getCat(sub.category) : null;
+  const cat = entry.category ? getCat(entry.category) : null;
+  const deadlineDays = daysUntil(cancelByDate(entry));
+  const deadlineSoon = deadlineDays !== null && deadlineDays <= 60;
   const x = useMotionValue(0);
   const startRef = useRef(null);
   const isVertical = useRef(false);
@@ -2009,28 +2247,36 @@ const SubscriptionRow = ({ sub, fmt, fmtOriginal, monthly, onEdit, onDelete }) =
   // ── Десктоп: клик по строке — редактирование, действия по наведению ──
   if (isDesktop) {
     const meta = [
-      sub.date && sub.date !== '—' ? sub.date : null,
-      sub.status === 'trial' && sub.trial_end ? fmtDateFromISO(sub.trial_end, lang) : null,
-      sub.period === 'yearly' ? `≈ ${fmt(monthly(sub))} / ${t.sub_per_month}` : null,
+      entry.provider || null,
+      fmtBillingDate(entry.date, t, lang),
+      entry.status === 'trial' && entry.trial_end ? fmtDateFromISO(entry.trial_end, lang, t.months_short) : null,
+      entry.period === 'yearly' ? `≈ ${fmt(monthly(entry))} / ${t.sub_per_month}` : null,
     ].filter(Boolean).join(' · ');
 
     return (
       <div onClick={onEdit}
         className="group flex items-center gap-4 px-5 py-3.5 bg-[#1C1C1E] hover:bg-zinc-800/40 transition cursor-pointer">
-        <LogoIcon sub={sub} size="md" />
+        <LogoIcon entry={entry} size="md" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium truncate">{sub.name}</p>
+            <p className="text-sm font-medium truncate">{entry.name}</p>
             {cat && <CategoryBadge cat={cat} tiny />}
-            {sub.status === 'paused' && <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 border border-red-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_paused}</span>}
-            {sub.status === 'trial'  && <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_trial}</span>}
+            {entry.status === 'paused' && <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 border border-red-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_paused}</span>}
+            {entry.status === 'trial'  && <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_trial}</span>}
+            {deadlineSoon && <DeadlineBadge days={deadlineDays} />}
+            {docCount > 0 && (
+              <span title={t.docs_count(docCount)}
+                className="inline-flex items-center gap-1 text-[10px] font-semibold text-zinc-400 bg-zinc-500/10 border border-zinc-600/40 px-1.5 py-0.5 rounded-lg shrink-0">
+                <Paperclip className="w-2.5 h-2.5" />{docCount}
+              </span>
+            )}
           </div>
           <p className="text-xs text-zinc-500 truncate mt-0.5">{meta}</p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-sm font-semibold">{fmtOriginal(sub)}</p>
+          <p className="text-sm font-semibold">{fmtOriginal(entry)}</p>
           <p className="text-[10px] text-zinc-500 uppercase tracking-wide">
-            / {sub.period === 'yearly' ? t.sub_per_year : t.sub_per_month}
+            / {entry.period === 'yearly' ? t.sub_per_year : t.sub_per_month}
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition">
@@ -2078,18 +2324,24 @@ const SubscriptionRow = ({ sub, fmt, fmtOriginal, monthly, onEdit, onDelete }) =
           axisLocked.current = false;
         }}
         className={`relative flex items-center px-4 py-3 gap-3 bg-[#1C1C1E]`}>
-        <LogoIcon sub={sub} size="sm" />
+        <LogoIcon entry={entry} size="sm" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium truncate">{sub.name}</p>
+            <p className="text-sm font-medium truncate">{entry.name}</p>
             {cat && <CategoryBadge cat={cat} tiny />}
-            {sub.status === 'paused' && <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 border border-red-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_paused}</span>}
-            {sub.status === 'trial'  && <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_trial}</span>}
+            {entry.status === 'paused' && <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 border border-red-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_paused}</span>}
+            {entry.status === 'trial'  && <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_trial}</span>}
+            {deadlineSoon && <DeadlineBadge days={deadlineDays} />}
+            {docCount > 0 && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-zinc-400 bg-zinc-500/10 border border-zinc-600/40 px-1.5 py-0.5 rounded-lg shrink-0">
+                <Paperclip className="w-2.5 h-2.5" />{docCount}
+              </span>
+            )}
           </div>
           <p className="text-xs text-zinc-500 truncate">
-            {fmtOriginal(sub)} / {sub.period === 'yearly' ? t.sub_per_year : t.sub_per_month}
-            {sub.date && sub.date !== '—' && ` · ${sub.date}`}
-            {sub.status === 'trial' && sub.trial_end && ` · ${fmtDateFromISO(sub.trial_end, lang)}`}
+            {fmtOriginal(entry)} / {entry.period === 'yearly' ? t.sub_per_year : t.sub_per_month}
+            {fmtBillingDate(entry.date, t, lang) && ` · ${fmtBillingDate(entry.date, t, lang)}`}
+            {entry.status === 'trial' && entry.trial_end && ` · ${fmtDateFromISO(entry.trial_end, lang, t.months_short)}`}
           </p>
         </div>
       </motion.div>
@@ -2172,7 +2424,7 @@ const DatePicker = ({ value, onChange, label }) => {
         <span className="text-xs text-amber-400 font-medium">{label}</span>
         <span className="ml-auto text-sm">
           {parsed
-            ? <span className="text-zinc-200">{fmtDateFromISO(value, lang, 'long')}</span>
+            ? <span className="text-zinc-200">{fmtDateFromISO(value, lang, t.months_short)}</span>
             : <span className="text-zinc-600">{t.datepicker_choose}</span>}
         </span>
       </div>
@@ -2224,63 +2476,565 @@ const DatePicker = ({ value, onChange, label }) => {
   );
 };
 
-const SubModal = ({ initial, currency, onSave, onClose }) => {
+// ─── Formular-Bausteine ───────────────────────────────────────────────────────
+const INPUT_CLASS = 'w-full bg-black border border-zinc-800 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-zinc-500 transition placeholder:text-zinc-600';
+
+const FieldShell = ({ label, hint, children }) => (
+  <label className="block space-y-1.5">
+    <span className="block text-[11px] text-zinc-500 px-1">{label}</span>
+    {children}
+    {hint && <span className="block text-[10px] text-zinc-600 px-1">{hint}</span>}
+  </label>
+);
+
+const SelectInput = ({ value, onChange, placeholder, options }) => (
+  <div className="relative">
+    <select value={value} onChange={e => onChange(e.target.value)}
+      className={`${INPUT_CLASS} appearance-none pr-10 ${value ? 'text-white' : 'text-zinc-600'}`}>
+      <option value="">{placeholder}</option>
+      {options.map(option => (
+        <option key={option.value} value={option.value} className="text-white">{option.label}</option>
+      ))}
+    </select>
+    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+  </div>
+);
+
+// Passwortartige Eingabe mit Aufdecken und Kopieren
+const SecretInput = ({ value, onChange, placeholder, disabled = false, readOnly = false }) => {
+  const t = useT();
+  const [revealed, setRevealed] = useState(false);
+  const [copied,   setCopied]   = useState(false);
+
+  const copy = () => {
+    if (!value) return;
+    navigator.clipboard?.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    }).catch(() => {});
+  };
+
+  return (
+    <div className="relative">
+      <input
+        type={revealed ? 'text' : 'password'}
+        autoComplete="new-password"
+        className={`${INPUT_CLASS} pr-20 ${disabled ? 'opacity-50' : ''}`}
+        placeholder={placeholder}
+        value={value}
+        disabled={disabled}
+        readOnly={readOnly}
+        onChange={e => onChange(e.target.value)}
+      />
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+        <button type="button" onClick={() => setRevealed(v => !v)} disabled={disabled}
+          title={revealed ? t.access_hide : t.access_show}
+          className="w-8 h-8 flex items-center justify-center rounded-xl text-zinc-500 hover:text-zinc-200 transition disabled:opacity-40">
+          {revealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+        </button>
+        <button type="button" onClick={copy} disabled={disabled || !value} title={t.access_copy}
+          className={`w-8 h-8 flex items-center justify-center rounded-xl transition disabled:opacity-40 ${copied ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-200'}`}>
+          {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Ein Feld aus der Kategorievorlage
+const TemplateField = ({ field, value, onChange }) => {
+  const lang = useLang();
+  const t    = useT();
+  const text = fieldLabel(field, lang);
+
+  if (field.type === 'select') {
+    return (
+      <FieldShell label={text}>
+        <SelectInput
+          value={value} onChange={onChange}
+          placeholder="—"
+          options={field.options.map(option => ({ value: option.value, label: optionLabel(option, lang) }))}
+        />
+      </FieldShell>
+    );
+  }
+
+  if (field.type === 'textarea') {
+    return (
+      <FieldShell label={text}>
+        <textarea rows={2} className={`${INPUT_CLASS} resize-none`} value={value}
+          placeholder={field.placeholder || ''} onChange={e => onChange(e.target.value)} />
+      </FieldShell>
+    );
+  }
+
+  if (field.type === 'secret') {
+    return (
+      <FieldShell label={text}>
+        <SecretInput value={value} onChange={onChange} placeholder={field.placeholder || ''} />
+      </FieldShell>
+    );
+  }
+
+  const inputType =
+    field.type === 'number' || field.type === 'money' ? 'number'
+    : field.type === 'date' ? 'date'
+    : field.type === 'tel'  ? 'tel'
+    : field.type === 'url'  ? 'url'
+    : 'text';
+
+  return (
+    <FieldShell label={field.unit ? `${text} (${field.unit})` : text}>
+      <input
+        type={inputType}
+        inputMode={inputType === 'number' ? 'decimal' : undefined}
+        className={`${INPUT_CLASS} ${inputType === 'date' ? '[color-scheme:dark]' : ''}`}
+        placeholder={field.placeholder || (field.type === 'money' ? t.modal_price_placeholder : '')}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+      />
+    </FieldShell>
+  );
+};
+
+// Frei definierbare Felder
+const CustomFields = ({ custom, onChange }) => {
+  const t = useT();
+
+  const update = (id, patch) =>
+    onChange(custom.map(field => field.id === id ? { ...field, ...patch } : field));
+
+  const add = () =>
+    onChange([...custom, { id: newId(), label: '', value: '', type: 'text' }]);
+
+  const remove = (id) => onChange(custom.filter(field => field.id !== id));
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500 px-1">{t.custom_fields}</p>
+
+      {custom.map(field => (
+        <div key={field.id} className="rounded-2xl border border-zinc-800 bg-black/40 p-3 space-y-2">
+          <div className="flex gap-2">
+            <input className={`${INPUT_CLASS} flex-1`} placeholder={t.custom_label}
+              value={field.label} onChange={e => update(field.id, { label: e.target.value })} />
+            <div className="w-[128px] shrink-0">
+              <SelectInput
+                value={field.type}
+                onChange={type => update(field.id, { type })}
+                placeholder={t.type_text}
+                options={CUSTOM_FIELD_TYPES.map(type => ({ value: type, label: t[`type_${type}`] }))}
+              />
+            </div>
+            <button type="button" onClick={() => remove(field.id)} title={t.custom_remove}
+              className="w-11 shrink-0 rounded-2xl border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-red-400 hover:border-red-500/40 transition">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {field.type === 'secret' ? (
+            <SecretInput value={field.value} placeholder={t.custom_value}
+              onChange={value => update(field.id, { value })} />
+          ) : field.type === 'textarea' ? (
+            <textarea rows={2} className={`${INPUT_CLASS} resize-none`} placeholder={t.custom_value}
+              value={field.value} onChange={e => update(field.id, { value: e.target.value })} />
+          ) : (
+            <input
+              type={field.type === 'number' || field.type === 'money' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+              className={`${INPUT_CLASS} ${field.type === 'date' ? '[color-scheme:dark]' : ''}`}
+              placeholder={t.custom_value}
+              value={field.value}
+              onChange={e => update(field.id, { value: e.target.value })}
+            />
+          )}
+        </div>
+      ))}
+
+      <button type="button" onClick={add}
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-dashed border-zinc-700 text-xs font-semibold text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition">
+        <Plus className="w-3.5 h-3.5" />{t.custom_add}
+      </button>
+    </div>
+  );
+};
+
+// ─── Tresor: Anlegen, Entsperren, Sperren ─────────────────────────────────────
+const VaultPanel = ({ vaultState }) => {
+  const t = useT();
+  const [passphrase, setPassphrase] = useState('');
+  const [repeat,     setRepeat]     = useState('');
+  const [error,      setError]      = useState('');
+  const [busy,       setBusy]       = useState(false);
+
+  if (!vaultState.available) {
+    return (
+      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex gap-3">
+        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+        <p className="text-xs text-amber-200/90 leading-relaxed">{t.vault_unavailable}</p>
+      </div>
+    );
+  }
+
+  if (vaultState.unlocked) {
+    return (
+      <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+        <KeyRound className="w-4 h-4 text-emerald-400 shrink-0" />
+        <p className="text-xs text-emerald-200/90 flex-1">{t.vault_title}</p>
+        <button type="button" onClick={vaultState.lock}
+          className="text-[11px] font-semibold text-emerald-300 border border-emerald-500/40 rounded-xl px-2.5 py-1 hover:bg-emerald-500/15 transition">
+          {t.vault_lock}
+        </button>
+      </div>
+    );
+  }
+
+  const submit = async () => {
+    setError('');
+    if (passphrase.length < 8) { setError(t.vault_too_short); return; }
+    if (!vaultState.configured && passphrase !== repeat) { setError(t.vault_mismatch); return; }
+
+    setBusy(true);
+    try {
+      if (vaultState.configured) {
+        const ok = await vaultState.unlock(passphrase);
+        if (!ok) setError(t.vault_wrong);
+      } else {
+        await vaultState.create(passphrase);
+      }
+      setPassphrase(''); setRepeat('');
+    } catch {
+      setError(t.vault_wrong);
+    }
+    setBusy(false);
+  };
+
+  const resetVault = () => {
+    if (!window.confirm(t.vault_reset_confirm)) return;
+    vaultState.reset();
+    setPassphrase(''); setRepeat(''); setError('');
+  };
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Lock className="w-3.5 h-3.5 text-zinc-400" />
+        <p className="text-xs font-semibold text-zinc-200">
+          {vaultState.configured ? t.vault_locked : t.vault_title}
+        </p>
+      </div>
+
+      <p className="text-[11px] text-zinc-500 leading-relaxed">
+        {vaultState.configured ? t.vault_locked_hint : t.vault_intro}
+      </p>
+
+      <input type="password" autoComplete="current-password" className={INPUT_CLASS}
+        placeholder={t.vault_passphrase} value={passphrase}
+        onChange={e => setPassphrase(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && submit()} />
+
+      {!vaultState.configured && (
+        <>
+          <input type="password" autoComplete="new-password" className={INPUT_CLASS}
+            placeholder={t.vault_repeat} value={repeat}
+            onChange={e => setRepeat(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && submit()} />
+          <div className="flex gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-amber-200/90 leading-relaxed">{t.vault_warning}</p>
+          </div>
+        </>
+      )}
+
+      {error && <p className="text-[11px] text-red-400 px-1">{error}</p>}
+
+      <button type="button" onClick={submit} disabled={busy || !passphrase}
+        className="w-full bg-white text-black text-sm font-semibold py-2.5 rounded-2xl hover:bg-zinc-200 active:scale-[0.98] transition disabled:opacity-40">
+        {vaultState.configured ? t.vault_unlock : t.vault_create}
+      </button>
+
+      {vaultState.configured && (
+        <button type="button" onClick={resetVault}
+          className="w-full text-[11px] text-zinc-600 hover:text-red-400 transition py-1">
+          {t.vault_reset} · {t.vault_reset_hint}
+        </button>
+      )}
+    </div>
+  );
+};
+
+// ─── Dokumente eines Eintrags ─────────────────────────────────────────────────
+const DocumentsPanel = ({ entryId, onChange }) => {
+  const t    = useT();
+  const lang = useLang();
+  const [documents, setDocuments] = useState([]);
+  const [error, setError] = useState('');
+  const [busy,  setBusy]  = useState(false);
+  const fileRef = useRef(null);
+  const available = documentStore.isAvailable();
+
+  const reload = useCallback(() => {
+    if (!available) return;
+    documentStore.listFor(entryId).then(setDocuments).catch(() => {});
+  }, [entryId, available]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const handleFiles = async (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length) return;
+
+    setBusy(true);
+    setError('');
+
+    for (const file of files) {
+      try {
+        await documentStore.add(entryId, file);
+      } catch (err) {
+        setError(err.message === 'too-large'
+          ? t.docs_too_large(Math.round(documentStore.MAX_FILE_BYTES / 1024 / 1024))
+          : t.docs_error);
+      }
+    }
+
+    setBusy(false);
+    reload();
+    onChange?.();
+  };
+
+  const removeDocument = async (id) => {
+    await documentStore.remove(id);
+    reload();
+    onChange?.();
+  };
+
+  if (!available) {
+    return (
+      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex gap-3">
+        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+        <p className="text-xs text-amber-200/90">{t.docs_unavailable}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[11px] text-zinc-500 px-1">{t.docs_hint}</p>
+
+      {documents.length === 0 ? (
+        <p className="text-sm text-zinc-600 text-center py-6">{t.docs_empty}</p>
+      ) : (
+        <div className="rounded-2xl border border-zinc-800 divide-y divide-zinc-800 overflow-hidden">
+          {documents.map(document => (
+            <div key={document.id} className="flex items-center gap-3 px-3 py-2.5 bg-black/40">
+              <FileText className="w-4 h-4 text-zinc-500 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium truncate">{document.name}</p>
+                <p className="text-[10px] text-zinc-600">
+                  {documentStore.formatSize(document.size)} · {fmtDateFromISO(document.addedAt, lang, t.months_short)}
+                </p>
+              </div>
+              <button type="button" title={t.docs_open}
+                onClick={() => documentStore.openDocument(document.id)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 hover:text-sky-400 transition">
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+              <button type="button" title={t.docs_download}
+                onClick={() => documentStore.openDocument(document.id, { download: true })}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 hover:text-emerald-400 transition">
+                <Download className="w-3.5 h-3.5" />
+              </button>
+              <button type="button" title={t.docs_delete}
+                onClick={() => removeDocument(document.id)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 hover:text-red-400 transition">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && <p className="text-[11px] text-red-400 px-1">{error}</p>}
+
+      <button type="button" onClick={() => fileRef.current?.click()} disabled={busy}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-zinc-700 text-xs font-semibold text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition disabled:opacity-40">
+        <Upload className="w-3.5 h-3.5" />{t.docs_add}
+      </button>
+      <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFiles} />
+    </div>
+  );
+};
+
+// ─── Eintrag anlegen / bearbeiten ─────────────────────────────────────────────
+const MODAL_TABS = [
+  { id: 'basics',  labelKey: 'tab_basics',  icon: Wallet },
+  { id: 'details', labelKey: 'tab_details', icon: ClipboardList },
+  { id: 'access',  labelKey: 'tab_access',  icon: KeyRound },
+  { id: 'docs',    labelKey: 'tab_docs',    icon: Paperclip },
+];
+
+const NOTICE_OPTIONS = [1, 2, 3, 6, 12];
+
+const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChange }) => {
   const t    = useT();
   const lang = useLang();
   const isDesktop = useIsDesktop();
-  // Валюта модалки: при редактировании — оригинальная валюта подписки, при добавлении — текущая глобальная
+
+  // Dokumente hängen an einer ID — neue Einträge brauchen sie schon vor dem Speichern
+  const [entryId] = useState(() => initial?.id || newId());
+
+  const [tab, setTab] = useState('basics');
+
+  // Währung: beim Bearbeiten die des Eintrags, beim Anlegen die aktuelle Anzeigewährung
   const [modalCurrency, setModalCurrency] = useState(initial?.currency_code || currency);
   const curr = getCurrency(modalCurrency);
 
   const [name,     setName]     = useState(initial?.name     || '');
-  const [price,    setPrice]    = useState(initial ? String(initial.price ?? initial.price_usd ?? '') : '');
-  const [period,    setPeriod]   = useState(initial?.period   || 'monthly');
-  const [category,  setCategory] = useState(initial?.category || '');
-  const [status,    setStatus]   = useState(initial?.status   || 'active');
-  const [trialEnd,  setTrialEnd] = useState(initial?.trial_end || '');
+  const [provider, setProvider] = useState(initial?.provider || '');
+  const [price,    setPrice]    = useState(initial ? String(initial.price ?? '') : '');
+  const [period,   setPeriod]   = useState(initial?.period   || 'monthly');
+  const [category, setCategory] = useState(initial?.category || '');
+  const [status,   setStatus]   = useState(initial?.status   || 'active');
+  const [trialEnd, setTrialEnd] = useState(initial?.trial_end || '');
+  const [notes,    setNotes]    = useState(initial?.notes    || '');
   const [day,      setDay]      = useState(() => { const d = extractBillingDay(initial?.date); return d ? String(d) : ''; });
-  const [month,    setMonth]    = useState(() => { if (!initial?.date) return ''; return String(initial.date).trim().split(' ')[1] || ''; });
+  const [month,    setMonth]    = useState(() => String(initial?.date || '').trim().split(' ')[1] || '');
+
+  const [contractStart, setContractStart] = useState(initial?.contract_start || '');
+  const [contractEnd,   setContractEnd]   = useState(initial?.contract_end   || '');
+  const [noticeMonths,  setNoticeMonths]  = useState(
+    initial?.notice_period_months ? String(initial.notice_period_months) : '');
+  const [autoRenew,     setAutoRenew]     = useState(initial?.auto_renew !== false);
+
+  const [fields, setFields] = useState(() => ({ ...(initial?.fields || {}) }));
+  const [custom, setCustom] = useState(() => (initial?.custom || []).map(field => ({ ...field })));
+
+  const [url,       setUrl]       = useState(initial?.url            || '');
+  const [username,  setUsername]  = useState(initial?.login_username || '');
+  const [loginNote, setLoginNote] = useState(initial?.login_note     || '');
+  const [secret,        setSecret]        = useState('');
+  const [secretTouched, setSecretTouched] = useState(false);
+  const [secretError,   setSecretError]   = useState('');
+
   const [suggestions,     setSuggestions]     = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [dayError, setDayError] = useState(false);
+  const [saving,   setSaving]   = useState(false);
   const justApplied = useRef(false);
-  const priceRef = useRef(null);
+  const priceRef    = useRef(null);
 
-  // Автосаджест
+  // Gespeichertes Passwort entschlüsseln, sobald der Tresor offen ist
+  useEffect(() => {
+    if (!initial?.login_secret || !vaultState.unlocked || secretTouched) return;
+
+    let cancelled = false;
+    vaultState.decrypt(initial.login_secret)
+      .then(value => { if (!cancelled) setSecret(value); })
+      .catch(() => { if (!cancelled) setSecretError(t.vault_decrypt_err); });
+
+    return () => { cancelled = true; };
+  }, [vaultState, initial?.login_secret, secretTouched, t.vault_decrypt_err]);
+
+  // Autovervollständigung aus dem Anbieterkatalog
   useEffect(() => {
     if (justApplied.current) { justApplied.current = false; return; }
     const q = name.trim().toLowerCase();
     if (q.length < 1) { setSuggestions([]); setShowSuggestions(false); return; }
+
     const matches = SERVICE_CATALOG.filter(s =>
       s.name.toLowerCase().includes(q) ||
       (s.aliases || []).some(a => a.toLowerCase().includes(q))
     ).slice(0, 5);
+
     setSuggestions(matches);
     setShowSuggestions(matches.length > 0 && !initial);
-  }, [name]);
+  }, [name, initial]);
 
   const applySuggestion = (service) => {
     justApplied.current = true;
     setName(service.name);
     setCategory(service.category);
+    if (!provider) setProvider(service.name);
     setShowSuggestions(false);
     setSuggestions([]);
     setTimeout(() => priceRef.current?.focus(), 50);
   };
 
-  const canSave = name.trim() && price !== '' && (period !== 'yearly' || (day && month));
+  const setField = (id, value) => setFields(prev => ({ ...prev, [id]: value }));
 
-  const handleSubmit = () => {
+  const canSave = Boolean(name.trim()) && !saving;
+
+  const handleSubmit = async () => {
     if (!canSave) return;
+
     const dayNum = Number(day);
     if (day && (dayNum < 1 || dayNum > 31)) {
+      setTab('basics');
       setDayError(true);
       setTimeout(() => setDayError(false), 600);
       return;
     }
-    const dateStr = day && month ? `${day} ${month}` : day || '—';
-    onSave({ name: name.trim(), price: Number(price), currencyCode: modalCurrency, period, category, date: dateStr, logo: initial?.logo || '', status, trial_end: status === 'trial' && trialEnd ? trialEnd : null });
+
+    // Passwort nur neu verschlüsseln, wenn es angefasst wurde
+    let loginSecret = initial?.login_secret || '';
+    if (secretTouched) {
+      if (!secret) {
+        loginSecret = '';
+      } else if (vaultState.unlocked) {
+        setSaving(true);
+        try {
+          loginSecret = await vaultState.encrypt(secret);
+        } catch {
+          setSaving(false);
+          setTab('access');
+          setSecretError(t.vault_locked);
+          return;
+        }
+        setSaving(false);
+      } else {
+        setTab('access');
+        setSecretError(t.vault_locked_hint);
+        return;
+      }
+    }
+
+    onSave({
+      id:            entryId,
+      name:          name.trim(),
+      provider:      provider.trim(),
+      price:         price === '' ? 0 : Number(price),
+      currency_code: modalCurrency,
+      date:          day && month ? `${day} ${month}` : day || '—',
+      period,
+      category,
+      logo:          initial?.logo || '',
+      status,
+      trial_end:     status === 'trial' && trialEnd ? trialEnd : null,
+
+      contract_start:       contractStart || null,
+      contract_end:         contractEnd   || null,
+      notice_period_months: noticeMonths ? Number(noticeMonths) : null,
+      auto_renew:           autoRenew,
+
+      url:            url.trim(),
+      login_username: username.trim(),
+      login_secret:   loginSecret,
+      login_note:     loginNote,
+
+      fields,
+      custom,
+      notes,
+    });
   };
+
+  const cancelBy = cancelByDate({
+    contract_end: contractEnd,
+    notice_period_months: noticeMonths ? Number(noticeMonths) : null,
+    auto_renew: autoRenew,
+  });
+
+  const templateFields = templateFor(category);
+  const catalogEntry   = getCatalogEntry(initial?.name) || getCatalogEntry(name);
 
   return (
     <>
@@ -2292,165 +3046,288 @@ const SubModal = ({ initial, currency, onSave, onClose }) => {
         exit={isDesktop    ? { opacity: 0, scale: 0.96, y: 12 } : { y: '100%', opacity: 0 }}
         transition={isDesktop ? { duration: 0.16, ease: 'easeOut' } : { type: 'spring', damping: 26, stiffness: 220 }}
         className={isDesktop
-          ? 'fixed inset-0 m-auto h-fit w-[640px] max-h-[88vh] overflow-y-auto no-scrollbar bg-zinc-900 rounded-[32px] p-8 z-50 border border-zinc-800 shadow-2xl'
-          : 'fixed bottom-4 left-4 right-4 bg-zinc-900 rounded-[36px] p-7 z-50 border border-zinc-800 max-w-[450px] mx-auto shadow-2xl'}>
+          ? 'fixed inset-0 m-auto h-fit w-[680px] max-h-[88vh] overflow-y-auto no-scrollbar bg-zinc-900 rounded-[32px] p-8 z-50 border border-zinc-800 shadow-2xl'
+          : 'fixed inset-x-4 bottom-4 top-16 overflow-y-auto no-scrollbar bg-zinc-900 rounded-[36px] p-6 z-50 border border-zinc-800 max-w-[450px] mx-auto shadow-2xl'}>
 
-        <h2 className="text-xl font-semibold mb-5 text-center lg:text-left lg:text-2xl lg:mb-6">{initial ? t.modal_edit : t.modal_new}</h2>
+        <h2 className="text-xl font-semibold mb-4 text-center lg:text-left lg:text-2xl">
+          {initial ? t.modal_edit : t.modal_new}
+        </h2>
 
-        <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
-          {/* Название + саджест */}
-          <div className="relative lg:col-span-2">
-            <input placeholder={t.modal_name_placeholder}
-              className="w-full bg-black border border-zinc-800 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-zinc-500 transition"
-              value={name} onChange={e => setName(e.target.value)}
-              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-            />
-            <AnimatePresence>
-              {showSuggestions && (
-                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.12 }}
-                  className="absolute top-full mt-1 left-0 right-0 bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden z-50 shadow-2xl">
-                  {suggestions.map(s => {
-                    const cat = getCat(s.category);
-                    const Icon = cat?.icon || Zap;
-                    const SvcIcon = s.lucideIcon || null;
-                    return (
-                      <button key={s.name} type="button"
-                        onMouseDown={e => { e.preventDefault(); applySuggestion(s); }}
-                        onTouchEnd={e => { e.preventDefault(); applySuggestion(s); }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800 transition text-left">
-                        {SvcIcon
-                          ? <SvcIcon className="w-5 h-5 text-zinc-400" />
-                          : <img src={`https://www.google.com/s2/favicons?sz=32&domain=${s.domain}`}
-                              className="w-5 h-5 rounded object-contain" alt=""
-                              onError={e => { e.target.style.display='none'; }} />
-                        }
-                        <span className="text-sm flex-1">{s.name}</span>
-                        {cat && (
-                          <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg ${cat.bg} border ${cat.border}`}>
-                            <Icon className={`w-2.5 h-2.5 ${cat.color}`} />
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+        {/* Reiter */}
+        <div className="flex gap-1 p-1 rounded-2xl bg-black/50 border border-zinc-800 mb-5">
+          {MODAL_TABS.map(({ id, labelKey, icon: Icon }) => (
+            <button key={id} type="button" onClick={() => setTab(id)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-semibold transition ${
+                tab === id ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
+              }`}>
+              <Icon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{t[labelKey]}</span>
+            </button>
+          ))}
+        </div>
 
-          {/* Цена + валюта */}
-          <div className="flex gap-2 lg:col-span-1">
-            <div className="relative flex-1">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">{curr.symbol}</span>
-              <input ref={priceRef} type="number" inputMode="decimal" placeholder={t.modal_price_placeholder}
-                className="w-full bg-black border border-zinc-800 rounded-2xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:border-zinc-500 transition"
-                value={price} onChange={e => setPrice(e.target.value)} />
+        {/* ── Basis ── */}
+        {tab === 'basics' && (
+          <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
+            <div className="relative lg:col-span-2">
+              <input placeholder={t.modal_name_placeholder} className={INPUT_CLASS}
+                value={name} onChange={e => setName(e.target.value)}
+                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)} />
+              <AnimatePresence>
+                {showSuggestions && (
+                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute top-full mt-1 left-0 right-0 bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden z-50 shadow-2xl">
+                    {suggestions.map(service => {
+                      const cat = getCat(service.category);
+                      const Icon = cat?.icon || Package;
+                      const ServiceIcon = service.lucideIcon || null;
+                      return (
+                        <button key={service.name} type="button"
+                          onMouseDown={e => { e.preventDefault(); applySuggestion(service); }}
+                          onTouchEnd={e => { e.preventDefault(); applySuggestion(service); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800 transition text-left">
+                          {ServiceIcon
+                            ? <ServiceIcon className="w-5 h-5 text-zinc-400" />
+                            : <img src={faviconUrl(service.domain, 32)} className="w-5 h-5 rounded object-contain" alt=""
+                                onError={e => { e.target.style.display = 'none'; }} />}
+                          <span className="text-sm flex-1">{service.name}</span>
+                          {cat && (
+                            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg ${cat.bg} border ${cat.border}`}>
+                              <Icon className={`w-2.5 h-2.5 ${cat.color}`} />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-            <ModalCurrencySelector value={modalCurrency} onChange={setModalCurrency} />
-          </div>
 
-          {/* Периодичность */}
-          <div className="flex gap-2 lg:col-span-1">
-            {['monthly', 'yearly'].map(p => (
-              <button key={p} type="button" onClick={() => { setPeriod(p); if (p === 'monthly') setMonth(''); }}
-                className={`flex-1 py-3 rounded-2xl text-sm font-medium border transition ${period === p ? 'bg-white text-black border-white' : 'bg-black border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'}`}>
-                {p === 'monthly' ? t.modal_monthly : t.modal_yearly}
-              </button>
-            ))}
-          </div>
+            <input placeholder={t.modal_provider_placeholder} className={`${INPUT_CLASS} lg:col-span-2`}
+              value={provider} onChange={e => setProvider(e.target.value)} />
 
-          {/* Статус */}
-          <div className="flex gap-2 lg:col-span-2">
-            {[
-              { id: 'active', label: t.modal_status_active, color: 'text-green-400',  bg: 'bg-green-500/15',  border: 'border-green-500/40'  },
-              { id: 'paused', label: t.modal_status_paused, color: 'text-red-400',    bg: 'bg-red-500/15',    border: 'border-red-500/40'    },
-              { id: 'trial',  label: t.modal_status_trial,  color: 'text-amber-400',  bg: 'bg-amber-500/15',  border: 'border-amber-500/40'  },
-            ].map(s => (
-              <button key={s.id} type="button" onClick={() => setStatus(s.id)}
-                className={`flex-1 py-2.5 rounded-2xl text-xs font-semibold border transition ${status === s.id ? `${s.bg} ${s.border} ${s.color}` : 'bg-black border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}`}>
-                {s.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Дата окончания пробного */}
-          {status === 'trial' && (
-            <div className="lg:col-span-2">
-              <DatePicker
-                value={trialEnd}
-                onChange={setTrialEnd}
-                label={t.modal_trial_end}
-              />
+            {/* Betrag + Währung */}
+            <div className="flex gap-2 lg:col-span-1">
+              <div className="relative flex-1">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">{curr.symbol}</span>
+                <input ref={priceRef} type="number" inputMode="decimal" placeholder={t.modal_price_placeholder}
+                  className={`${INPUT_CLASS} pl-9`}
+                  value={price} onChange={e => setPrice(e.target.value)} />
+              </div>
+              <ModalCurrencySelector value={modalCurrency} onChange={setModalCurrency} />
             </div>
-          )}
 
-          {/* Дата списания — скрыта для пробных (дата = trial_end) */}
-          {status !== 'trial' && (
-          <div className="space-y-1.5 lg:col-span-2">
-            {initial && (
-              <p className="text-[11px] text-zinc-500 px-1">
-                {period === 'yearly' ? t.modal_billing_date : t.modal_billing_day}
-              </p>
-            )}
-            <div className="flex gap-2">
-            <input type="number" inputMode="numeric"
-            placeholder={period === 'yearly' ? t.modal_day_placeholder : t.modal_day_billing_placeholder}
-              min="1" max="31"
-              className={`${period === 'yearly' ? 'flex-1' : 'w-full'} bg-black border rounded-2xl px-4 py-3 text-sm focus:outline-none transition
-              ${dayError ? 'border-red-500 shake' : 'border-zinc-800 focus:border-zinc-500'}`}
-              value={day} onChange={e => { const v = e.target.value; if (v === '' || (Number(v) >= 1 && Number(v) <= 31)) setDay(v); }} />
-              {period === 'yearly' && (
-                <div className="flex-1"><MonthPicker value={month} onChange={setMonth} /></div>
-              )}
-            </div>
-          </div>
-          )}
-
-          {/* Категория */}
-          <div className="flex flex-wrap gap-2 lg:col-span-2">
-            {CATEGORIES.map(cat => {
-              const Icon   = cat.icon;
-              const active = category === cat.id;
-              return (
-                <button key={cat.id} type="button" onClick={() => setCategory(active ? '' : cat.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-medium border transition ${active ? `${cat.bg} ${cat.border} ${cat.color}` : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}`}>
-                  <Icon className="w-3 h-3" />{t[cat.labelKey]}
+            {/* Rhythmus */}
+            <div className="flex gap-2 lg:col-span-1">
+              {['monthly', 'yearly'].map(p => (
+                <button key={p} type="button" onClick={() => { setPeriod(p); if (p === 'monthly') setMonth(''); }}
+                  className={`flex-1 py-3 rounded-2xl text-sm font-medium border transition ${period === p ? 'bg-white text-black border-white' : 'bg-black border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'}`}>
+                  {p === 'monthly' ? t.modal_monthly : t.modal_yearly}
                 </button>
-              );
-            })}
-          </div>
+              ))}
+            </div>
 
-          {/* Cancel Assistant — только при редактировании если есть cancelUrl */}
-          {initial && (() => {
-            const entry = getCatalogEntry(initial.name);
-            if (!entry?.cancelUrl) return null;
-            const labelPre  = lang === 'ru' ? 'Как '          : 'How to ';
-            const labelLink = lang === 'ru' ? 'отменить подписку' : 'cancel subscription';
-            return (
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 overflow-hidden lg:col-span-2">
-                <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-800">
-                  <X className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                  <span className="text-xs text-zinc-400">
-                    {labelPre}
-                    <a href={entry.cancelUrl} target="_blank" rel="noopener noreferrer"
-                      className="text-red-400 hover:text-red-300 transition underline underline-offset-2">
-                      {labelLink}
-                    </a>
-                  </span>
-                </div>
-                <div className="px-4 py-3 space-y-2">
-                  {entry.cancelSteps.map((step, i) => (
-                    <div key={i} className="flex items-start gap-2.5">
-                      <span className="text-[10px] font-bold text-zinc-600 mt-0.5 shrink-0 w-3">{i + 1}.</span>
-                      <span className="text-xs text-zinc-400 leading-relaxed">{step}</span>
-                    </div>
-                  ))}
+            {/* Status */}
+            <div className="flex gap-2 lg:col-span-2">
+              {[
+                { id: 'active', label: t.modal_status_active, color: 'text-green-400', bg: 'bg-green-500/15', border: 'border-green-500/40' },
+                { id: 'paused', label: t.modal_status_paused, color: 'text-red-400',   bg: 'bg-red-500/15',   border: 'border-red-500/40'   },
+                { id: 'trial',  label: t.modal_status_trial,  color: 'text-amber-400', bg: 'bg-amber-500/15', border: 'border-amber-500/40' },
+              ].map(s => (
+                <button key={s.id} type="button" onClick={() => setStatus(s.id)}
+                  className={`flex-1 py-2.5 rounded-2xl text-xs font-semibold border transition ${status === s.id ? `${s.bg} ${s.border} ${s.color}` : 'bg-black border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}`}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
+            {status === 'trial' && (
+              <div className="lg:col-span-2">
+                <DatePicker value={trialEnd} onChange={setTrialEnd} label={t.modal_trial_end} />
+              </div>
+            )}
+
+            {/* Abbuchungsdatum — bei Testphasen liefert trial_end das Datum */}
+            {status !== 'trial' && (
+              <div className="space-y-1.5 lg:col-span-2">
+                <p className="text-[11px] text-zinc-500 px-1">
+                  {period === 'yearly' ? t.modal_billing_date : t.modal_billing_day}
+                </p>
+                <div className="flex gap-2">
+                  <input type="number" inputMode="numeric" min="1" max="31"
+                    placeholder={period === 'yearly' ? t.modal_day_placeholder : t.modal_day_billing_placeholder}
+                    className={`${period === 'yearly' ? 'flex-1' : 'w-full'} bg-black border rounded-2xl px-4 py-3 text-sm focus:outline-none transition
+                      ${dayError ? 'border-red-500 shake' : 'border-zinc-800 focus:border-zinc-500'}`}
+                    value={day}
+                    onChange={e => { const v = e.target.value; if (v === '' || (Number(v) >= 1 && Number(v) <= 31)) setDay(v); }} />
+                  {period === 'yearly' && (
+                    <div className="flex-1"><MonthPicker value={month} onChange={setMonth} /></div>
+                  )}
                 </div>
               </div>
-            );
-          })()}
-        </div>
+            )}
+
+            {/* Kategorie */}
+            <div className="flex flex-wrap gap-2 lg:col-span-2">
+              {CATEGORIES.map(cat => {
+                const Icon   = cat.icon;
+                const active = category === cat.id;
+                return (
+                  <button key={cat.id} type="button" onClick={() => setCategory(active ? '' : cat.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-medium border transition ${active ? `${cat.bg} ${cat.border} ${cat.color}` : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}`}>
+                    <Icon className="w-3 h-3" />{t[cat.labelKey]}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="lg:col-span-2">
+              <FieldShell label={t.modal_notes}>
+                <textarea rows={2} className={`${INPUT_CLASS} resize-none`} placeholder={t.modal_notes_placeholder}
+                  value={notes} onChange={e => setNotes(e.target.value)} />
+              </FieldShell>
+            </div>
+          </div>
+        )}
+
+        {/* ── Details ── */}
+        {tab === 'details' && (
+          <div className="space-y-5">
+            {/* Laufzeit & Kündigungsfrist */}
+            <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4 space-y-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">{t.contract_section}</p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <FieldShell label={t.contract_start}>
+                  <input type="date" className={`${INPUT_CLASS} [color-scheme:dark]`}
+                    value={contractStart} onChange={e => setContractStart(e.target.value)} />
+                </FieldShell>
+                <FieldShell label={t.contract_end}>
+                  <input type="date" className={`${INPUT_CLASS} [color-scheme:dark]`}
+                    value={contractEnd} onChange={e => setContractEnd(e.target.value)} />
+                </FieldShell>
+              </div>
+
+              <FieldShell label={t.notice_period}>
+                <SelectInput value={noticeMonths} onChange={setNoticeMonths} placeholder={t.notice_none}
+                  options={NOTICE_OPTIONS.map(n => ({ value: String(n), label: t.notice_months(n) }))} />
+              </FieldShell>
+
+              <button type="button" onClick={() => setAutoRenew(v => !v)}
+                className="w-full flex items-center gap-3 text-left">
+                <span className={`w-9 h-5 rounded-full p-0.5 transition shrink-0 ${autoRenew ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
+                  <motion.span animate={{ x: autoRenew ? 16 : 0 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    className="block w-4 h-4 rounded-full bg-white" />
+                </span>
+                <span className="text-xs text-zinc-300">{t.auto_renew}</span>
+              </button>
+
+              {cancelBy && (
+                <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <p className="text-[11px] text-amber-200/90">
+                    {t.cancel_by_hint(fmtDateFromISO(cancelBy, lang, t.months_short))}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Kategoriespezifische Felder */}
+            <div className="space-y-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500 px-1">{t.details_template}</p>
+              {!category && <p className="text-xs text-zinc-600 px-1">{t.details_empty}</p>}
+              <div className="grid gap-3 lg:grid-cols-2">
+                {templateFields.map(field => (
+                  <TemplateField key={field.id} field={field}
+                    value={fields[field.id] || ''} onChange={value => setField(field.id, value)} />
+                ))}
+              </div>
+            </div>
+
+            {/* Abrechnung & Kontakt */}
+            <div className="space-y-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500 px-1">{t.details_common}</p>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {COMMON_FIELDS.map(field => (
+                  <TemplateField key={field.id} field={field}
+                    value={fields[field.id] || ''} onChange={value => setField(field.id, value)} />
+                ))}
+              </div>
+            </div>
+
+            <CustomFields custom={custom} onChange={setCustom} />
+          </div>
+        )}
+
+        {/* ── Zugang ── */}
+        {tab === 'access' && (
+          <div className="space-y-3">
+            <FieldShell label={t.access_url}>
+              <div className="flex gap-2">
+                <input type="url" className={INPUT_CLASS} placeholder="https://..."
+                  value={url} onChange={e => setUrl(e.target.value)} />
+                <a href={url || undefined} target="_blank" rel="noopener noreferrer" title={t.access_open}
+                  className={`w-12 shrink-0 rounded-2xl border border-zinc-800 flex items-center justify-center transition ${url ? 'text-zinc-400 hover:text-sky-400 hover:border-sky-500/40' : 'text-zinc-700 pointer-events-none'}`}>
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </div>
+            </FieldShell>
+
+            <FieldShell label={t.access_username}>
+              <input className={INPUT_CLASS} autoComplete="username"
+                value={username} onChange={e => setUsername(e.target.value)} />
+            </FieldShell>
+
+            <VaultPanel vaultState={vaultState} />
+
+            <FieldShell label={t.access_password}>
+              <SecretInput
+                value={secret}
+                disabled={!vaultState.unlocked}
+                placeholder={vaultState.unlocked ? '' : t.vault_locked}
+                onChange={value => { setSecret(value); setSecretTouched(true); setSecretError(''); }}
+              />
+            </FieldShell>
+
+            {secretError && <p className="text-[11px] text-red-400 px-1">{secretError}</p>}
+
+            <FieldShell label={t.access_note}>
+              <textarea rows={2} className={`${INPUT_CLASS} resize-none`}
+                value={loginNote} onChange={e => setLoginNote(e.target.value)} />
+            </FieldShell>
+          </div>
+        )}
+
+        {/* ── Dokumente ── */}
+        {tab === 'docs' && (
+          <DocumentsPanel entryId={entryId} onChange={onDocsChange} />
+        )}
+
+        {/* Kündigungshilfe aus dem Katalog */}
+        {catalogEntry?.cancelUrl && tab === 'basics' && (
+          <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-800">
+              <X className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+              <span className="text-xs text-zinc-400">
+                {t.cancel_how}
+                <a href={catalogEntry.cancelUrl} target="_blank" rel="noopener noreferrer"
+                  className="text-red-400 hover:text-red-300 transition underline underline-offset-2">
+                  {t.cancel_link}
+                </a>
+              </span>
+            </div>
+            <div className="px-4 py-3 space-y-2">
+              {catalogEntry.cancelSteps.map((step, i) => (
+                <div key={i} className="flex items-start gap-2.5">
+                  <span className="text-[10px] font-bold text-zinc-600 mt-0.5 shrink-0 w-3">{i + 1}.</span>
+                  <span className="text-xs text-zinc-400 leading-relaxed">{step}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="lg:flex lg:flex-row-reverse lg:gap-3 lg:mt-7">
           <button disabled={!canSave} onClick={handleSubmit}
@@ -2494,23 +3371,29 @@ const ModalCurrencySelector = ({ value, onChange }) => {
   );
 };
 
+// Gespeichert wird das kanonische englische Kürzel, angezeigt das übersetzte
 const MonthPicker = ({ value, onChange }) => {
+  const t = useT();
   const [open, setOpen] = useState(false);
+  const selectedIndex = MONTHS_SHORT.indexOf(value);
+
   return (
     <div className="relative">
       <button type="button" onClick={() => setOpen(o => !o)}
         className="w-full bg-black border border-zinc-800 rounded-2xl px-4 py-3 text-sm text-left flex justify-between items-center focus:outline-none focus:border-zinc-500 transition">
-        <span className={value ? 'text-white' : 'text-zinc-600'}>{value || 'Месяц'}</span>
+        <span className={value ? 'text-white' : 'text-zinc-600'}>
+          {selectedIndex >= 0 ? t.months_short[selectedIndex] : t.modal_month_placeholder}
+        </span>
         <ChevronDown className="w-4 h-4 text-zinc-500 shrink-0" />
       </button>
       <AnimatePresence>
         {open && (
           <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.12 }}
             className="absolute bottom-14 left-0 right-0 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl overflow-hidden z-50 grid grid-cols-3">
-            {MONTHS_SHORT.map(m => (
+            {MONTHS_SHORT.map((m, i) => (
               <button key={m} type="button" onClick={() => { onChange(m); setOpen(false); }}
                 className={`py-2.5 text-sm transition hover:bg-zinc-800 ${value === m ? 'font-semibold text-white' : 'text-zinc-400'}`}>
-                {m}
+                {t.months_short[i]}
               </button>
             ))}
           </motion.div>
@@ -2566,7 +3449,7 @@ const DesktopSidebar = ({ activeTab, onSwitch, onAdd, lang, toggleLang, count, t
           <Wallet className="w-5 h-5 text-black" />
         </div>
         <div className="min-w-0">
-          <p className="font-semibold tracking-tight leading-none">CheckUrSubs</p>
+          <p className="font-semibold tracking-tight leading-none">{APP_NAME}</p>
           <p className="text-[11px] text-zinc-500 mt-1.5 truncate">{t.active_count(count)}</p>
         </div>
       </div>
@@ -2597,7 +3480,7 @@ const DesktopSidebar = ({ activeTab, onSwitch, onAdd, lang, toggleLang, count, t
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="absolute left-1 top-1 bottom-1 w-[calc(50%-4px)] rounded-xl bg-white shadow-sm"
             />
-            <span className={`relative z-10 flex-1 text-center text-[11px] font-bold tracking-wide transition-colors ${lang === 'ru' ? 'text-black' : 'text-zinc-500'}`}>RU</span>
+            <span className={`relative z-10 flex-1 text-center text-[11px] font-bold tracking-wide transition-colors ${lang === 'de' ? 'text-black' : 'text-zinc-500'}`}>DE</span>
             <span className={`relative z-10 flex-1 text-center text-[11px] font-bold tracking-wide transition-colors ${lang === 'en' ? 'text-black' : 'text-zinc-500'}`}>EN</span>
           </button>
         </div>
@@ -2615,11 +3498,11 @@ export default function Root() {
     if (saved) return saved;
     // Автодетект при первом визите: ru/uk/be → RU, всё остальное → EN
     const nav = (navigator.language || navigator.languages?.[0] || 'en').toLowerCase();
-    return (nav.startsWith('ru') || nav.startsWith('uk') || nav.startsWith('be')) ? 'ru' : 'en';
+    return nav.startsWith('de') ? 'de' : 'en';
   });
 
   const toggleLang = () => {
-    const next = lang === 'ru' ? 'en' : 'ru';
+    const next = lang === 'de' ? 'en' : 'de';
     setLang(next);
     localStorage.setItem('lang', next);
   };

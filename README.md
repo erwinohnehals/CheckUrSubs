@@ -1,80 +1,112 @@
-# CheckUrSubs
+# Gold&Geld
 
-A local-first subscription tracker. Track recurring costs, upcoming billing dates,
-and spending by category without creating an account or connecting a backend.
+Ein lokal gespeicherter Überblick über alles, was regelmäßig Geld kostet:
+Versicherungen, Strom, Internet, Mobilfunk, Miete, Rundfunkbeitrag und Abos —
+inklusive Vertragsdaten, Kündigungsfristen, Dokumenten und Portal-Zugängen.
+Ohne Konto, ohne Backend.
 
 ![PWA](https://img.shields.io/badge/PWA-ready-blueviolet)
 ![React](https://img.shields.io/badge/React-19-61dafb)
 ![Vite](https://img.shields.io/badge/Vite-7-646cff)
 ![Storage](https://img.shields.io/badge/storage-local--only-green)
 
-## Features
+## Funktionen
 
-- Dashboard totals by month, year, and day
-- Billing calendar and upcoming charges
-- Category and service analytics
-- Monthly, yearly, paused, and trial subscriptions
-- Multi-currency display with cached exchange rates
-- RU and EN localization
-- CSV and JSON import/export
-- Installable PWA
-- Local browser storage with no account or cloud synchronization
+- Summen pro Monat, Jahr und Tag, Abbuchungskalender und anstehende Zahlungen
+- **Kündigungsfristen**: Vertragsende + Frist ergeben das Datum, bis zu dem
+  gekündigt sein muss — inklusive Rollen auf das nächste Vertragsjahr bei
+  automatischer Verlängerung
+- **Vertragsdaten je Kategorie**: Versichertennummer, Versicherungsschein-Nr.,
+  Zählernummer, MaLo-ID, Jahresverbrauch, Rufnummer, ICCID, Beitragsnummer,
+  IBAN, Kennzeichen, HU-Termin und mehr
+- **Eigene Felder** mit frei wählbarem Typ (Text, Zahl, Datum, Betrag, Link,
+  geheim, mehrzeilig)
+- **Dokumente**: Policen, Verträge und Rechnungen als Datei anhängen
+- **Zugangsdaten**: Portal-Link, Benutzername und ein Passwort im
+  verschlüsselten Tresor
+- Auswertung nach Kategorie und Eintrag, Kostenverlauf über 3/6/12 Monate
+- Mehrere Währungen mit zwischengespeicherten Wechselkursen
+- Deutsch und Englisch
+- CSV- und JSON-Export/-Import
+- Installierbare PWA
 
-## Local data
+## Wo die Daten liegen
 
-Subscriptions are stored in the browser's `localStorage` under
-`checkursubs.subscriptions`.
+Alles bleibt im Browser dieses Geräts — es gibt kein Konto und keine Synchronisation.
 
-- Data stays in the current browser profile.
-- There is no account, Supabase project, or automatic device synchronization.
-- Clearing the site's browser data also clears subscriptions.
-- Use the JSON or CSV export in the Analytics tab for backups or manual transfer
-  to another device.
+| Was | Wo | Schlüssel |
+|---|---|---|
+| Einträge, Vertragsdaten, eigene Felder | `localStorage` | `goldgeld.entries` |
+| Dokumente (Blobs, max. 20 MB je Datei) | IndexedDB | `goldgeld` / `documents` |
+| Tresor-Metadaten (Salt + Prüf-Token) | `localStorage` | `goldgeld.vault` |
 
-Exchange-rate refreshes use a public API when online. Cached or built-in fallback
-rates keep the tracker usable without a connection.
+Wer die Browserdaten der Seite löscht, löscht auch die Einträge. Für Backups
+oder den Umzug auf ein anderes Gerät den JSON-Export in der Auswertung nutzen.
 
-## Getting started
+Daten aus der Vorgängerversion (`checkursubs.subscriptions`) werden beim ersten
+Start automatisch übernommen.
+
+## Passwort-Tresor
+
+Passwörter werden mit **AES-GCM** verschlüsselt. Der Schlüssel wird per
+**PBKDF2** (SHA-256, 250 000 Iterationen) aus einem Master-Passwort abgeleitet
+und existiert nur im Speicher der laufenden Sitzung — nach einem Neuladen muss
+erneut entsperrt werden. Gespeichert werden ausschließlich Salt, Iterationszahl
+und ein verschlüsseltes Prüf-Token.
+
+Daraus folgt:
+
+- **Das Master-Passwort ist nicht wiederherstellbar.** Ist es weg, sind die
+  gespeicherten Passwörter weg.
+- Der JSON-Export enthält die verschlüsselten Passwörter samt Tresor-Metadaten.
+  Auf einem anderen Gerät lassen sie sich mit demselben Master-Passwort öffnen.
+- Beim Import in ein Profil, das bereits einen eigenen Tresor hat, werden die
+  mitgelieferten Passwörter verworfen — sie wären dort ohnehin nicht lesbar.
+- Verschlüsselung braucht einen sicheren Kontext: HTTPS oder `localhost`.
+
+Dokumente sind **nicht** verschlüsselt und **nicht** im Export enthalten.
+
+## Loslegen
 
 ```bash
 npm ci
 npm run dev
 ```
 
-Open the URL printed by Vite, usually <http://127.0.0.1:5173/>.
+Die von Vite ausgegebene URL öffnen, üblicherweise <http://127.0.0.1:5173/>.
+Umgebungsvariablen oder externe Dienste braucht es nicht.
 
-No environment variables or external services are required.
-
-## Scripts
+## Skripte
 
 ```bash
-npm run dev      # start the development server
-npm run build    # create a production build
-npm run preview  # preview the production build
-npm run lint     # run ESLint
-npm test         # run local storage tests
+npm run dev      # Entwicklungsserver
+npm run build    # Produktionsbuild
+npm run preview  # Produktionsbuild lokal ansehen
+npm run lint     # ESLint
+npm test         # Tests der lokalen Ablage
 ```
 
 ## Stack
 
-| Layer | Technology |
+| Schicht | Technologie |
 |---|---|
 | UI | React 19, Tailwind CSS 4, Framer Motion |
-| Storage | Browser localStorage |
+| Ablage | localStorage + IndexedDB |
+| Verschlüsselung | Web Crypto (AES-GCM, PBKDF2) |
 | Build | Vite 7 |
-| PWA | Custom service worker |
+| PWA | eigener Service Worker |
 | Icons | Lucide React |
 
-## PWA installation
+## Installation als App
 
-**iPhone:** open in Safari, tap Share, then **Add to Home Screen**.
+**iPhone:** in Safari öffnen, „Teilen“ antippen, dann **Zum Home-Bildschirm**.
 
-**Android:** open in Chrome, open the browser menu, then choose **Install app** or
-**Add to Home screen**.
+**Android:** in Chrome öffnen, Browser-Menü, dann **App installieren** oder
+**Zum Startbildschirm hinzufügen**.
 
-The installed PWA uses the same local data as the browser profile that installed
-it. It does not synchronize that data to other devices.
+Die installierte PWA nutzt dieselben lokalen Daten wie das Browserprofil, aus
+dem sie installiert wurde, und synchronisiert nichts auf andere Geräte.
 
-## License
+## Lizenz
 
 MIT

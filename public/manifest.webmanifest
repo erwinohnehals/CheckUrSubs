@@ -1,7 +1,8 @@
 {
-  "name": "CheckUrSubs",
-  "short_name": "CheckUrSubs",
-  "description": "Лаконичное PWA-приложение для учета подписок и сервисов.",
+  "name": "Gold&Geld",
+  "short_name": "Gold&Geld",
+  "description": "Verträge, Versicherungen, Abos und laufende Kosten — mit Dokumenten, Vertragsdaten und Zugängen an einem Ort.",
+  "lang": "de",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -18,6 +19,11 @@
       "src": "/icon-512.svg",
       "sizes": "512x512",
       "type": "image/svg+xml"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
     }
   ]
 }
