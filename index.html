@@ -7,7 +7,22 @@
     <!-- ── Primary ── -->
     <title>Gold&amp;Geld</title>
     <meta name="description" content="Verträge, Versicherungen und Abos an einem Ort — mit Fristen, Dokumenten und Zugängen." />
-    <meta name="theme-color" content="#080808" />
+    <meta name="theme-color" content="#F5F3EF" />
+
+    <!-- ── Farbschema vor dem ersten Anstrich setzen, sonst blitzt es auf ── -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('goldgeld.theme');
+          var dark = saved === 'dark' ||
+            (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+          document.querySelector('meta[name="theme-color"]')
+            .setAttribute('content', dark ? '#161414' : '#F5F3EF');
+        } catch (e) { /* Speicher gesperrt — helles Standardthema */ }
+      })();
+    </script>
 
     <!-- ── PWA manifest ── -->
     <link rel="manifest" href="/manifest.webmanifest" />

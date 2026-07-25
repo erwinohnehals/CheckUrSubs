@@ -181,6 +181,11 @@ export const translations = {
     docs_unavailable: 'Dateiablage in diesem Browser nicht verfügbar',
     docs_count:     (n) => `${n} Dokument${n === 1 ? '' : 'e'}`,
 
+    // Oberfläche
+    theme_toggle:   'Hell oder dunkel',
+    rates_refresh:  'Wechselkurse aktualisieren',
+    entries_count:  (n) => `${n} Eintrag${n === 1 ? '' : 'e'}`,
+
     // Kategorien
     cat_insurance:     'Versicherung',
     cat_health:        'Gesundheit',
@@ -441,6 +446,11 @@ export const translations = {
     docs_error:     'Could not save the file',
     docs_unavailable: 'File storage unavailable in this browser',
     docs_count:     (n) => `${n} document${n === 1 ? '' : 's'}`,
+
+    // Interface
+    theme_toggle:   'Light or dark',
+    rates_refresh:  'Refresh exchange rates',
+    entries_count:  (n) => `${n} entr${n === 1 ? 'y' : 'ies'}`,
 
     // Categories
     cat_insurance:     'Insurance',

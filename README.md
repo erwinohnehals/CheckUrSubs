@@ -86,16 +86,35 @@ npm run lint     # ESLint
 npm test         # Tests der lokalen Ablage
 ```
 
+## Gestaltung
+
+Die Oberfläche folgt der Designsprache in [`design-language.html`](design-language.html):
+warmes Creme im Hellen, warme Kohle im Dunklen, praktisch monochrom — Farbe ist
+dem Status vorbehalten (aktiv, pausiert, Testphase, Frist), der Akzent nur
+Schaltern und Fokusringen.
+
+- **Farben** liegen als semantische Marken (`surface`, `border`, `ink`, `accent`)
+  in [`src/index.css`](src/index.css) und schalten über die Klasse `dark` auf
+  `<html>`. Hell, dunkel oder Systemeinstellung wählt der Knopf in der
+  Seitenleiste bzw. der Kopfzeile; gespeichert unter `goldgeld.theme`.
+- **Bewegung** läuft ausschließlich über CSS-Keyframes; JS misst nur und setzt
+  Inline-Shorthands ([`src/lib/motion.js`](src/lib/motion.js)). Hauskurve ist
+  `cubic-bezier(0.625, 0.05, 0, 1)`, Austritte laufen schneller als Eintritte,
+  Listen kaskadieren, und in Reitern gleitet eine einzelne Markierung.
+  `prefers-reduced-motion` schaltet alles auf sofort.
+- **Schrift** ist Inter, lokal gebündelt — die PWA braucht dafür kein Netz.
+
 ## Stack
 
 | Schicht | Technologie |
 |---|---|
-| UI | React 19, Tailwind CSS 4, Framer Motion |
+| UI | React 19, Tailwind CSS 4, CSS-Keyframes |
 | Ablage | localStorage + IndexedDB |
 | Verschlüsselung | Web Crypto (AES-GCM, PBKDF2) |
 | Build | Vite 7 |
 | PWA | eigener Service Worker |
 | Icons | Lucide React |
+| Schrift | Inter (@fontsource-variable) |
 
 ## Installation als App
 

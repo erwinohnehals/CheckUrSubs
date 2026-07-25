@@ -1,5 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+// Inter liegt lokal im Bündel — die PWA soll ohne Netz vollständig aussehen
+import '@fontsource-variable/inter'
 import './index.css'
 import Root from './App.jsx'
 

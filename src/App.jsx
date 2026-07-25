@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
   Home, List, BarChart2, Plus, Pencil, Trash2, CreditCard,
   CalendarDays, ChevronDown, Check, ArrowUpDown, Search, X,
   RefreshCw, Gamepad2, Briefcase, Music, BookOpen, Zap,
-  Shield, Heart, Sparkles, Wifi, Globe, Phone, Server, Tv, Package,
+  Shield, Heart, Sparkles, Wifi, Server, Tv, Package,
   Wallet, Download, Upload, Smartphone, Droplets, Car, Radio, Dumbbell,
   Users, Lock, Eye, EyeOff, Copy, ExternalLink, Paperclip, FileText,
-  AlertTriangle, KeyRound, Flame, Plug, Trash, HeartPulse, ClipboardList
+  AlertTriangle, KeyRound, Flame, Plug, Trash, HeartPulse, ClipboardList,
+  Sun, Moon
 } from 'lucide-react';
 import { createEntryStore, newId } from './lib/entryStore';
 import { LangContext, useLang, useT, APP_NAME } from './lib/i18n';
@@ -16,32 +16,45 @@ import {
 } from './lib/fieldTemplates';
 import * as vault from './lib/vault';
 import * as documentStore from './lib/documentStore';
+import { useTheme } from './lib/theme';
+import {
+  STANDARD_EASE, POWER1_IN, POWER1_OUT, EXPO_OUT, DURATION,
+  reducedMotion, restartAnimation, staggerIn, usePresence, usePopAnimation,
+  useSlidingPill, useButtonPress,
+} from './lib/motion';
 
 const entryStore = createEntryStore(window.localStorage);
 
 // ─── Kategorien ────────────────────────────────────────────────────────────────
+// Unterschieden wird über das Symbol, nicht über die Farbe: die Oberfläche
+// bleibt monochrom, Farbe ist dem Status vorbehalten.
 const CATEGORIES = [
-  { id: 'insurance',     labelKey: 'cat_insurance',     icon: Shield,     color: 'text-indigo-400', bg: 'bg-indigo-500/15', border: 'border-indigo-500/30', bar: 'bg-indigo-500' },
-  { id: 'health',        labelKey: 'cat_health',        icon: HeartPulse, color: 'text-rose-400',   bg: 'bg-rose-500/15',   border: 'border-rose-500/30',   bar: 'bg-rose-500'   },
-  { id: 'energy',        labelKey: 'cat_energy',        icon: Plug,       color: 'text-yellow-400', bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', bar: 'bg-yellow-500' },
-  { id: 'water',         labelKey: 'cat_water',         icon: Droplets,   color: 'text-cyan-400',   bg: 'bg-cyan-500/15',   border: 'border-cyan-500/30',   bar: 'bg-cyan-500'   },
-  { id: 'housing',       labelKey: 'cat_housing',       icon: Home,       color: 'text-orange-400', bg: 'bg-orange-500/15', border: 'border-orange-500/30', bar: 'bg-orange-500' },
-  { id: 'internet',      labelKey: 'cat_internet',      icon: Wifi,       color: 'text-sky-400',    bg: 'bg-sky-500/15',    border: 'border-sky-500/30',    bar: 'bg-sky-500'    },
-  { id: 'mobile',        labelKey: 'cat_mobile',        icon: Smartphone, color: 'text-teal-400',   bg: 'bg-teal-500/15',   border: 'border-teal-500/30',   bar: 'bg-teal-500'   },
-  { id: 'transport',     labelKey: 'cat_transport',     icon: Car,        color: 'text-lime-400',   bg: 'bg-lime-500/15',   border: 'border-lime-500/30',   bar: 'bg-lime-500'   },
-  { id: 'broadcast',     labelKey: 'cat_broadcast',     icon: Radio,      color: 'text-slate-300',  bg: 'bg-slate-500/15',  border: 'border-slate-500/30',  bar: 'bg-slate-500'  },
-  { id: 'banking',       labelKey: 'cat_banking',       icon: Wallet,     color: 'text-emerald-400',bg: 'bg-emerald-500/15',border: 'border-emerald-500/30',bar: 'bg-emerald-500'},
-  { id: 'fitness',       labelKey: 'cat_fitness',       icon: Dumbbell,   color: 'text-red-400',    bg: 'bg-red-500/15',    border: 'border-red-500/30',    bar: 'bg-red-500'    },
-  { id: 'membership',    labelKey: 'cat_membership',    icon: Users,      color: 'text-fuchsia-400',bg: 'bg-fuchsia-500/15',border: 'border-fuchsia-500/30',bar: 'bg-fuchsia-500'},
-  { id: 'entertainment', labelKey: 'cat_entertainment', icon: Music,      color: 'text-pink-400',   bg: 'bg-pink-500/15',   border: 'border-pink-500/30',   bar: 'bg-pink-500'   },
-  { id: 'work',          labelKey: 'cat_work',          icon: Briefcase,  color: 'text-blue-400',   bg: 'bg-blue-500/15',   border: 'border-blue-500/30',   bar: 'bg-blue-500'   },
-  { id: 'ai',            labelKey: 'cat_ai',            icon: Sparkles,   color: 'text-purple-400', bg: 'bg-purple-500/15', border: 'border-purple-500/30', bar: 'bg-purple-500' },
-  { id: 'games',         labelKey: 'cat_games',         icon: Gamepad2,   color: 'text-green-400',  bg: 'bg-green-500/15',  border: 'border-green-500/30',  bar: 'bg-green-500'  },
-  { id: 'education',     labelKey: 'cat_education',     icon: BookOpen,   color: 'text-amber-400',  bg: 'bg-amber-500/15',  border: 'border-amber-500/30',  bar: 'bg-amber-500'  },
-  { id: 'vpn',           labelKey: 'cat_vpn',           icon: Lock,       color: 'text-violet-400', bg: 'bg-violet-500/15', border: 'border-violet-500/30', bar: 'bg-violet-500' },
-  { id: 'other',         labelKey: 'cat_other',         icon: Package,    color: 'text-zinc-400',   bg: 'bg-zinc-500/15',   border: 'border-zinc-500/30',   bar: 'bg-zinc-500'   },
+  { id: 'insurance',     labelKey: 'cat_insurance',     icon: Shield     },
+  { id: 'health',        labelKey: 'cat_health',        icon: HeartPulse },
+  { id: 'energy',        labelKey: 'cat_energy',        icon: Plug       },
+  { id: 'water',         labelKey: 'cat_water',         icon: Droplets   },
+  { id: 'housing',       labelKey: 'cat_housing',       icon: Home       },
+  { id: 'internet',      labelKey: 'cat_internet',      icon: Wifi       },
+  { id: 'mobile',        labelKey: 'cat_mobile',        icon: Smartphone },
+  { id: 'transport',     labelKey: 'cat_transport',     icon: Car        },
+  { id: 'broadcast',     labelKey: 'cat_broadcast',     icon: Radio      },
+  { id: 'banking',       labelKey: 'cat_banking',       icon: Wallet     },
+  { id: 'fitness',       labelKey: 'cat_fitness',       icon: Dumbbell   },
+  { id: 'membership',    labelKey: 'cat_membership',    icon: Users      },
+  { id: 'entertainment', labelKey: 'cat_entertainment', icon: Music      },
+  { id: 'work',          labelKey: 'cat_work',          icon: Briefcase  },
+  { id: 'ai',            labelKey: 'cat_ai',            icon: Sparkles   },
+  { id: 'games',         labelKey: 'cat_games',         icon: Gamepad2   },
+  { id: 'education',     labelKey: 'cat_education',     icon: BookOpen   },
+  { id: 'vpn',           labelKey: 'cat_vpn',           icon: Lock       },
+  { id: 'other',         labelKey: 'cat_other',         icon: Package    },
 ];
 const getCat = (id) => CATEGORIES.find(c => c.id === id) || null;
+
+// Anteile in einer Liste werden über die Deckkraft einer einzigen Tintenfläche
+// unterschieden — kein Farbkreis, aber jede Zeile bleibt auseinanderzuhalten.
+const RANK_OPACITY = [1, 0.82, 0.66, 0.54, 0.44, 0.36, 0.3, 0.25];
+const rankOpacity = (i) => RANK_OPACITY[Math.min(i, RANK_OPACITY.length - 1)];
 
 // ─── Währungen ─────────────────────────────────────────────────────────────────
 const CURRENCIES = [
@@ -508,9 +521,295 @@ const useVault = () => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// BAUSTEINE — Rezepte aus design-language.html §5 und §6
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Radien-Leiter: 8px Bedienelemente · 12px Karten · 16px Modale · voll für Pillen
+const CARD       = 'bg-surface-2 border border-border rounded-xl';
+const PANEL      = 'bg-surface-2 border border-border-strong rounded-xl shadow-xl';
+const INPUT_CLASS = 'w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:border-border-strong transition';
+
+const BTN_VARIANT = {
+  // Primär ist massive Tinte — bewusst nicht der Akzent
+  primary:   'bg-ink text-surface hover:bg-ink-2 disabled:hover:bg-ink',
+  secondary: 'bg-surface-2 text-ink border border-border hover:bg-surface-3',
+  ghost:     'text-ink-2 hover:bg-surface-3 hover:text-ink',
+  danger:    'bg-error text-white hover:opacity-90',
+};
+const BTN_SIZE = {
+  sm: 'px-3 py-1.5 text-sm',
+  md: 'px-4 py-2 text-sm',
+  lg: 'px-6 py-3 text-base',
+};
+const btn = (variant = 'primary', size = 'md', extra = '') =>
+  `inline-flex items-center justify-center gap-2 rounded-lg font-medium
+   disabled:opacity-50 disabled:cursor-not-allowed
+   ${BTN_VARIANT[variant]} ${BTN_SIZE[size]} ${extra}`;
+
+// ─── Segmented Control mit gleitender Markierung (§4.4) ───────────────────────
+// Eine einzige Pille wandert zwischen den Einträgen — keine Hintergründe, die
+// an- und ausgehen. Die Beschriftungen blenden nur ihre Farbe über.
+const Segmented = ({
+  items, value, onChange,
+  className = '', trackClass = '', itemClass = '', pillClass = '', vertical = false,
+  layout, renderItem,
+}) => {
+  const { trackRef, pillRef, setItem } = useSlidingPill(value);
+
+  return (
+    <div ref={trackRef}
+      className={`relative ${layout || (vertical ? 'flex flex-col' : 'inline-flex')} gap-0.5 p-1 ${trackClass} ${className}`}>
+      <span ref={pillRef} aria-hidden="true" className={`seg-pill rounded-lg ${pillClass}`} />
+      {items.map(item => {
+        const active = item.id === value;
+        return (
+          <button key={item.id} type="button" ref={setItem(item.id)} data-no-press
+            onClick={() => onChange(item.id)}
+            aria-current={active ? 'page' : undefined}
+            className={`relative z-10 rounded-lg font-medium
+              transition-colors duration-300 ${active ? 'text-ink' : 'text-ink-2 hover:text-ink'} ${itemClass}`}>
+            {renderItem ? renderItem(item, active) : item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+// ─── Dropdown 'pop' (§4.3) ────────────────────────────────────────────────────
+// Bleibt bis zum Ende der Ausblendung montiert; Zeilen kaskadieren hinein.
+const PopMenu = ({ open, children, className = '', origin = 'top left', width = 'w-[240px]' }) => {
+  const rendered = usePresence(open, DURATION.ddOut);
+  const panelRef = useRef(null);
+  usePopAnimation(open, panelRef, { origin });
+
+  if (!rendered) return null;
+  return (
+    <div ref={panelRef} role="menu"
+      className={`absolute z-50 ${width} ${PANEL} overflow-hidden p-1 ${className}`}>
+      {children}
+    </div>
+  );
+};
+
+const MenuHeader = ({ title, hint }) => (
+  <div className="px-3 pt-2 pb-2.5 mb-1 border-b border-border">
+    <p className="text-sm font-medium text-ink">{title}</p>
+    {hint && <p className="text-xs text-ink-3 mt-0.5">{hint}</p>}
+  </div>
+);
+
+const MenuItem = ({ icon: Icon, children, className = '', ...props }) => (
+  <button type="button" data-menu-item
+    className={`w-full flex items-center gap-2.5 text-left px-3 py-2 rounded-lg text-sm
+      text-ink-2 hover:bg-surface-3 hover:text-ink transition ${className}`}
+    {...props}>
+    {Icon && <Icon className="w-4 h-4 shrink-0" />}
+    {children}
+  </button>
+);
+
+// Schließt Menüs bei Klick daneben und mit Escape
+const useDismiss = (open, onClose) => {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('touchstart', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('touchstart', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, onClose]);
+  return ref;
+};
+
+// ─── Modal (§4.3) ─────────────────────────────────────────────────────────────
+// Am Desktop steigt das Panel auf und skaliert, am Telefon fährt ein Blatt hoch.
+// Der Austritt läuft schneller als der Eintritt.
+const Overlay = ({ open, onClose, children, panelClass = '', sheet = false, labelledBy }) => {
+  const rendered = usePresence(open, DURATION.modalOut);
+  const backdropRef = useRef(null);
+  const panelRef    = useRef(null);
+
+  useLayoutEffect(() => {
+    if (!rendered || reducedMotion()) return;
+    const enter = open;
+    restartAnimation(backdropRef.current,
+      enter ? `modal-backdrop-in ${DURATION.backdropIn}ms ${STANDARD_EASE}`
+            : `modal-backdrop-out ${DURATION.modalOut}ms ${STANDARD_EASE} forwards`);
+    const keyframe = sheet ? 'sheet' : 'modal-panel';
+    restartAnimation(panelRef.current,
+      enter ? `${keyframe}-in ${DURATION.modalIn}ms ${STANDARD_EASE}`
+            : `${keyframe}-out ${DURATION.modalOut}ms ${STANDARD_EASE} forwards`);
+  }, [open, rendered, sheet]);
+
+  if (!rendered) return null;
+  return (
+    <>
+      <div ref={backdropRef} onClick={onClose}
+        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={labelledBy}
+        onClick={e => e.stopPropagation()}
+        className={`fixed z-50 ${panelClass}`}>
+        {children}
+      </div>
+    </>
+  );
+};
+
+// ─── Kleinteile ───────────────────────────────────────────────────────────────
+// Status ist der einzige Ort, an dem Farbe getragen wird
+const TONE = {
+  success: 'text-success bg-success/10 border-success/25',
+  warning: 'text-warning bg-warning/10 border-warning/25',
+  error:   'text-error   bg-error/10   border-error/25',
+  muted:   'text-ink-3   bg-surface-3  border-border',
+};
+const DOT = { success: 'bg-success', warning: 'bg-warning', error: 'bg-error', muted: 'bg-ink-3' };
+
+const StatusPill = ({ tone = 'muted', label, pulse = false }) => (
+  <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-medium ${TONE[tone]}`}>
+    <span className={`w-1.5 h-1.5 rounded-full ${DOT[tone]} ${pulse ? 'animate-pulse' : ''}`} />
+    {label}
+  </span>
+);
+
+const Badge = ({ tone = 'muted', icon: Icon, children, title }) => (
+  <span title={title}
+    className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md border shrink-0 ${TONE[tone]}`}>
+    {Icon && <Icon className="w-3 h-3" />}{children}
+  </span>
+);
+
+// Kopfzeile am Telefon — links ausgerichtet wie am Desktop, kein zentriertes Symbol
+const MobilePageHeader = ({ icon: Icon, title, children }) => (
+  <header className="flex items-center justify-between gap-3 px-1 pt-1 pb-1 lg:hidden">
+    <div className="flex items-center gap-2.5 min-w-0">
+      <Icon className="w-5 h-5 text-ink-3 shrink-0" strokeWidth={2} />
+      <h2 className="text-lg font-semibold tracking-tight truncate">{title}</h2>
+    </div>
+    {children}
+  </header>
+);
+
+// ─── Balken ───────────────────────────────────────────────────────────────────
+// Anteile werden über die Deckkraft einer Tintenfläche unterschieden.
+const MeterRow = ({ leading, title, subtitle, value, meta, share, rank = 0, index = 0 }) => (
+  <div className="space-y-2">
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2.5 min-w-0">
+        {leading}
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate">{title}</p>
+          {subtitle && <p className="text-xs text-ink-3 truncate">{subtitle}</p>}
+        </div>
+      </div>
+      <div className="text-right shrink-0">
+        <p className="text-sm font-semibold">{value}</p>
+        {meta && <p className="text-xs text-ink-3">{meta}</p>}
+      </div>
+    </div>
+    <div className="w-full h-1.5 bg-surface-3 rounded-full overflow-hidden">
+      <div
+        className="h-full rounded-full bg-ink origin-left"
+        style={{
+          width: `${Math.max(2, Math.min(100, share))}%`,
+          opacity: rankOpacity(rank),
+          animation: `bar-fill 600ms ${EXPO_OUT} ${index * 40}ms backwards`,
+        }} />
+    </div>
+  </div>
+);
+
+const TrendBars = ({ totals, maxVal, months, labels, fmt, isDesktop, range }) => (
+  <div className="flex items-end gap-1.5 lg:gap-2">
+    {totals.map((val, i) => {
+      const isCurrent = i === range - 1;
+      const heightPct = maxVal > 0 ? Math.max(4, (val / maxVal) * 100) : 4;
+      return (
+        <div key={i} className="group flex-1 flex flex-col items-center gap-1.5 max-w-[72px]">
+          <span className="hidden lg:block text-[11px] font-medium text-ink-2 opacity-0 group-hover:opacity-100 transition">
+            {fmt(val)}
+          </span>
+          <div className="w-full flex items-end h-20 lg:h-36">
+            <div
+              className={`w-full rounded-md origin-bottom transition-colors
+                ${isCurrent ? 'bg-ink' : val > 0 ? 'bg-ink/35 lg:group-hover:bg-ink/60' : 'bg-surface-3'}`}
+              style={{
+                height: `${heightPct}%`, minHeight: '3px',
+                animation: `bar-grow 500ms ${EXPO_OUT} ${i * 30}ms backwards`,
+              }} />
+          </div>
+          {(range <= 6 || i % 2 === 0 || isDesktop) && (
+            <span className={`text-[10px] leading-none lg:text-[11px] ${isCurrent ? 'text-ink font-medium' : 'text-ink-3'}`}>
+              {labels[months[i].month]}
+            </span>
+          )}
+        </div>
+      );
+    })}
+  </div>
+);
+
+// ─── Liste der Einträge ───────────────────────────────────────────────────────
+// Die Zeilen kaskadieren herein: 250ms, 50ms Versatz, 20px Aufstieg (§4.3)
+const EntryList = ({ entries, docCounts, searchQuery, fmt, fmtOriginal, monthly, hint, onEdit, onDelete }) => {
+  const t = useT();
+  const listRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (listRef.current) staggerIn(listRef.current.querySelectorAll('[data-row]'));
+  }, [searchQuery]);
+
+  return (
+    <div ref={listRef} className={`${CARD} divide-y divide-border overflow-hidden`}>
+      {hint && entries.length > 0 && (
+        <div className="px-4 py-2 text-[11px] text-ink-3 text-center lg:hidden">{hint}</div>
+      )}
+      {entries.map(entry => (
+        <EntryRow key={entry.id} entry={entry} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
+          docCount={docCounts[entry.id] || 0}
+          onEdit={() => onEdit(entry)} onDelete={() => onDelete(entry)} />
+      ))}
+      {entries.length === 0 && searchQuery && (
+        <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+          <Search className="w-5 h-5 text-ink-3" />
+          <p className="text-sm text-ink-3">{t.nothing_found(searchQuery)}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Sprache und Farbschema ───────────────────────────────────────────────────
+const LangToggle = ({ lang, toggleLang, className = '' }) => (
+  <Segmented
+    items={[{ id: 'de', label: 'DE' }, { id: 'en', label: 'EN' }]}
+    value={lang}
+    onChange={next => { if (next !== lang) toggleLang(); }}
+    trackClass={`bg-surface border border-border rounded-lg ${className}`}
+    itemClass="px-3 py-1.5 text-xs font-semibold tracking-wide"
+    pillClass="shadow-sm"
+  />
+);
+
+const ThemeToggle = ({ theme, onToggle, label }) => (
+  <button type="button" onClick={onToggle} title={label} aria-label={label}
+    className="w-10 h-10 shrink-0 flex items-center justify-center rounded-lg border border-border
+      bg-surface-2 text-ink-2 hover:text-ink hover:bg-surface-3 transition">
+    {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+  </button>
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════════════════════════════════════════
-const App = ({ toggleLang, lang }) => {
+const App = ({ toggleLang, lang, theme, toggleTheme }) => {
   const t = useT();
   const isDesktop = useIsDesktop();
 
@@ -555,15 +854,42 @@ const App = ({ toggleLang, lang }) => {
 
   const tabRefs = { home: useRef(null), calendar: useRef(null), analytics: useRef(null) };
 
-  const switchTab = (tab) => {
+  // Die abtretende Ansicht bleibt sichtbar, bis ihre Animation durch ist
+  const [exitingTab, setExitingTab] = useState(null);
+
+  const switchTab = useCallback((tab) => {
+    if (tab === activeTab) return;
+    setExitingTab(activeTab);
     setActiveTab(tab);
     setSearchQuery('');
-  };
-
-  // Сбрасываем скролл вкладки при каждом переключении на неё
-  useEffect(() => {
-    tabRefs[activeTab]?.current?.scrollTo({ top: 0, behavior: 'instant' });
   }, [activeTab]);
+
+  // Ansichtswechsel: alte Ansicht zieht nach links ab, neue kommt von rechts —
+  // mit Überlappung, der Eintritt startet 100ms vor Ende des Austritts.
+  useLayoutEffect(() => {
+    const pane = tabRefs[activeTab]?.current;
+    if (!pane) return;
+    pane.scrollTop = 0;
+    if (exitingTab === null) return;
+    if (reducedMotion()) { setExitingTab(null); return; }
+
+    const leaving = tabRefs[exitingTab]?.current;
+    if (leaving) restartAnimation(leaving, `view-out ${DURATION.viewOut}ms ${POWER1_IN} forwards`);
+    restartAnimation(pane, `view-in ${DURATION.viewIn}ms ${POWER1_OUT} ${DURATION.viewOverlap}ms backwards`);
+    staggerIn(pane.querySelectorAll('[data-group]'),
+      { duration: 350, step: 80, rise: 16, base: DURATION.viewOverlap });
+
+    const id = window.setTimeout(() => setExitingTab(null), DURATION.viewOut + 60);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, exitingTab]);
+
+  // Erster Anstrich: die Gruppen der Startansicht kaskadieren herein
+  useEffect(() => {
+    const pane = tabRefs.home.current;
+    if (pane) staggerIn(pane.querySelectorAll('[data-group]'), { duration: 350, step: 80, rise: 16 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const swipeRef = useTabSwipe(activeTab, switchTab, !isModalOpen && !isDesktop);
 
@@ -596,7 +922,7 @@ const App = ({ toggleLang, lang }) => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isDesktop, isModalOpen, confirmEntry]);
+  }, [isDesktop, isModalOpen, confirmEntry, switchTab]);
 
   // ── Курсы валют ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -771,110 +1097,87 @@ const App = ({ toggleLang, lang }) => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans flex justify-center select-none lg:select-text">
+    <div className="min-h-screen bg-surface text-ink flex justify-center select-none lg:justify-start lg:select-text">
       {/* ── Боковая навигация (десктоп) ── */}
       <DesktopSidebar
         activeTab={activeTab} onSwitch={switchTab} onAdd={openAdd}
-        lang={lang} toggleLang={toggleLang}
+        lang={lang} toggleLang={toggleLang} theme={theme} toggleTheme={toggleTheme}
         count={activeEntries.length} total={fmt(totalMonthlyUSD)}
       />
 
-      <div className="w-full max-w-[450px] min-h-screen border-x border-zinc-900 bg-black flex flex-col relative overflow-hidden
-        lg:max-w-[1240px] lg:border-x-0 lg:border-r lg:h-screen">
+      <div className="w-full max-w-[450px] min-h-screen border-x border-border bg-surface flex flex-col relative overflow-hidden
+        lg:max-w-none lg:flex-1 lg:border-x-0 lg:h-screen">
 
         {/* Контент со свайпом между вкладками */}
         <div ref={el => { swipeRef.current = el; }} className="flex-1 relative overflow-hidden">
 
           {/* ════ HOME ════ */}
-          <div ref={tabRefs.home} className={`absolute inset-0 overflow-y-auto no-scrollbar desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'home' ? 'block' : 'hidden'}`}>
-            <div className="p-4 space-y-5 lg:p-10 lg:pt-8 lg:space-y-7">
+          <div ref={tabRefs.home} className={`absolute inset-0 overflow-y-auto desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'home' || exitingTab === 'home' ? 'block' : 'hidden'}`}>
+            <div className="p-4 space-y-5 lg:p-8 lg:pt-7 lg:space-y-7 lg:max-w-[1180px]">
               {/* Заголовок — десктоп */}
-              <PageHeader title={t.nav_home} subtitle={t.home_subtitle} />
+              <PageHeader title={t.nav_home} subtitle={t.home_subtitle}>
+                <ThemeToggle theme={theme} onToggle={toggleTheme} label={t.theme_toggle} />
+              </PageHeader>
 
-              <header className="relative flex items-center justify-between px-1 pt-2 lg:hidden">
+              <header className="relative flex items-center justify-between gap-2 px-1 pt-2 lg:hidden">
                 <SupportMenu />
-                <h1 className="absolute left-1/2 -translate-x-1/2 text-lg font-semibold tracking-tight whitespace-nowrap">{APP_NAME}</h1>
+                <h1 className="text-base font-semibold tracking-tight whitespace-nowrap">{APP_NAME}</h1>
                 <div className="flex items-center gap-2">
-                  {/* Переключатель языка — тогл */}
-                  <button onClick={toggleLang}
-                    className="relative flex items-center h-7 w-[64px] rounded-full border border-zinc-700 bg-zinc-900 p-0.5 transition-all active:scale-95">
-                    {/* Ползунок */}
-                    <motion.div
-                      animate={{ x: lang === 'en' ? 32 : 0 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                      className="absolute w-[28px] h-[22px] rounded-full bg-white shadow-sm"
-                    />
-                    {/* Лейблы */}
-                    <span className={`relative z-10 flex-1 text-center text-[10px] font-bold tracking-wide transition-colors ${lang === 'de' ? 'text-black' : 'text-zinc-500'}`}>DE</span>
-                    <span className={`relative z-10 flex-1 text-center text-[10px] font-bold tracking-wide transition-colors ${lang === 'en' ? 'text-black' : 'text-zinc-500'}`}>EN</span>
-                  </button>
+                  <ThemeToggle theme={theme} onToggle={toggleTheme} label={t.theme_toggle} />
+                  <LangToggle lang={lang} toggleLang={toggleLang} />
                 </div>
               </header>
 
             {/* Сетка дашборда: на мобиле — колонка, на десктопе — 3 колонки */}
             <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
 
-              <section className="bg-gradient-to-b from-zinc-800/40 to-zinc-900/20 border border-zinc-800 rounded-[40px] p-6 text-center shadow-2xl
-                lg:col-span-2 lg:col-start-1 lg:row-start-1 lg:flex lg:items-center lg:gap-10 lg:text-left lg:p-8">
+              <section data-group className={`${CARD} p-6 lg:col-span-2 lg:col-start-1 lg:row-start-1 lg:flex lg:items-center lg:gap-10 lg:p-8`}>
               <div className="lg:flex-1 lg:min-w-0">
-                <p className="text-zinc-500 uppercase text-[10px] tracking-[0.22em] font-semibold mb-2">{t.per_month}</p>
-                <h2 className="text-6xl font-bold tracking-tighter mb-3 lg:text-7xl">{fmt(totalMonthlyUSD)}</h2>
-                <div className="flex items-center justify-center gap-2 lg:justify-start">
+                <p className="text-ink-3 uppercase text-[11px] tracking-[0.18em] font-medium mb-2">{t.per_month}</p>
+                <h2 className="text-5xl font-semibold tracking-tight mb-4 lg:text-6xl">{fmt(totalMonthlyUSD)}</h2>
+                <div className="flex items-center gap-2">
                   <CurrencySelector value={currency} onChange={(c) => { setCurrency(c); localStorage.setItem('currencyManual', '1'); }} />
                   <button onClick={() => { setRatesLoading(true); fetchRates().then(r => { if (r) setRates(r); setRatesLoading(false); }); }}
-                    className="w-7 h-7 flex items-center justify-center rounded-full bg-zinc-800/70 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/70 transition active:scale-95">
-                    <RefreshCw className={`w-3 h-3 ${ratesLoading ? 'animate-spin' : ''}`} />
+                    title={t.rates_refresh}
+                    className="w-8 h-8 flex items-center justify-center rounded-full border border-border text-ink-3 hover:text-ink hover:bg-surface-3 transition">
+                    <RefreshCw className={`w-3.5 h-3.5 ${ratesLoading ? 'animate-spin' : ''}`} />
                   </button>
                 </div>
-                <div className="flex items-center justify-center flex-wrap gap-2 mt-3 lg:justify-start">
+                <div className="flex items-center flex-wrap gap-2 mt-4">
                   {(() => {
                     const active  = entries.filter(s => !s.status || s.status === 'active').length;
                     const paused  = entries.filter(s => s.status === 'paused').length;
                     const trial   = entries.filter(s => s.status === 'trial').length;
                     return <>
-                      <div className="inline-flex items-center gap-2 bg-green-500/10 text-green-400 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-[0.16em]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                        {t.active_count(active)}
-                      </div>
-                      {paused > 0 && (
-                        <div className="inline-flex items-center gap-2 bg-red-500/10 text-red-400 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-[0.16em]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                          {t.paused_count(paused)}
-                        </div>
-                      )}
-                      {trial > 0 && (
-                        <div className="inline-flex items-center gap-2 bg-amber-500/10 text-amber-400 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-[0.16em]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                          {t.trial_count(trial)}
-                        </div>
-                      )}
+                      <StatusPill tone="success" label={t.active_count(active)} pulse />
+                      {paused > 0 && <StatusPill tone="error"   label={t.paused_count(paused)} />}
+                      {trial  > 0 && <StatusPill tone="warning" label={t.trial_count(trial)} pulse />}
                     </>;
                   })()}
                 </div>
               </div>
-                <div className="grid grid-cols-2 mt-5 text-left border-t border-zinc-800/60 pt-4
+                <div className="grid grid-cols-2 mt-6 text-left border-t border-border pt-5
                   lg:grid-cols-1 lg:gap-6 lg:mt-0 lg:pt-0 lg:border-t-0 lg:border-l lg:pl-10 lg:w-[190px] lg:shrink-0">
                   <div>
-                    <p className="text-xl font-semibold lg:text-2xl">{fmt(totalYearlyUSD)}</p>
-                    <p className="text-zinc-500 text-[10px] uppercase font-semibold mt-1">{t.per_year}</p>
+                    <p className="text-xl font-semibold tracking-tight lg:text-2xl">{fmt(totalYearlyUSD)}</p>
+                    <p className="text-ink-3 text-[11px] uppercase tracking-[0.12em] mt-1">{t.per_year}</p>
                   </div>
                   <div className="text-right lg:text-left">
-                    <p className="text-xl font-semibold lg:text-2xl">{fmt(totalMonthlyUSD / 30)}</p>
-                    <p className="text-zinc-500 text-[10px] uppercase font-semibold mt-1">{t.per_day}</p>
+                    <p className="text-xl font-semibold tracking-tight lg:text-2xl">{fmt(totalMonthlyUSD / 30)}</p>
+                    <p className="text-ink-3 text-[11px] uppercase tracking-[0.12em] mt-1">{t.per_day}</p>
                   </div>
                 </div>
               </section>
 
               {/* Кнопка добавить — на десктопе живёт в боковой навигации */}
-              <div className="flex justify-center -mt-1 lg:hidden">
-                <button onClick={openAdd}
-                  className="w-2/3 flex items-center justify-center gap-2 bg-white text-black font-semibold text-sm rounded-2xl py-3.5 active:scale-[0.97] transition shadow-lg">
+              <div data-group className="lg:hidden">
+                <button onClick={openAdd} className={btn('primary', 'md', 'w-full py-3')}>
                   <Plus className="w-4 h-4" />
                   {t.add_sub}
                 </button>
               </div>
 
-              <div className="space-y-5 lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:self-start lg:space-y-6">
+              <div data-group className="space-y-5 lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:self-start lg:space-y-6">
                 <SoonSection soonEntries={soonEntries} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly} />
                 {(deadlineEntries.length > 0 || entries.length > 0) && (
                   <DeadlinesSection deadlines={deadlineEntries} onOpen={openEdit} />
@@ -882,80 +1185,62 @@ const App = ({ toggleLang, lang }) => {
               </div>
 
               {entries.length === 0 ? (
-                /* ── Empty state ── */
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, ease: 'easeOut' }}
-                  className="flex flex-col items-center text-center px-6 py-10 space-y-5
-                    lg:col-span-2 lg:col-start-1 lg:row-start-2 lg:py-16 lg:bg-[#1C1C1E] lg:border lg:border-zinc-800/60 lg:rounded-3xl">
+                /* ── Leerer Zustand — bleibt leise: gedämpfte Schrift, keine Farbe ── */
+                <div data-group
+                  className={`flex flex-col items-center text-center px-6 py-12 space-y-5
+                    lg:col-span-2 lg:col-start-1 lg:row-start-2 lg:py-16 ${CARD}`}>
                   <div className="relative">
-                    <div className="w-24 h-24 rounded-[32px] bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-                      <CreditCard className="w-10 h-10 text-zinc-700" />
+                    <div className="w-20 h-20 rounded-2xl bg-surface border border-border flex items-center justify-center">
+                      <CreditCard className="w-8 h-8 text-ink-3" strokeWidth={1.5} />
                     </div>
-                    <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-                      <Plus className="w-4 h-4 text-zinc-600" />
+                    <div className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-lg bg-surface-2 border border-border flex items-center justify-center">
+                      <Plus className="w-4 h-4 text-ink-3" />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <p className="text-lg font-semibold tracking-tight">{t.empty_title}</p>
-                    <p className="text-sm text-zinc-500 leading-relaxed max-w-[260px]">
+                    <p className="text-sm text-ink-3 leading-relaxed max-w-[280px]">
                       {t.empty_subtitle}
                     </p>
                   </div>
-                  <button onClick={openAdd}
-                    className="flex items-center gap-2 bg-white text-black font-semibold text-sm rounded-2xl px-6 py-3 hover:bg-zinc-200 active:scale-95 transition shadow-lg">
+                  <button onClick={openAdd} className={btn('primary', 'lg')}>
                     <Plus className="w-4 h-4" />
                     {t.add_first_sub}
                   </button>
-                </motion.div>
+                </div>
               ) : (
-                <section className="space-y-3 lg:col-span-2 lg:col-start-1 lg:row-start-2">
+                <section data-group className="space-y-3 lg:col-span-2 lg:col-start-1 lg:row-start-2">
                   <div className="flex items-center justify-between px-1 gap-3">
                     <SectionTitle icon={List} label={t.all_subs} />
                     <div className="relative hidden lg:block flex-1 max-w-[280px] ml-auto">
-                      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600 pointer-events-none" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" />
                       <input ref={searchRef} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={t.search_placeholder}
-                        className="w-full bg-zinc-900/60 border border-zinc-800 rounded-2xl pl-9 pr-9 py-2 text-sm focus:outline-none focus:border-zinc-600 transition text-zinc-200 placeholder:text-zinc-600" />
+                        className={`${INPUT_CLASS} bg-surface-2 pl-9 pr-9 py-2`} />
                       {searchQuery && (
-                        <button onClick={() => setSearchQuery('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400 transition">
-                          <X className="w-3.5 h-3.5" />
+                        <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink transition">
+                          <X className="w-4 h-4" />
                         </button>
                       )}
                     </div>
-                    <button onClick={cycleSortBy} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition font-semibold uppercase tracking-wide shrink-0
-                      lg:border lg:border-zinc-800 lg:bg-zinc-900/60 lg:rounded-2xl lg:px-3 lg:py-2 lg:text-[11px]">
-                      <ArrowUpDown className="w-3 h-3" />{sortLabel}
+                    <button onClick={cycleSortBy} className={btn('secondary', 'sm', 'shrink-0 text-xs')}>
+                      <ArrowUpDown className="w-3.5 h-3.5" />{sortLabel}
                     </button>
                   </div>
                   <div className="relative px-1 lg:hidden">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600 pointer-events-none" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" />
                     <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={t.search_placeholder}
-                      className="w-full bg-zinc-900/60 border border-zinc-800 rounded-2xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:border-zinc-600 transition text-zinc-200 placeholder:text-zinc-600" />
+                      className={`${INPUT_CLASS} bg-surface-2 pl-10 pr-10`} />
                     {searchQuery && (
-                      <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400 transition">
-                        <X className="w-3.5 h-3.5" />
+                      <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink transition">
+                        <X className="w-4 h-4" />
                       </button>
                     )}
                   </div>
-                  <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 divide-y divide-zinc-800/80 overflow-hidden">
-                    {!swipeHinted && sortedEntries.length > 0 && (
-                      <div className="px-4 py-2 text-[10px] text-zinc-600 text-center tracking-wide lg:hidden">
-                        {t.swipe_hint}
-                      </div>
-                    )}
-                    {sortedEntries.map(entry => (
-                      <EntryRow key={entry.id} entry={entry} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
-                        docCount={docCounts[entry.id] || 0}
-                        onEdit={() => openEdit(entry)} onDelete={() => setConfirmEntry(entry)} />
-                    ))}
-                    {sortedEntries.length === 0 && searchQuery && (
-                      <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-                        <Search className="w-6 h-6 text-zinc-700" />
-                        <p className="text-sm text-zinc-500">{t.nothing_found(searchQuery)}</p>
-                      </div>
-                    )}
-                  </div>
+                  <EntryList
+                    entries={sortedEntries} docCounts={docCounts} searchQuery={searchQuery}
+                    fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
+                    hint={!swipeHinted ? t.swipe_hint : null}
+                    onEdit={openEdit} onDelete={setConfirmEntry} />
                 </section>
               )}
             </div>
@@ -963,15 +1248,10 @@ const App = ({ toggleLang, lang }) => {
           </div>
 
           {/* ════ CALENDAR ════ */}
-          <div ref={tabRefs.calendar} className={`absolute inset-0 overflow-y-auto no-scrollbar desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'calendar' ? 'block' : 'hidden'}`}>
-            <div className="p-4 pt-6 space-y-5 lg:p-10 lg:pt-8 lg:space-y-7">
+          <div ref={tabRefs.calendar} className={`absolute inset-0 overflow-y-auto desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'calendar' || exitingTab === 'calendar' ? 'block' : 'hidden'}`}>
+            <div className="p-4 pt-6 space-y-5 lg:p-8 lg:pt-7 lg:space-y-7 lg:max-w-[1180px]">
               <PageHeader title={t.calendar_title} subtitle={t.calendar_subtitle} />
-              <header className="flex flex-col items-center gap-2 pt-2 mb-2 lg:hidden">
-                <h2 className="text-lg font-semibold tracking-tight">{t.calendar_title}</h2>
-                <div className="w-9 h-9 rounded-2xl bg-zinc-800 flex items-center justify-center border border-zinc-700">
-                  <CalendarDays className="w-4 h-4 text-sky-300" />
-                </div>
-              </header>
+              <MobilePageHeader icon={CalendarDays} title={t.calendar_title} />
               {(() => {
                 const now    = new Date();
                 const isPast = calYear < now.getFullYear() || (calYear === now.getFullYear() && calMonth < now.getMonth());
@@ -998,32 +1278,20 @@ const App = ({ toggleLang, lang }) => {
           </div>
 
           {/* ════ ANALYTICS ════ */}
-          <div ref={tabRefs.analytics} className={`absolute inset-0 overflow-y-auto no-scrollbar desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'analytics' ? 'block' : 'hidden'}`}>
-            <div className="p-4 pt-6 space-y-4 lg:p-10 lg:pt-8 lg:space-y-0">
+          <div ref={tabRefs.analytics} className={`absolute inset-0 overflow-y-auto desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'analytics' || exitingTab === 'analytics' ? 'block' : 'hidden'}`}>
+            <div className="p-4 pt-6 space-y-4 lg:p-8 lg:pt-7 lg:space-y-0 lg:max-w-[1180px]">
               <PageHeader title={t.analytics_title} subtitle={t.analytics_subtitle} className="lg:mb-7">
                 <ImportExportMenu entries={entries} onImport={handleImport} vaultState={vaultState} />
               </PageHeader>
-              <header className="relative flex items-center justify-between px-1 pt-2 mb-2 lg:hidden">
-                <div className="w-10 h-10" />{/* spacer */}
-                <div className="flex flex-col items-center gap-2">
-                  <h2 className="text-lg font-semibold tracking-tight">{t.analytics_title}</h2>
-                  <div className="w-9 h-9 rounded-2xl bg-zinc-800 flex items-center justify-center border border-zinc-700">
-                    <BarChart2 className="w-4 h-4 text-purple-300" />
-                  </div>
-                </div>
+              <MobilePageHeader icon={BarChart2} title={t.analytics_title}>
                 <ImportExportMenu entries={entries} onImport={handleImport} vaultState={vaultState} />
-              </header>
+              </MobilePageHeader>
 
               {/* Сетка карточек: колонка на мобиле, 2 колонки на десктопе */}
               <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
-              <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 p-5 space-y-3 lg:col-span-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-zinc-400 uppercase tracking-[0.16em]">{t.per_month}</span>
-                  <span className="text-base font-semibold">{fmt(totalMonthlyUSD)}</span>
-                </div>
-                <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
-                  <div className="h-full w-full bg-gradient-to-r from-purple-500 via-fuchsia-500 to-blue-500 rounded-full" />
-                </div>
+              <div data-group className={`${CARD} p-5 lg:col-span-2 flex items-baseline justify-between gap-4`}>
+                <span className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">{t.per_month}</span>
+                <span className="text-2xl font-semibold tracking-tight">{fmt(totalMonthlyUSD)}</span>
               </div>
 
               {/* ── Тренд расходов по месяцам ── */}
@@ -1038,7 +1306,7 @@ const App = ({ toggleLang, lang }) => {
                 });
 
                 // Для каждого месяца считаем реальные списания по датам биллинга
-                const monthlyTotals = months.map(({ month, year }) => {
+                const monthlyTotals = months.map(({ month }) => {
                   return entries.reduce((sum, s) => {
                     if (s.status === 'paused') return sum;
                     if (s.status === 'trial') return sum; // пробные не списываются
@@ -1069,119 +1337,60 @@ const App = ({ toggleLang, lang }) => {
                 const totalRange = monthlyTotals.reduce((a, v) => a + v, 0);
 
                 return (
-                  <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 p-5 lg:col-span-2 lg:p-6">
+                  <div data-group className={`${CARD} p-5 lg:col-span-2 lg:p-6`}>
                     {/* Заголовок + переключатель */}
-                    <div className="flex items-center justify-between mb-4">
-                      <p className="text-xs text-zinc-500 uppercase tracking-[0.16em]">{t.trend_title}</p>
-                      <div className="flex items-center gap-1 bg-zinc-800 rounded-xl p-0.5">
-                        {[3, 6, 12].map(r => (
-                          <button key={r} onClick={() => setTrendRange(r)}
-                            className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg transition ${
-                              trendRange === r ? 'bg-zinc-600 text-white' : 'text-zinc-500 hover:text-zinc-300'
-                            }`}>
-                            {r}{t.trend_unit}
-                          </button>
-                        ))}
-                      </div>
+                    <div className="flex items-center justify-between mb-5 gap-3">
+                      <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">{t.trend_title}</p>
+                      <Segmented
+                        items={[3, 6, 12].map(r => ({ id: r, label: `${r}${t.trend_unit}` }))}
+                        value={trendRange} onChange={setTrendRange}
+                        trackClass="bg-surface border border-border rounded-lg"
+                        itemClass="px-2.5 py-1 text-xs" />
                     </div>
 
                     {/* Бары */}
-                    <div className="flex items-end gap-1 lg:gap-2">
-                      {monthlyTotals.map((val, i) => {
-                        const isCurrentMonth = i === trendRange - 1;
-                        const heightPct = maxVal > 0 ? Math.max(5, (val / maxVal) * 100) : 5;
-                        return (
-                          <div key={i} className="group flex-1 flex flex-col items-center gap-1">
-                            {/* Значение — только на десктопе, при наведении */}
-                            <span className="hidden lg:block text-[10px] font-semibold text-zinc-400 opacity-0 group-hover:opacity-100 transition">
-                              {fmt(val)}
-                            </span>
-                            <div className="w-full flex items-end h-12 lg:h-36">
-                              <motion.div
-                                key={`${trendRange}-${i}`}
-                                initial={{ height: 0 }}
-                                animate={{ height: `${heightPct}%` }}
-                                transition={{ duration: 0.4, ease: 'easeOut', delay: i * 0.03 }}
-                                className={`w-full rounded-md transition-colors ${isCurrentMonth ? 'bg-purple-500' : val > 0 ? 'bg-zinc-600 lg:group-hover:bg-zinc-500' : 'bg-zinc-800'}`}
-                                style={{ minHeight: '3px' }}
-                              />
-                            </div>
-                            {/* Показываем метку только если баров не слишком много */}
-                            {(trendRange <= 6 || i % 2 === 0 || isDesktop) && (
-                              <span className={`text-[8px] font-medium leading-none lg:text-[11px] ${isCurrentMonth ? 'text-purple-400' : 'text-zinc-600'}`}>
-                                {monthLabels[months[i].month]}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <TrendBars
+                      totals={monthlyTotals} maxVal={maxVal} months={months} labels={monthLabels}
+                      fmt={fmt} isDesktop={isDesktop} range={trendRange} />
 
                     {/* Итог за период */}
-                    <div className="flex justify-between items-center mt-3 pt-3 border-t border-zinc-800">
-                      <span className="text-[10px] text-zinc-500">
-                        {t.trend_last(trendRange)}
-                      </span>
+                    <div className="flex justify-between items-center mt-4 pt-4 border-t border-border">
+                      <span className="text-xs text-ink-3">{t.trend_last(trendRange)}</span>
                       <span className="text-sm font-semibold">{fmt(totalRange)}</span>
                     </div>
                   </div>
                 );
               })()}
               {byCategory.length > 0 && (
-                <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 p-5 space-y-4">
-                  <p className="text-xs text-zinc-500 uppercase tracking-[0.16em]">{t.by_categories}</p>
-                  {byCategory.map(cat => {
+                <div data-group className={`${CARD} p-5 space-y-4`}>
+                  <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">{t.by_categories}</p>
+                  {byCategory.map((cat, i) => {
                     const share = totalMonthlyUSD ? (cat.total / totalMonthlyUSD) * 100 : 0;
                     const Icon  = cat.icon;
                     return (
-                      <div key={cat.id} className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${cat.bg} border ${cat.border}`}>
-                              <Icon className={`w-3.5 h-3.5 ${cat.color}`} />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">{t[cat.labelKey]}</p>
-                              <p className="text-[10px] text-zinc-500">{cat.entries.length}</p>
-                            </div>
+                      <MeterRow key={cat.id} share={share} rank={i} index={i}
+                        leading={
+                          <div className="w-8 h-8 rounded-lg bg-surface-3 flex items-center justify-center shrink-0">
+                            <Icon className="w-4 h-4 text-ink-2" />
                           </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-sm font-semibold">{fmt(cat.total)}</p>
-                            <p className="text-[10px] text-zinc-500">{share.toFixed(0)}%</p>
-                          </div>
-                        </div>
-                        <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                          <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, share)}%` }}
-                            transition={{ duration: 0.6, ease: 'easeOut' }} className={`h-full rounded-full ${cat.bar}`} />
-                        </div>
-                      </div>
+                        }
+                        title={t[cat.labelKey]} subtitle={t.entries_count(cat.entries.length)}
+                        value={fmt(cat.total)} meta={`${share.toFixed(0)}%`} />
                     );
                   })}
                 </div>
               )}
               {/* По подпискам */}
-              <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 p-5 space-y-4">
-                <p className="text-xs text-zinc-500 uppercase tracking-[0.16em]">{t.by_subscriptions}</p>
-                {activeEntries.length === 0 && <p className="text-sm text-zinc-500">{t.add_first_sub}</p>}
-                {[...activeEntries].sort((a, b) => monthly(b) - monthly(a)).map(entry => {
+              <div data-group className={`${CARD} p-5 space-y-4`}>
+                <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">{t.by_subscriptions}</p>
+                {activeEntries.length === 0 && <p className="text-sm text-ink-3">{t.add_first_sub}</p>}
+                {[...activeEntries].sort((a, b) => monthly(b) - monthly(a)).map((entry, i) => {
                   const share = totalMonthlyUSD ? (monthly(entry) / totalMonthlyUSD) * 100 : 0;
                   return (
-                    <div key={entry.id} className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <LogoIcon entry={entry} size="sm" />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{entry.name}</p>
-                            <p className="text-xs text-zinc-500">{fmt(monthly(entry))} / {t.sub_per_month}</p>
-                          </div>
-                        </div>
-                        <p className="text-sm font-semibold shrink-0">{share.toFixed(0)}<span className="text-xs text-zinc-500 ml-0.5">%</span></p>
-                      </div>
-                      <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                        <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, share)}%` }}
-                          transition={{ duration: 0.6, ease: 'easeOut' }} className="h-full bg-purple-500 rounded-full" />
-                      </div>
-                    </div>
+                    <MeterRow key={entry.id} share={share} rank={i} index={i}
+                      leading={<LogoIcon entry={entry} size="sm" />}
+                      title={entry.name} subtitle={`${fmt(monthly(entry))} / ${t.sub_per_month}`}
+                      value={`${share.toFixed(0)} %`} />
                   );
                 })}
               </div>
@@ -1190,18 +1399,21 @@ const App = ({ toggleLang, lang }) => {
                 const trialEntries = entries.filter(s => s.status === 'trial');
                 if (trialEntries.length === 0) return null;
                 return (
-                  <div className="bg-[#1C1C1E] rounded-3xl border border-amber-500/20 p-5 space-y-3">
-                    <p className="text-xs text-amber-400/70 uppercase tracking-[0.16em]">{t.trial_period}</p>
+                  <div data-group className={`${CARD} p-5 space-y-3`}>
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-warning" />
+                      <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">{t.trial_period}</p>
+                    </div>
                     {trialEntries.map(entry => (
                       <div key={entry.id} className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <LogoIcon entry={entry} size="sm" />
                           <div className="min-w-0">
                             <p className="text-sm font-medium truncate">{entry.name}</p>
-                            {entry.trial_end && <p className="text-[10px] text-zinc-500">{fmtDateFromISO(entry.trial_end, lang, t.months_short)}</p>}
+                            {entry.trial_end && <p className="text-xs text-ink-3">{fmtDateFromISO(entry.trial_end, lang, t.months_short)}</p>}
                           </div>
                         </div>
-                        <p className="text-sm text-zinc-500 shrink-0">—</p>
+                        <p className="text-sm text-ink-3 shrink-0">—</p>
                       </div>
                     ))}
                   </div>
@@ -1212,15 +1424,18 @@ const App = ({ toggleLang, lang }) => {
                 const pausedEntries = entries.filter(s => s.status === 'paused');
                 if (pausedEntries.length === 0) return null;
                 return (
-                  <div className="bg-[#1C1C1E] rounded-3xl border border-red-500/20 p-5 space-y-3">
-                    <p className="text-xs text-red-400/70 uppercase tracking-[0.16em]">{t.on_pause}</p>
+                  <div data-group className={`${CARD} p-5 space-y-3`}>
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-error" />
+                      <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">{t.on_pause}</p>
+                    </div>
                     {pausedEntries.map(entry => (
                       <div key={entry.id} className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <LogoIcon entry={entry} size="sm" />
                           <p className="text-sm font-medium truncate">{entry.name}</p>
                         </div>
-                        <p className="text-sm text-zinc-500 shrink-0">—</p>
+                        <p className="text-sm text-ink-3 shrink-0">—</p>
                       </div>
                     ))}
                   </div>
@@ -1232,92 +1447,129 @@ const App = ({ toggleLang, lang }) => {
         </div>
 
         {/* ── Навбар (мобильный; на десктопе — боковая панель) ── */}
-        <div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 pointer-events-none safe-bottom z-30 lg:hidden">
-          <nav className="bg-zinc-900/90 backdrop-blur-2xl border border-white/10 rounded-full py-3 px-4 max-w-[360px] w-full grid grid-cols-3 shadow-2xl pointer-events-auto">
-            <NavItem icon={Home}         label={t.nav_home}      active={activeTab === 'home'}      onClick={() => switchTab('home')} />
-            <NavItem icon={CalendarDays} label={t.nav_calendar}  active={activeTab === 'calendar'}  onClick={() => switchTab('calendar')} />
-            <NavItem icon={BarChart2}    label={t.nav_analytics} active={activeTab === 'analytics'} onClick={() => switchTab('analytics')} />
-          </nav>
+        {/* Eine gleitende Pille wandert zwischen den Reitern — §4.4 */}
+        <div className="fixed bottom-5 left-0 right-0 flex justify-center px-4 pointer-events-none safe-bottom z-30 lg:hidden">
+          <Segmented
+            value={activeTab} onChange={switchTab}
+            items={[
+              { id: 'home',      label: t.nav_home,      icon: Home },
+              { id: 'calendar',  label: t.nav_calendar,  icon: CalendarDays },
+              { id: 'analytics', label: t.nav_analytics, icon: BarChart2 },
+            ]}
+            className="max-w-[360px] w-full pointer-events-auto"
+            layout="grid grid-cols-3"
+            trackClass="glass border border-border rounded-full shadow-xl"
+            itemClass="flex flex-col items-center justify-center gap-1 py-2 min-h-[52px]"
+            pillClass="rounded-full"
+            renderItem={(item) => (
+              <>
+                <item.icon className="w-5 h-5" strokeWidth={2} />
+                <span className="text-[10px] font-medium tracking-wide">{item.label}</span>
+              </>
+            )}
+          />
         </div>
 
-        <AnimatePresence>
-          {isModalOpen && (
-            <EntryModal key={editingEntry?.id || 'new'} initial={editingEntry} currency={currency}
-              vaultState={vaultState} onDocsChange={refreshDocCounts}
-              onSave={handleSave} onClose={() => { setIsModalOpen(false); setEditingEntry(null); }} />
-          )}
-        </AnimatePresence>
+        {/* ── Eintrag anlegen / bearbeiten ── */}
+        <EntryModal key={editingEntry?.id || 'new'} open={isModalOpen} initial={editingEntry} currency={currency}
+          vaultState={vaultState} onDocsChange={refreshDocCounts}
+          onSave={handleSave} onClose={() => { setIsModalOpen(false); setEditingEntry(null); }} />
 
-        <AnimatePresence>
-          {toast && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-              className="fixed bottom-24 left-0 right-0 flex justify-center px-4 pointer-events-none z-40 lg:bottom-6 lg:left-auto lg:right-6 lg:justify-end lg:px-0">
-              <div className="pointer-events-auto max-w-[420px] w-full lg:w-[340px] bg-zinc-900 border border-red-500/30 rounded-2xl px-4 py-3 flex flex-col gap-2 shadow-xl shadow-red-500/10">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm">
-                    <p className="font-medium text-zinc-50">{t.sub_deleted}</p>
-                    <p className="text-xs text-zinc-400 truncate">{toast.entry?.name}</p>
-                  </div>
-                  <button onClick={undoDelete} className="text-xs font-semibold text-red-400 px-3 py-1.5 rounded-full bg-red-500/15 border border-red-500/40 active:scale-95 transition shrink-0">
-                    {t.undo}
-                  </button>
-                </div>
-                <div className="w-full h-1 rounded-full bg-zinc-800 overflow-hidden">
-                  <div className="h-full bg-red-500 animate-toast-progress" />
-                </div>
-              </div>
-            </motion.div>
-          )}
-                </AnimatePresence>
+        {/* ── Toast mit Rückgängig ── */}
+        <Toast open={Boolean(toast)} entry={toast?.entry} onUndo={undoDelete} />
 
-<AnimatePresence>
-  {confirmEntry && (
-    <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center lg:items-center lg:backdrop-blur-sm"
-      onClick={() => setConfirmEntry(null)}>
-      <motion.div
-        initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-        onClick={e => e.stopPropagation()}
-        className="w-full max-w-[420px] bg-zinc-900 border border-zinc-700 rounded-t-3xl px-4 pt-5 pb-8 shadow-2xl lg:rounded-3xl lg:p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
-            <Trash2 className="w-4 h-4 text-red-400" />
+        {/* ── Löschen bestätigen ── */}
+        <ConfirmDelete
+          entry={confirmEntry}
+          onCancel={() => setConfirmEntry(null)}
+          onConfirm={() => { triggerDelete(confirmEntry); setConfirmEntry(null); }} />
+      </div>
+    </div>
+  );
+};
+
+// ─── Toast (§4.3) ─────────────────────────────────────────────────────────────
+// Unten rechts, Fläche 2 mit kräftigem Rand, dünner Laufbalken.
+const Toast = ({ open, entry, onUndo }) => {
+  const t = useT();
+  const rendered = usePresence(open, DURATION.toastOut);
+  const ref = useRef(null);
+  // Während der Ausblendung ist `entry` schon weg — den letzten Namen behalten
+  const [shown, setShown] = useState(entry);
+  if (entry && entry !== shown) setShown(entry);
+
+  useLayoutEffect(() => {
+    if (!rendered || reducedMotion()) return;
+    restartAnimation(ref.current, open
+      ? `toast-in ${DURATION.toastIn}ms ${STANDARD_EASE}`
+      : `toast-out ${DURATION.toastOut}ms ${STANDARD_EASE} forwards`);
+  }, [open, rendered]);
+
+  if (!rendered) return null;
+  return (
+    <div className="fixed bottom-28 left-0 right-0 flex justify-center px-4 pointer-events-none z-40
+      lg:bottom-6 lg:left-auto lg:right-6 lg:justify-end lg:px-0">
+      <div ref={ref} role="status"
+        className="pointer-events-auto max-w-[420px] w-full lg:w-[340px] bg-surface-2 border border-border-strong
+          rounded-lg px-4 py-3 flex flex-col gap-2.5 shadow-xl">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-ink">{t.sub_deleted}</p>
+            <p className="text-xs text-ink-3 truncate">{shown?.name}</p>
           </div>
-          <div>
-            <p className="text-sm font-semibold text-zinc-100">{t.sub_delete || 'Delete'} «{confirmEntry.name}»?</p>
-            <p className="text-xs text-zinc-500 mt-0.5">{t.delete_confirm_hint || 'Вы уверены?'}</p>
+          <button onClick={onUndo} className={btn('secondary', 'sm', 'shrink-0')}>{t.undo}</button>
+        </div>
+        {open && (
+          <div className="w-full h-0.5 rounded-full bg-surface-3 overflow-hidden">
+            <div className="h-full bg-border-strong animate-toast-progress" />
           </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─── Löschen bestätigen ───────────────────────────────────────────────────────
+const ConfirmDelete = ({ entry, onCancel, onConfirm }) => {
+  const t = useT();
+  const isDesktop = useIsDesktop();
+  const [shown, setShown] = useState(entry);
+  if (entry && entry !== shown) setShown(entry);
+
+  return (
+    <Overlay open={Boolean(entry)} onClose={onCancel} sheet={!isDesktop}
+      panelClass="inset-x-0 bottom-0 mx-auto w-full max-w-[420px] bg-surface-2 border border-border-strong
+        rounded-t-2xl px-5 pt-5 pb-8 shadow-2xl
+        lg:inset-0 lg:m-auto lg:h-fit lg:rounded-2xl lg:p-6">
+      <div className="flex items-start gap-3 mb-5">
+        <div className="w-9 h-9 rounded-lg bg-error/10 border border-error/30 flex items-center justify-center shrink-0">
+          <Trash2 className="w-4 h-4 text-error" />
         </div>
-        <div className="lg:flex lg:flex-row-reverse lg:gap-3">
-          <button
-            onClick={() => { triggerDelete(confirmEntry); setConfirmEntry(null); }}
-            className="w-full bg-red-600/90 hover:bg-red-600 text-white text-sm font-semibold py-3 rounded-2xl active:scale-[0.98] transition mb-3 lg:mb-0 lg:flex-1">
-            {t.sub_delete || 'Delete'}
-          </button>
-          <button
-            onClick={() => setConfirmEntry(null)}
-            className="w-full text-zinc-400 text-sm py-2 active:scale-[0.98] transition hover:text-zinc-200 lg:flex-1 lg:py-3 lg:rounded-2xl lg:border lg:border-zinc-700 lg:hover:bg-zinc-800">
-            {t.modal_cancel || 'Cancel'}
-          </button>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-ink">{t.sub_delete} «{shown?.name}»?</p>
+          <p className="text-xs text-ink-3 mt-1 leading-relaxed">{t.delete_confirm_hint}</p>
         </div>
-      </motion.div>
-    </motion.div>
-  )}
-</AnimatePresence>
-</div>
-</div>
-);
+      </div>
+      <div className="flex flex-col gap-2 lg:flex-row-reverse lg:gap-3">
+        <button onClick={onConfirm} className={btn('danger', 'md', 'w-full py-3 lg:flex-1')}>
+          {t.sub_delete}
+        </button>
+        <button onClick={onCancel} className={btn('ghost', 'md', 'w-full py-3 lg:flex-1')}>
+          {t.modal_cancel}
+        </button>
+      </div>
+    </Overlay>
+  );
 };
 
 // ─── Анимация строки для онбординга ───────────────────────────────────────────
 const SwipeDemo = () => {
+  const t = useT();
   const [phase, setPhase] = useState(0);
   useEffect(() => {
     const delays = [1200, 900, 1200, 900];
-    const t = setTimeout(() => setPhase(p => (p + 1) % 4), delays[phase]);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setPhase(p => (p + 1) % 4), delays[phase]);
+    return () => clearTimeout(timer);
   }, [phase]);
 
   const x          = phase === 1 ? -72 : phase === 3 ? 72 : 0;
@@ -1325,31 +1577,30 @@ const SwipeDemo = () => {
   const showEdit   = phase === 3;
 
   return (
-    <div className="w-full rounded-2xl overflow-hidden border border-zinc-800 relative">
+    <div className="w-full rounded-lg overflow-hidden border border-border relative">
       <div className="absolute inset-0 flex">
-        <div className={`flex-1 flex items-center pl-5 gap-2 text-xs font-semibold transition-opacity duration-200 ${showEdit ? 'opacity-100 bg-emerald-600/80' : 'opacity-0'}`}>
-          <Pencil className="w-3.5 h-3.5" /> Редактировать
+        <div className={`flex-1 flex items-center pl-5 gap-2 text-xs font-medium text-white transition-opacity duration-200 ${showEdit ? 'opacity-100 bg-success' : 'opacity-0'}`}>
+          <Pencil className="w-4 h-4" /> {t.modal_edit}
         </div>
-        <div className={`flex-1 flex items-center justify-end pr-5 gap-2 text-xs font-semibold transition-opacity duration-200 ${showDelete ? 'opacity-100 bg-red-600/80' : 'opacity-0'}`}>
-          Удалить <Trash2 className="w-3.5 h-3.5" />
+        <div className={`flex-1 flex items-center justify-end pr-5 gap-2 text-xs font-medium text-white transition-opacity duration-200 ${showDelete ? 'opacity-100 bg-error' : 'opacity-0'}`}>
+          {t.sub_delete} <Trash2 className="w-4 h-4" />
         </div>
       </div>
-      <motion.div
-        animate={{ x }}
-        transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-        className="relative flex items-center px-4 py-3.5 gap-3 bg-[#1C1C1E]"
+      <div
+        className="relative flex items-center px-4 py-3.5 gap-3 bg-surface-2 text-left"
+        style={{ transform: `translateX(${x}px)`, transition: `transform 550ms ${STANDARD_EASE}` }}
       >
-        <div className="w-8 h-8 bg-zinc-800 rounded-2xl border border-zinc-700 flex items-center justify-center shrink-0 overflow-hidden">
+        <div className="w-8 h-8 bg-surface-3 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
           <img src="https://www.google.com/s2/favicons?sz=32&domain=spotify.com" className="w-5 h-5 object-contain" alt="" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">Spotify</p>
-          <p className="text-xs text-zinc-500">$12 / мес · 5 Mar</p>
+          <p className="text-xs text-ink-3">$12 · 5 Mar</p>
         </div>
-        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-pink-500/15 border border-pink-500/30">
-          <Music className="w-2.5 h-2.5 text-pink-400" />
+        <div className="flex items-center justify-center w-6 h-6 rounded-md bg-surface-3">
+          <Music className="w-3 h-3 text-ink-2" />
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };
@@ -1358,25 +1609,25 @@ const SwipeDemo = () => {
 const DesktopRowDemo = () => {
   const t = useT();
   return (
-    <div className="w-full rounded-2xl overflow-hidden border border-zinc-800">
-      <div className="flex items-center gap-3 px-4 py-3.5 bg-zinc-800/40">
-        <div className="w-10 h-10 bg-zinc-800 rounded-2xl border border-zinc-700 flex items-center justify-center shrink-0 overflow-hidden">
+    <div className={`w-full ${CARD} overflow-hidden`}>
+      <div className="flex items-center gap-3 px-4 py-3.5 bg-surface-3">
+        <div className="w-10 h-10 bg-surface-2 rounded-lg border border-border flex items-center justify-center shrink-0 overflow-hidden">
           <img src="https://www.google.com/s2/favicons?sz=32&domain=spotify.com" className="w-5 h-5 object-contain" alt="" />
         </div>
         <div className="min-w-0 flex-1 text-left">
           <p className="text-sm font-medium">Spotify</p>
-          <p className="text-xs text-zinc-500">5 Mar</p>
+          <p className="text-xs text-ink-3">5 Mar</p>
         </div>
         <div className="text-right shrink-0">
           <p className="text-sm font-semibold">$12</p>
-          <p className="text-[10px] text-zinc-500 uppercase">/ {t.sub_per_month}</p>
+          <p className="text-[11px] text-ink-3 uppercase">/ {t.sub_per_month}</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <div className="w-8 h-8 rounded-xl border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-            <Pencil className="w-3.5 h-3.5" />
+          <div className="w-8 h-8 rounded-lg border border-border bg-surface-2 flex items-center justify-center text-ink-2">
+            <Pencil className="w-4 h-4" />
           </div>
-          <div className="w-8 h-8 rounded-xl border border-red-500/40 bg-red-500/10 flex items-center justify-center text-red-400">
-            <Trash2 className="w-3.5 h-3.5" />
+          <div className="w-8 h-8 rounded-lg border border-border bg-surface-2 flex items-center justify-center text-ink-2">
+            <Trash2 className="w-4 h-4" />
           </div>
         </div>
       </div>
@@ -1386,17 +1637,17 @@ const DesktopRowDemo = () => {
 
 // ─── Онбординг ─────────────────────────────────────────────────────────────────
 const getOnboardingSteps = (t) => [
-  { icon: Sparkles,    iconColor: 'text-white',      iconBg: 'bg-zinc-800',       ...t.onb_slides[0] },
-  { icon: Plus,        iconColor: 'text-black',       iconBg: 'bg-white',          ...t.onb_slides[1] },
+  { icon: Sparkles,     ...t.onb_slides[0] },
+  { icon: Plus,         ...t.onb_slides[1] },
   { type: 'swipe',
-    icon: List,        iconColor: 'text-zinc-300',    iconBg: 'bg-zinc-800',       ...t.onb_slides[2] },
-  { icon: CalendarDays,iconColor: 'text-sky-300',     iconBg: 'bg-sky-500/15',     ...t.onb_slides[3] },
-  { icon: BarChart2,   iconColor: 'text-purple-300',  iconBg: 'bg-purple-500/15',  ...t.onb_slides[4] },
+    icon: List,         ...t.onb_slides[2] },
+  { icon: CalendarDays, ...t.onb_slides[3] },
+  { icon: BarChart2,    ...t.onb_slides[4] },
   { type: 'pwa',
-    icon: Download,    iconColor: 'text-green-300',   iconBg: 'bg-green-500/15',   ...t.onb_slides[5] },
+    icon: Download,     ...t.onb_slides[5] },
 ];
 
-const Onboarding = ({ onDone, toggleLang, lang }) => {
+const Onboarding = ({ onDone, toggleLang, lang, theme, toggleTheme }) => {
   const t = useT();
   const isDesktop = useIsDesktop();
   const [step,  setStep]  = useState(0);
@@ -1429,23 +1680,25 @@ const Onboarding = ({ onDone, toggleLang, lang }) => {
     return () => window.removeEventListener('keydown', onKey);
   }, [isLast, onDone]);
 
-  return (
-    <div className="min-h-screen bg-black text-white font-sans flex justify-center select-none lg:items-center lg:p-8"
-      onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-      <div className="w-full max-w-[450px] min-h-screen border-x border-zinc-900 bg-black flex flex-col overflow-hidden
-        lg:max-w-[560px] lg:min-h-0 lg:h-auto lg:border lg:border-zinc-800 lg:rounded-[40px] lg:shadow-2xl lg:bg-zinc-950">
+  // Jeder Schritt kommt von rechts herein — dieselbe Kurve wie der Ansichtswechsel
+  const slideRef = useRef(null);
+  useLayoutEffect(() => {
+    if (!reducedMotion()) {
+      restartAnimation(slideRef.current, `view-in ${DURATION.viewIn}ms ${POWER1_OUT}`);
+    }
+  }, [step]);
 
-        {/* Тогл языка — только на первом слайде */}
-        {step === 0 && toggleLang && (
-          <div className="flex justify-end px-6 pt-6">
-            <button onClick={toggleLang}
-              className="relative flex items-center h-7 w-[64px] rounded-full bg-zinc-800 border border-zinc-700 p-[3px] select-none">
-              <motion.div className="absolute w-[28px] h-[22px] bg-white rounded-full shadow"
-                animate={{ x: lang === 'en' ? 32 : 0 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 30 }} />
-              <span className={`relative z-10 flex-1 text-center text-[10px] font-bold tracking-wide transition-colors ${lang === 'de' ? 'text-black' : 'text-zinc-500'}`}>DE</span>
-              <span className={`relative z-10 flex-1 text-center text-[10px] font-bold tracking-wide transition-colors ${lang === 'en' ? 'text-black' : 'text-zinc-500'}`}>EN</span>
-            </button>
+  return (
+    <div className="min-h-screen bg-surface text-ink flex justify-center select-none lg:items-center lg:p-8"
+      onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <div className="w-full max-w-[450px] min-h-screen border-x border-border bg-surface flex flex-col overflow-hidden
+        lg:max-w-[560px] lg:min-h-0 lg:h-auto lg:border lg:border-border lg:rounded-2xl lg:shadow-2xl lg:bg-surface-2">
+
+        {/* Sprache und Farbschema — nur auf dem ersten Bild */}
+        {step === 0 && (
+          <div className="flex justify-end items-center gap-2 px-6 pt-6">
+            <ThemeToggle theme={theme} onToggle={toggleTheme} label={t.theme_toggle} />
+            {toggleLang && <LangToggle lang={lang} toggleLang={toggleLang} />}
           </div>
         )}
 
@@ -1454,19 +1707,14 @@ const Onboarding = ({ onDone, toggleLang, lang }) => {
 
           {/* Слайд — фиксированная зона контента */}
           <div className="flex-1 flex flex-col items-center justify-center">
-            <AnimatePresence mode="wait">
-              <motion.div key={step}
-                initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}
-                transition={{ duration: 0.22, ease: 'easeOut' }}
-                className="w-full flex flex-col items-center text-center"
-              >
-                {/* Иконка — одинаковая на всех слайдах */}
-                <div className={`w-20 h-20 rounded-[28px] flex items-center justify-center border border-zinc-700 mb-7 ${s.iconBg}`}>
-                  <s.icon className={`w-9 h-9 ${s.iconColor}`} />
+              <div ref={slideRef} key={step} className="w-full flex flex-col items-center text-center">
+                {/* Symbol — auf allen Bildern gleich gebaut */}
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-surface-3 mb-7">
+                  <s.icon className="w-7 h-7 text-ink" strokeWidth={1.75} />
                 </div>
 
                 {/* Заголовок */}
-                <h2 className="text-2xl font-bold tracking-tight mb-4">{s.title}</h2>
+                <h2 className="text-2xl font-semibold tracking-tight mb-4">{s.title}</h2>
 
                 {/* Управление строкой: свайп на тач-устройствах, кнопки на десктопе */}
                 {s.type === 'swipe' && (
@@ -1483,15 +1731,15 @@ const Onboarding = ({ onDone, toggleLang, lang }) => {
                   // На десктопе — только инструкция для Chrome/Edge
                   if (isDesktop && !isIOS && !isAndroid) return (
                     <div className="w-full mb-4">
-                      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-left space-y-3">
-                        <p className="text-xs text-zinc-500 uppercase tracking-widest">Desktop · Chrome/Edge</p>
+                      <div className={`${CARD} p-4 text-left space-y-3`}>
+                        <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">Desktop · Chrome/Edge</p>
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-green-500/15 border border-green-500/30 flex items-center justify-center shrink-0">
-                            <Download className="w-4 h-4 text-green-400" />
+                          <div className="w-9 h-9 rounded-lg bg-surface-3 flex items-center justify-center shrink-0">
+                            <Download className="w-4 h-4 text-ink-2" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-white">{t.pwa_desktop_install}</p>
-                            <p className="text-xs text-zinc-500">{t.pwa_desktop_install_hint}</p>
+                            <p className="text-sm font-medium text-ink">{t.pwa_desktop_install}</p>
+                            <p className="text-xs text-ink-3">{t.pwa_desktop_install_hint}</p>
                           </div>
                         </div>
                       </div>
@@ -1500,62 +1748,62 @@ const Onboarding = ({ onDone, toggleLang, lang }) => {
                   return (
                     <div className="w-full space-y-3 mb-4">
                       {(isIOS || (!isIOS && !isAndroid)) && (
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-left space-y-3">
-                          <p className="text-xs text-zinc-500 uppercase tracking-widest">iOS · Safari</p>
+                        <div className={`${CARD} p-4 text-left space-y-3`}>
+                          <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">iOS · Safari</p>
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0">
+                            <div className="w-9 h-9 rounded-lg bg-surface-3 flex items-center justify-center shrink-0">
                               {/* Share icon iOS */}
-                              <svg viewBox="0 0 24 24" className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <svg viewBox="0 0 24 24" className="w-4 h-4 text-ink-2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
                                 <polyline points="16 6 12 2 8 6"/>
                                 <line x1="12" y1="2" x2="12" y2="15"/>
                               </svg>
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-white">{t.pwa_ios_share}</p>
-                              <p className="text-xs text-zinc-500">{t.pwa_ios_share_hint}</p>
+                              <p className="text-sm font-medium text-ink">{t.pwa_ios_share}</p>
+                              <p className="text-xs text-ink-3">{t.pwa_ios_share_hint}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0">
-                              <svg viewBox="0 0 24 24" className="w-4 h-4 text-zinc-300" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <div className="w-9 h-9 rounded-lg bg-surface-3 flex items-center justify-center shrink-0">
+                              <svg viewBox="0 0 24 24" className="w-4 h-4 text-ink-2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <rect x="5" y="2" width="14" height="20" rx="2"/>
                                 <line x1="12" y1="6" x2="12" y2="6"/>
                                 <line x1="9" y1="18" x2="15" y2="18"/>
                               </svg>
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-white">{t.pwa_ios_add}</p>
-                              <p className="text-xs text-zinc-500">{t.pwa_ios_add_hint}</p>
+                              <p className="text-sm font-medium text-ink">{t.pwa_ios_add}</p>
+                              <p className="text-xs text-ink-3">{t.pwa_ios_add_hint}</p>
                             </div>
                           </div>
                         </div>
                       )}
                       {(isAndroid || (!isIOS && !isAndroid)) && (
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-left space-y-3">
-                          <p className="text-xs text-zinc-500 uppercase tracking-widest">Android · Chrome</p>
+                        <div className={`${CARD} p-4 text-left space-y-3`}>
+                          <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">Android · Chrome</p>
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0">
+                            <div className="w-9 h-9 rounded-lg bg-surface-3 flex items-center justify-center shrink-0">
                               {/* Three dots menu */}
-                              <svg viewBox="0 0 24 24" className="w-4 h-4 text-zinc-300" fill="currentColor">
+                              <svg viewBox="0 0 24 24" className="w-4 h-4 text-ink-2" fill="currentColor">
                                 <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
                               </svg>
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-white">{t.pwa_android_menu}</p>
-                              <p className="text-xs text-zinc-500">{t.pwa_android_menu_hint}</p>
+                              <p className="text-sm font-medium text-ink">{t.pwa_android_menu}</p>
+                              <p className="text-xs text-ink-3">{t.pwa_android_menu_hint}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-green-500/15 border border-green-500/30 flex items-center justify-center shrink-0">
-                              <svg viewBox="0 0 24 24" className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <div className="w-9 h-9 rounded-lg bg-surface-3 flex items-center justify-center shrink-0">
+                              <svg viewBox="0 0 24 24" className="w-4 h-4 text-ink-2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M12 2L12 16M12 16L8 12M12 16L16 12"/>
                                 <path d="M3 20h18"/>
                               </svg>
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-white">{t.pwa_android_install}</p>
-                              <p className="text-xs text-zinc-500">{t.pwa_android_install_hint}</p>
+                              <p className="text-sm font-medium text-ink">{t.pwa_android_install}</p>
+                              <p className="text-xs text-ink-3">{t.pwa_android_install_hint}</p>
                             </div>
                           </div>
                         </div>
@@ -1565,30 +1813,29 @@ const Onboarding = ({ onDone, toggleLang, lang }) => {
                 })()}
 
                 {/* Описание */}
-                <p className="text-zinc-400 text-sm leading-relaxed">
+                <p className="text-ink-2 text-sm leading-relaxed max-w-[46ch]">
                   {s.type === 'swipe' && isDesktop ? t.onb_manage_desktop : s.subtitle}
                 </p>
-              </motion.div>
-            </AnimatePresence>
+              </div>
           </div>
 
           {/* Точки — всегда на одном месте, прибиты к низу контентной зоны */}
           <div className="flex justify-center gap-2 py-8">
             {ONBOARDING_STEPS.map((_, i) => (
-              <div key={i} onClick={() => setStep(i)}
-                className={`rounded-full transition-all duration-300 cursor-pointer ${i === step ? 'w-5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-zinc-700'}`} />
+              <button key={i} type="button" onClick={() => setStep(i)} data-no-press
+                aria-label={`${i + 1}`}
+                className={`rounded-full transition-all duration-300 ${i === step ? 'w-6 h-1.5 bg-ink' : 'w-1.5 h-1.5 bg-border-strong hover:bg-ink-3'}`} />
             ))}
           </div>
         </div>
 
         {/* Кнопки — всегда внизу */}
-        <div className="px-8 pb-12 space-y-3 lg:pb-10">
-          <button onClick={goNext}
-            className="w-full bg-white text-black font-semibold py-3.5 rounded-2xl hover:bg-zinc-200 active:scale-95 transition text-sm">
+        <div className="px-8 pb-12 space-y-2 lg:pb-10">
+          <button onClick={goNext} className={btn('primary', 'md', 'w-full py-3')}>
             {isLast ? `${APP_NAME} →` : t.onb_next}
           </button>
           {!isLast && (
-            <button onClick={() => onDone(step)} className="w-full text-zinc-500 text-sm py-2 hover:text-zinc-300 transition">{t.onb_skip}</button>
+            <button onClick={() => onDone(step)} className={btn('ghost', 'md', 'w-full py-2.5')}>{t.onb_skip}</button>
           )}
         </div>
       </div>
@@ -1604,9 +1851,6 @@ const SUPPORT_LINKS = [
     label: 'Boosty',
     hint: 'Card',
     url: 'https://boosty.to/casablanque/donate',
-    bg: 'bg-orange-500/15',
-    border: 'border-orange-500/30',
-    color: 'text-orange-400',
     icon: () => (
       <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
@@ -1619,9 +1863,6 @@ const SUPPORT_LINKS = [
     label: 'CloudTips',
     hint: 'Card/SBP',
     url: 'https://pay.cloudtips.ru/p/18fa81b4',
-    bg: 'bg-blue-500/15',
-    border: 'border-blue-500/30',
-    color: 'text-blue-400',
     icon: () => (
       <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
@@ -1635,9 +1876,6 @@ const SUPPORT_LINKS = [
     hint: 'Avalanche C-Chain (AVAXC)',
     url: null,
     address: '0x3bE6114bc999482843bde238F4e17997B5355F76',
-    bg: 'bg-emerald-500/15',
-    border: 'border-emerald-500/30',
-    color: 'text-emerald-400',
     icon: () => (
       <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm.75 13.5v1.5h-1.5v-1.5C9.5 15.83 8.5 14.92 8.5 13.75h1.5c0 .55.67 1 1.5 1s1.5-.45 1.5-1c0-.59-.54-.88-1.76-1.22C9.87 12.1 8.5 11.5 8.5 10.25 8.5 9.08 9.5 8.17 11.25 8V6.5h1.5V8c1.75.17 2.75 1.08 2.75 2.25h-1.5c0-.55-.67-1-1.5-1s-1.5.45-1.5 1c0 .55.49.84 1.74 1.18 1.38.38 2.76.96 2.76 2.32 0 1.17-1 2.08-2.75 2.25z"/>
@@ -1646,21 +1884,14 @@ const SUPPORT_LINKS = [
   },
 ];
 
-// align: 'left' — открывается вниз (мобильная шапка), 'top' — вверх (боковая панель)
+// align: 'left' — öffnet nach unten (Kopfzeile), 'top' — nach oben (Seitenleiste)
 const SupportMenu = ({ align = 'left' }) => {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const ref = useRef(null);
+  const close = useCallback(() => setOpen(false), []);
+  const ref = useDismiss(open, close);
   const menuPos = align === 'top' ? 'left-0 bottom-12' : 'left-0 top-12';
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('touchstart', handler);
-    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler); };
-  }, [open]);
 
   const copyAddress = (address) => {
     navigator.clipboard.writeText(address).then(() => {
@@ -1671,45 +1902,33 @@ const SupportMenu = ({ align = 'left' }) => {
 
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen(v => !v)}
-        className={`w-10 h-10 border-2 border-zinc-700 bg-zinc-800 flex items-center justify-center hover:border-zinc-600 hover:bg-zinc-700 active:scale-95 transition shrink-0 ${
-          align === 'top' ? 'rounded-2xl' : 'rounded-full'
-        }`}>
-        <Heart className="w-4 h-4 text-zinc-300" />
+      <button onClick={() => setOpen(v => !v)} title={t.support_title} aria-label={t.support_title}
+        className="w-10 h-10 rounded-lg border border-border bg-surface-2 flex items-center justify-center
+          text-ink-2 hover:text-ink hover:bg-surface-3 transition shrink-0">
+        <Heart className="w-4 h-4" />
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div initial={{ opacity: 0, scale: 0.92, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: -6 }} transition={{ duration: 0.15 }}
-            className={`absolute ${menuPos} bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl z-50 w-[240px] overflow-hidden`}>
-            <div className="px-4 py-3 border-b border-zinc-800">
-              <p className="text-xs font-semibold text-zinc-200">{t.support_title}</p>
-              <p className="text-[11px] text-zinc-500 mt-0.5">{t.support_subtitle}</p>
+      <PopMenu open={open} className={menuPos} origin={align === 'top' ? 'bottom left' : 'top left'}>
+        <MenuHeader title={t.support_title} hint={t.support_subtitle} />
+        {SUPPORT_LINKS.map(link => (
+          <div key={link.id} data-menu-item className="px-3 py-2">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-ink-2"><link.icon /></span>
+              <span className="text-sm font-medium text-ink">{link.label}</span>
+              <span className="text-[11px] text-ink-3 ml-auto truncate">{link.hint}</span>
             </div>
-            {SUPPORT_LINKS.map(link => (
-              <div key={link.id} className={`mx-3 my-2 rounded-xl border ${link.border} ${link.bg} p-3`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={link.color}><link.icon /></span>
-                  <span className="text-sm font-semibold text-zinc-100">{link.label}</span>
-                  <span className="text-[10px] text-zinc-500 ml-auto">{link.hint}</span>
-                </div>
-                {link.url ? (
-                  <a href={link.url} target="_blank" rel="noopener noreferrer"
-                  onClick={() => setOpen(false)}
-                    className={`block w-full text-center text-xs font-semibold py-1.5 rounded-lg ${link.color} bg-black/20 active:scale-95 transition`}>
-                    {t.support_open}
-                  </a>
-                ) : (
-                  <button onClick={() => copyAddress(link.address)}
-                    className={`w-full text-xs font-semibold py-1.5 rounded-lg ${link.color} bg-black/20 active:scale-95 transition`}>
-                    {copied ? t.support_copied : t.support_copy}
-                  </button>
-                )}
-              </div>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+            {link.url ? (
+              <a href={link.url} target="_blank" rel="noopener noreferrer" onClick={close}
+                className={btn('secondary', 'sm', 'w-full text-xs')}>
+                {t.support_open}
+              </a>
+            ) : (
+              <button onClick={() => copyAddress(link.address)} className={btn('secondary', 'sm', 'w-full text-xs')}>
+                {copied ? <><Check className="w-3.5 h-3.5" />{t.support_copied}</> : <><Copy className="w-3.5 h-3.5" />{t.support_copy}</>}
+              </button>
+            )}
+          </div>
+        ))}
+      </PopMenu>
     </div>
   );
 };
@@ -1721,16 +1940,9 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
   const [open, setOpen] = useState(false);
   const [importStatus, setImportStatus] = useState(null); // null | 'ok' | 'err'
   const [importMsg, setImportMsg]       = useState('');
-  const ref      = useRef(null);
+  const close    = useCallback(() => setOpen(false), []);
+  const ref      = useDismiss(open, close);
   const fileRef  = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('touchstart', handler);
-    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler); };
-  }, [open]);
 
   // ── Export ─────────────────────────────────────────────────────────────────
   // CSV bleibt die flache Übersicht; alles Strukturierte steckt im JSON.
@@ -1821,60 +2033,46 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
 
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen(v => !v)}
-        className="w-10 h-10 rounded-full border-2 border-zinc-700 bg-zinc-800 flex items-center justify-center hover:border-zinc-600 hover:bg-zinc-700 active:scale-95 transition shrink-0">
-        <Download className="w-4 h-4 text-zinc-300" />
+      <button onClick={() => setOpen(v => !v)} title={t.io_title} aria-label={t.io_title}
+        className="w-10 h-10 rounded-lg border border-border bg-surface-2 flex items-center justify-center
+          text-ink-2 hover:text-ink hover:bg-surface-3 transition shrink-0">
+        <Download className="w-4 h-4" />
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div initial={{ opacity: 0, scale: 0.92, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: -6 }} transition={{ duration: 0.15 }}
-            className="absolute right-0 top-12 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl z-50 w-[220px] overflow-hidden">
-            <div className="px-4 py-3 border-b border-zinc-800">
-              <p className="text-xs font-semibold text-zinc-200">{t.io_title}</p>
-              <p className="text-[11px] text-zinc-500 mt-0.5">{t.io_subtitle}</p>
-            </div>
 
-            {/* Экспорт */}
-            <div className="mx-3 my-2 rounded-xl border border-blue-500/30 bg-blue-500/10 p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Download className="w-4 h-4 text-blue-400" />
-                <span className="text-sm font-semibold text-zinc-100">{t.io_export}</span>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={exportCSV}
-                  className="flex-1 text-xs font-semibold py-1.5 rounded-lg text-blue-400 bg-black/20 active:scale-95 transition">
-                  CSV
-                </button>
-                <button onClick={exportJSON}
-                  className="flex-1 text-xs font-semibold py-1.5 rounded-lg text-blue-400 bg-black/20 active:scale-95 transition">
-                  JSON
-                </button>
-              </div>
-              <p className="text-[10px] text-zinc-500 mt-2">{t.io_docs_note}</p>
-            </div>
+      <PopMenu open={open} className="right-0 top-12" origin="top right" width="w-[248px]">
+        <MenuHeader title={t.io_title} hint={t.io_subtitle} />
 
-            {/* Импорт */}
-            <div className="mx-3 mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Upload className="w-4 h-4 text-emerald-400" />
-                <span className="text-sm font-semibold text-zinc-100">{t.io_import}</span>
-                <span className="text-[10px] text-zinc-500 ml-auto">{t.io_import_hint}</span>
-              </div>
-              <button onClick={() => fileRef.current?.click()}
-                className="w-full text-xs font-semibold py-1.5 rounded-lg text-emerald-400 bg-black/20 active:scale-95 transition">
-                {t.io_import_btn}
-              </button>
-              <input ref={fileRef} type="file" accept=".csv,.json" className="hidden" onChange={handleFile} />
-              {importStatus && (
-                <p className={`text-[11px] text-center mt-2 ${importStatus === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {importMsg}
-                </p>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        {/* Экспорт */}
+        <div data-menu-item className="px-3 py-2">
+          <div className="flex items-center gap-2 mb-2 text-ink">
+            <Download className="w-4 h-4 text-ink-2" />
+            <span className="text-sm font-medium">{t.io_export}</span>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={exportCSV}  className={btn('secondary', 'sm', 'flex-1 text-xs')}>CSV</button>
+            <button onClick={exportJSON} className={btn('secondary', 'sm', 'flex-1 text-xs')}>JSON</button>
+          </div>
+          <p className="text-[11px] text-ink-3 mt-2">{t.io_docs_note}</p>
+        </div>
+
+        {/* Импорт */}
+        <div data-menu-item className="px-3 py-2 border-t border-border mt-1 pt-3">
+          <div className="flex items-center gap-2 mb-2 text-ink">
+            <Upload className="w-4 h-4 text-ink-2" />
+            <span className="text-sm font-medium">{t.io_import}</span>
+            <span className="text-[11px] text-ink-3 ml-auto">{t.io_import_hint}</span>
+          </div>
+          <button onClick={() => fileRef.current?.click()} className={btn('secondary', 'sm', 'w-full text-xs')}>
+            {t.io_import_btn}
+          </button>
+          <input ref={fileRef} type="file" accept=".csv,.json" className="hidden" onChange={handleFile} />
+          {importStatus && (
+            <p className={`text-[11px] text-center mt-2 ${importStatus === 'ok' ? 'text-success' : 'text-error'}`}>
+              {importMsg}
+            </p>
+          )}
+        </div>
+      </PopMenu>
     </div>
   );
 };
@@ -1921,28 +2119,36 @@ const CalendarSection = ({ entries, fmt, fmtReal, monthly, month, year, onPrev, 
 
   const cells = [...Array(offset).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
 
+  // Punktfarben: Testphase warnt, Jahreszahlung ist kräftiger, sonst Tinte
+  const dotClass = (entry, onInk) => {
+    if (entry.status === 'trial') return 'bg-warning';
+    if (onInk) return 'bg-surface/70';
+    return entry.period === 'yearly' ? 'bg-ink' : 'bg-ink-3';
+  };
+
   return (
-    <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
+    <div data-group className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
       <div className="space-y-3 lg:col-span-2">
       <div className="flex items-center justify-between px-1">
-        <button onClick={onPrev} className="w-8 h-8 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-700 transition active:scale-95">
+        <button onClick={onPrev} aria-label="←"
+          className="w-9 h-9 rounded-lg border border-border bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink hover:bg-surface-3 transition">
           <ChevronDown className="w-4 h-4 rotate-90" />
         </button>
         <div className="flex items-center gap-3">
-          <p className="text-sm font-semibold lg:text-lg">{t.months_full[month]} {year}</p>
+          <p className="text-sm font-semibold tracking-tight lg:text-lg">{t.months_full[month]} {year}</p>
           {onToday && (
-            <button onClick={onToday}
-              className="hidden lg:block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 hover:text-zinc-200 border border-zinc-800 hover:border-zinc-700 rounded-xl px-2.5 py-1 transition">
+            <button onClick={onToday} className={btn('ghost', 'sm', 'hidden lg:inline-flex text-xs')}>
               {t.today}
             </button>
           )}
         </div>
-        <button onClick={onNext} className="w-8 h-8 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-700 transition active:scale-95">
+        <button onClick={onNext} aria-label="→"
+          className="w-9 h-9 rounded-lg border border-border bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink hover:bg-surface-3 transition">
           <ChevronDown className="w-4 h-4 -rotate-90" />
         </button>
       </div>
       <div className="grid grid-cols-7">
-        {t.days_short.map(d => <div key={d} className="text-center text-[10px] text-zinc-600 font-semibold uppercase tracking-wide py-1 lg:text-left lg:pl-2">{d}</div>)}
+        {t.days_short.map(d => <div key={d} className="text-center text-[11px] text-ink-3 uppercase tracking-[0.12em] py-1 lg:text-left lg:pl-2">{d}</div>)}
       </div>
       <div className="grid grid-cols-7 gap-1 lg:gap-1.5">
         {cells.map((day, i) => {
@@ -1950,51 +2156,46 @@ const CalendarSection = ({ entries, fmt, fmtReal, monthly, month, year, onPrev, 
           const daySubs = subsByDay[day] || [];
           const hasAny  = daySubs.length > 0;
           const hasActive = daySubs.some(s => !s.status || s.status === 'active');
+          const today_ = isToday(day);
           const total   = daySubs
             .filter(s => !s.status || s.status === 'active')
             .reduce((a, s) => a + (s.period === 'yearly' ? monthly(s) * 12 : monthly(s)), 0);
 
           // ── Десктоп: крупная ячейка со списком сервисов ──
           if (isDesktop) return (
-            <div key={day} className={`min-h-[104px] rounded-2xl p-2 flex flex-col border transition
-              ${isToday(day) ? 'bg-white text-black border-white'
-                : hasAny     ? 'bg-zinc-800/60 border-zinc-700 hover:border-zinc-600'
-                             : 'bg-zinc-900/40 border-transparent'}`}>
+            <div key={day} className={`min-h-[104px] rounded-lg p-2 flex flex-col border transition
+              ${today_  ? 'bg-ink text-surface border-ink'
+                : hasAny ? 'bg-surface-2 border-border hover:border-border-strong'
+                         : 'bg-transparent border-transparent'}`}>
               <div className="flex items-baseline justify-between gap-1">
-                <span className={`text-xs font-semibold ${isToday(day) ? 'text-black' : hasAny ? 'text-white' : 'text-zinc-600'}`}>{day}</span>
+                <span className={`text-xs font-medium ${today_ ? 'text-surface' : hasAny ? 'text-ink' : 'text-ink-3'}`}>{day}</span>
                 {hasAny && hasActive && (
-                  <span className={`text-[10px] font-bold truncate ${isToday(day) ? 'text-zinc-600' : 'text-amber-400'}`}>{fmt(total)}</span>
+                  <span className={`text-[11px] font-medium truncate ${today_ ? 'text-surface/70' : 'text-ink-2'}`}>{fmt(total)}</span>
                 )}
               </div>
               <div className="mt-1.5 space-y-1 overflow-hidden">
                 {daySubs.slice(0, 2).map(s => (
                   <div key={s.id} className="flex items-center gap-1.5">
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                      s.status === 'trial' ? 'bg-amber-400' :
-                      s.period === 'yearly' ? 'bg-red-400' : 'bg-purple-400'
-                    }`} />
-                    <span className={`text-[10px] leading-tight truncate ${isToday(day) ? 'text-zinc-700' : 'text-zinc-400'}`}>{s.name}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass(s, today_)}`} />
+                    <span className={`text-[11px] leading-tight truncate ${today_ ? 'text-surface/70' : 'text-ink-2'}`}>{s.name}</span>
                   </div>
                 ))}
                 {daySubs.length > 2 && (
-                  <p className={`text-[10px] pl-3 ${isToday(day) ? 'text-zinc-600' : 'text-zinc-600'}`}>{t.more_count(daySubs.length - 2)}</p>
+                  <p className={`text-[11px] pl-3 ${today_ ? 'text-surface/60' : 'text-ink-3'}`}>{t.more_count(daySubs.length - 2)}</p>
                 )}
               </div>
             </div>
           );
 
           return (
-            <div key={day} className={`relative aspect-square rounded-2xl flex flex-col items-center justify-center
-              ${isToday(day) ? 'bg-white text-black' : hasAny ? 'bg-zinc-800 border border-zinc-700' : 'bg-zinc-900/40'}`}>
-              <span className={`text-xs font-semibold leading-none ${isToday(day) ? 'text-black' : hasAny ? 'text-white' : 'text-zinc-600'}`}>{day}</span>
-              {hasAny && hasActive && <span className={`text-[8px] font-bold mt-0.5 leading-none ${isToday(day) ? 'text-zinc-600' : 'text-amber-400'}`}>{fmt(total)}</span>}
+            <div key={day} className={`relative aspect-square rounded-lg flex flex-col items-center justify-center border
+              ${today_ ? 'bg-ink text-surface border-ink' : hasAny ? 'bg-surface-2 border-border' : 'border-transparent'}`}>
+              <span className={`text-xs font-medium leading-none ${today_ ? 'text-surface' : hasAny ? 'text-ink' : 'text-ink-3'}`}>{day}</span>
+              {hasAny && hasActive && <span className={`text-[9px] mt-1 leading-none ${today_ ? 'text-surface/70' : 'text-ink-2'}`}>{fmt(total)}</span>}
               {hasAny && (
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
+                <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
                   {daySubs.slice(0, 3).map(s => (
-                    <div key={s.id} className={`w-1 h-1 rounded-full ${
-                      s.status === 'trial' ? 'bg-white' :
-                      s.period === 'yearly' ? 'bg-red-400' : 'bg-purple-400'
-                    }`} />
+                    <div key={s.id} className={`w-1 h-1 rounded-full ${dotClass(s, today_)}`} />
                   ))}
                 </div>
               )}
@@ -2006,18 +2207,18 @@ const CalendarSection = ({ entries, fmt, fmtReal, monthly, month, year, onPrev, 
 
       {/* Суммы + список списаний. На десктопе — правая колонка */}
       <div className="space-y-3 lg:col-span-1 lg:space-y-4">
-      <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 p-4 space-y-2 lg:p-5">
+      <div className={`${CARD} p-4 space-y-2.5 lg:p-5`}>
         <div className="flex justify-between text-sm gap-3">
-          <span className="text-zinc-400">{isPast ? t.spent(t.months_genitive[calMonth ?? month]) : t.expected(t.months_genitive[calMonth ?? month])}</span>
+          <span className="text-ink-3">{isPast ? t.spent(t.months_genitive[calMonth ?? month]) : t.expected(t.months_genitive[calMonth ?? month])}</span>
           <span className="font-semibold shrink-0">{fmt(calTotal ?? 0)}</span>
         </div>
         <div className="flex justify-between text-sm gap-3">
-          <span className="text-zinc-400">{t.per_year}</span>
+          <span className="text-ink-3">{t.per_year}</span>
           <span className="font-semibold shrink-0">{fmt(calYearly ?? 0)}</span>
         </div>
       </div>
       {Object.keys(subsByDay).length > 0 && (
-        <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 divide-y divide-zinc-800/80 overflow-hidden mt-2 lg:mt-0">
+        <div className={`${CARD} divide-y divide-border overflow-hidden mt-2 lg:mt-0`}>
           {Object.entries(subsByDay).sort(([a],[b]) => Number(a)-Number(b)).flatMap(([day, entries]) =>
             entries.map(entry => (
               <div key={entry.id} className="flex items-center justify-between px-4 py-3 gap-3">
@@ -2026,13 +2227,13 @@ const CalendarSection = ({ entries, fmt, fmtReal, monthly, month, year, onPrev, 
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-medium truncate">{entry.name}</p>
-                      {entry.status === 'trial' && <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.modal_status_trial.toLowerCase()}</span>}
+                      {entry.status === 'trial' && <Badge tone="warning">{t.badge_trial}</Badge>}
                     </div>
-                    <p className="text-xs text-zinc-500">{day}. {t.months_short[month]}</p>
+                    <p className="text-xs text-ink-3">{day}. {t.months_short[month]}</p>
                   </div>
                 </div>
                 {entry.status === 'trial'
-                  ? <p className="text-xs text-zinc-500 shrink-0">{t.not_billing}</p>
+                  ? <p className="text-xs text-ink-3 shrink-0">{t.not_billing}</p>
                   : <p className="text-sm font-semibold shrink-0">{fmtReal(entry)}</p>
                 }
               </div>
@@ -2053,9 +2254,9 @@ const SoonSection = ({ soonEntries, fmtOriginal, className = '' }) => {
     <section className={`space-y-3 ${className}`}>
       <SectionTitle icon={CalendarDays} label={t.soon} />
       {soonEntries.length === 0
-        ? <p className="text-sm text-zinc-600 px-1 lg:bg-[#1C1C1E] lg:border lg:border-zinc-800/60 lg:rounded-3xl lg:px-5 lg:py-6 lg:text-center">{t.soon_empty}</p>
+        ? <p className="text-sm text-ink-3 px-1 lg:px-5 lg:py-6 lg:bg-surface-2 lg:border lg:border-border lg:rounded-xl">{t.soon_empty}</p>
         : <div ref={ref} data-no-tab-swipe
-            className="flex gap-3 overflow-x-auto no-scrollbar px-1 pb-1 lg:flex-col lg:overflow-visible lg:px-0">
+            className="flex gap-3 overflow-x-auto px-1 pb-1 lg:flex-col lg:overflow-visible lg:px-0">
             {soonEntries.map(entry => <SoonCard key={entry.id} entry={entry} fmtOriginal={fmtOriginal} />)}
           </div>
       }
@@ -2065,10 +2266,7 @@ const SoonSection = ({ soonEntries, fmtOriginal, className = '' }) => {
 
 // ─── Kündigungsfristen ────────────────────────────────────────────────────────
 // Farbe folgt der Dringlichkeit: verstrichen · unter 30 Tagen · darüber
-const deadlineTone = (days) =>
-  days < 0  ? { text: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/30'    }
-: days <= 30 ? { text: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/30'  }
-:              { text: 'text-zinc-400',   bg: 'bg-zinc-500/10',   border: 'border-zinc-600/40'   };
+const deadlineTone = (days) => (days < 0 ? 'error' : days <= 30 ? 'warning' : 'muted');
 
 const deadlineText = (days, t) => {
   if (days < 0)  return t.deadline_passed;
@@ -2079,11 +2277,8 @@ const deadlineText = (days, t) => {
 
 const DeadlineBadge = ({ days }) => {
   const t = useT();
-  const tone = deadlineTone(days);
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-lg shrink-0 border ${tone.text} ${tone.bg} ${tone.border}`}>
-      <AlertTriangle className="w-2.5 h-2.5" />{deadlineText(days, t)}
-    </span>
+    <Badge tone={deadlineTone(days)} icon={AlertTriangle}>{deadlineText(days, t)}</Badge>
   );
 };
 
@@ -2095,18 +2290,18 @@ const DeadlinesSection = ({ deadlines, onOpen, className = '' }) => {
     <section className={`space-y-3 ${className}`}>
       <SectionTitle icon={AlertTriangle} label={t.deadlines_title} />
       {deadlines.length === 0 ? (
-        <p className="text-sm text-zinc-600 px-1 lg:bg-[#1C1C1E] lg:border lg:border-zinc-800/60 lg:rounded-3xl lg:px-5 lg:py-6 lg:text-center">
+        <p className="text-sm text-ink-3 px-1 lg:px-5 lg:py-6 lg:bg-surface-2 lg:border lg:border-border lg:rounded-xl">
           {t.deadlines_empty}
         </p>
       ) : (
-        <div className="bg-[#1C1C1E] rounded-3xl border border-zinc-800/60 divide-y divide-zinc-800/80 overflow-hidden">
+        <div className={`${CARD} divide-y divide-border overflow-hidden`}>
           {deadlines.map(({ entry, date, days }) => (
-            <button key={entry.id} type="button" onClick={() => onOpen(entry)}
-              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-800/40 transition">
+            <button key={entry.id} type="button" onClick={() => onOpen(entry)} data-no-press
+              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface-3 transition">
               <LogoIcon entry={entry} size="sm" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium truncate">{entry.name}</p>
-                <p className="text-xs text-zinc-500 truncate">
+                <p className="text-xs text-ink-3 truncate">
                   {t.deadline_until} {fmtDateFromISO(date, lang, t.months_short)}
                 </p>
               </div>
@@ -2122,40 +2317,43 @@ const DeadlinesSection = ({ deadlines, onOpen, className = '' }) => {
 // ─── Komponenten ──────────────────────────────────────────────────────────────
 const SectionTitle = ({ icon: Icon, label }) => (
   <div className="flex items-center gap-2 px-1">
-    <Icon className="w-4 h-4 text-zinc-400" strokeWidth={2} />
+    <Icon className="w-4 h-4 text-ink-3" strokeWidth={2} />
     <h3 className="font-semibold text-base tracking-tight">{label}</h3>
   </div>
 );
 
 const LogoIcon = ({ entry, size = 'md' }) => {
   const [err, setErr] = useState(false);
-  const wrap = size === 'sm' ? 'w-8 h-8' : 'w-10 h-10';
+  const wrap = size === 'sm' ? 'w-9 h-9' : 'w-10 h-10';
   const img  = size === 'sm' ? 'w-5 h-5' : 'w-6 h-6';
   const LucideIcon = getLucideIcon(entry);
   const url  = !err && !LucideIcon ? getLogoUrl(entry) : null;
   return (
-    <div className={`${wrap} bg-zinc-800 rounded-2xl flex items-center justify-center border border-zinc-700 overflow-hidden shrink-0`}>
+    <div className={`${wrap} bg-surface-3 rounded-lg flex items-center justify-center overflow-hidden shrink-0`}>
       {LucideIcon
-        ? <LucideIcon className={`${img} text-zinc-300`} />
+        ? <LucideIcon className={`${img} text-ink-2`} strokeWidth={1.75} />
         : url
           ? <img src={url} className={`${img} object-contain`} alt="" onError={() => setErr(true)} />
-          : <CreditCard className="w-4 h-4 text-zinc-300" />}
+          : <CreditCard className="w-4 h-4 text-ink-2" strokeWidth={1.75} />}
     </div>
   );
 };
 
+// Kategorien tragen keine Farbe — nur das Symbol, notfalls mit Beschriftung
 const CategoryBadge = ({ cat, tiny = false }) => {
+  const t = useT();
   const Icon = cat.icon;
   if (tiny) return (
-    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg ${cat.bg} border ${cat.border}`}>
-      <Icon className={`w-2.5 h-2.5 ${cat.color}`} />
-    </div>
+    <span title={t[cat.labelKey]}
+      className="flex items-center justify-center w-5 h-5 rounded-md bg-surface-3 text-ink-3 shrink-0">
+      <Icon className="w-3 h-3" />
+    </span>
   );
   return (
-    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl ${cat.bg} border ${cat.border}`}>
-      <Icon className={`w-3 h-3 ${cat.color}`} />
-      <span className={`text-xs font-medium ${cat.color}`}>{cat.label}</span>
-    </div>
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-surface-3 text-ink-2">
+      <Icon className="w-3.5 h-3.5" />
+      <span className="text-xs font-medium">{t[cat.labelKey]}</span>
+    </span>
   );
 };
 
@@ -2188,26 +2386,84 @@ const SoonCard = ({ entry, fmtOriginal }) => {
     return lang === 'de' ? `in ${daysLeft} T.` : `in ${daysLeft}d`;
   })();
 
+  const tone = daysLeft === 0 ? 'error' : daysLeft === 1 ? 'warning' : 'muted';
+
   return (
-    <div className="w-[168px] bg-[#1C1C1E] rounded-[28px] p-5 border border-zinc-800 active:scale-[0.97] transition shrink-0 flex flex-col
-      lg:w-full lg:flex-row lg:items-center lg:gap-3 lg:rounded-2xl lg:p-4 lg:active:scale-100 lg:hover:border-zinc-700">
+    <div className={`w-[172px] ${CARD} lift p-4 shrink-0 flex flex-col
+      lg:w-full lg:flex-row lg:items-center lg:gap-3`}>
       <div className="flex justify-between items-start mb-4 lg:mb-0 lg:contents">
         <LogoIcon entry={entry} size="md" />
-        <span className={`text-[10px] font-bold px-2 py-1 rounded-xl border shrink-0 ml-2 lg:order-last lg:ml-0 ${
-          daysLeft === 0 ? 'text-red-400 bg-red-500/15 border-red-500/30' :
-          daysLeft === 1 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30' :
-          'text-white bg-zinc-800 border-zinc-700'
-        }`}>{daysLabel ?? entry.date}</span>
+        {/* Am Desktop wandert das Abzeichen ans Zeilenende */}
+        <span className="lg:order-3 lg:ml-auto">
+          <Badge tone={tone}>{daysLabel ?? entry.date}</Badge>
+        </span>
       </div>
-      <div className="lg:min-w-0 lg:flex-1">
-        <p className="font-semibold text-sm leading-snug mb-2 flex-1 lg:mb-0" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{entry.name}</p>
-        <div className="flex items-center justify-between gap-1 lg:justify-start lg:gap-2 lg:mt-0.5">
-          <p className="text-zinc-400 text-xs truncate">{fmtOriginal(entry)}</p>
+      <div className="lg:min-w-0 lg:flex-1 lg:order-2">
+        <p className="font-medium text-sm leading-snug mb-1.5 lg:mb-0"
+          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {entry.name}
+        </p>
+        <div className="flex items-center justify-between gap-1 lg:justify-start lg:gap-2">
+          <p className="text-ink-3 text-xs truncate">{fmtOriginal(entry)}</p>
           {cat && <CategoryBadge cat={cat} tiny />}
         </div>
       </div>
     </div>
   );
+};
+
+// ─── Wischen am Telefon ───────────────────────────────────────────────────────
+// Ohne Animationsbibliothek: touch-action übernimmt die vertikale Achse, die
+// horizontale bewegen wir selbst und lassen sie mit der Hauskurve zurückgleiten.
+const useSwipeRow = ({ onLeft, onRight, max = 90, threshold = 70 }) => {
+  const ref   = useRef(null);
+  const state = useRef({ active: false, axis: null, dx: 0, startX: 0, startY: 0 });
+
+  const move = (px, animate) => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.transition = animate && !reducedMotion() ? `transform 400ms ${STANDARD_EASE}` : 'none';
+    el.style.transform  = px ? `translateX(${px}px)` : '';
+  };
+
+  const onPointerDown = (e) => {
+    if (e.pointerType === 'mouse') return; // Mit der Maus wird geklickt, nicht gewischt
+    state.current = { active: true, axis: null, dx: 0, startX: e.clientX, startY: e.clientY };
+    move(0, false);
+  };
+
+  const onPointerMove = (e) => {
+    const s = state.current;
+    if (!s.active) return;
+    const dx = e.clientX - s.startX;
+    const dy = e.clientY - s.startY;
+
+    // Achse erst nach ein paar Pixeln festlegen — schräge Gesten sind Scrollen
+    if (!s.axis) {
+      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+      s.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      if (s.axis === 'x') { try { ref.current?.setPointerCapture(e.pointerId); } catch { /* nicht fangbar */ } }
+    }
+    if (s.axis !== 'x') return;
+
+    // Jenseits der Grenze wird es zäh
+    const over = Math.abs(dx) - max;
+    s.dx = over > 0 ? Math.sign(dx) * (max + over * 0.12) : dx;
+    move(s.dx, false);
+  };
+
+  const end = (e) => {
+    const s = state.current;
+    if (!s.active) return;
+    s.active = false;
+    try { ref.current?.releasePointerCapture(e.pointerId); } catch { /* nie gefangen */ }
+    move(0, true);
+    if (s.axis !== 'x') return;
+    if (s.dx <= -threshold) onLeft?.();
+    else if (s.dx >= threshold) onRight?.();
+  };
+
+  return { ref, handlers: { onPointerDown, onPointerMove, onPointerUp: end, onPointerCancel: end } };
 };
 
 const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onEdit, onDelete, docCount = 0 }) => {
@@ -2217,32 +2473,17 @@ const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onEdit, onDelete, docCount
   const cat = entry.category ? getCat(entry.category) : null;
   const deadlineDays = daysUntil(cancelByDate(entry));
   const deadlineSoon = deadlineDays !== null && deadlineDays <= 60;
-  const x = useMotionValue(0);
-  const startRef = useRef(null);
-  const isVertical = useRef(false);
-  const axisLocked = useRef(false); // ось зафиксирована — больше не переключаем
+  const { ref: swipeRef, handlers } = useSwipeRow({ onLeft: onDelete, onRight: onEdit });
 
-  const onPointerDown = (e) => {
-    startRef.current = { x: e.clientX, y: e.clientY };
-    isVertical.current = false;
-    axisLocked.current = false;
-  };
-
-  const onPointerMove = (e) => {
-    if (!startRef.current || axisLocked.current) return;
-    const dx = Math.abs(e.clientX - startRef.current.x);
-    const dy = Math.abs(e.clientY - startRef.current.y);
-    // Ждём минимум 20px перед определением оси
-    if (dx < 20 && dy < 20) return;
-    // Угол > ~22° от горизонтали (dy/dx > 0.2) считаем скроллом
-    if (dy > dx * 0.2) {
-      isVertical.current = true;
-      axisLocked.current = true;
-      x.set(0);
-    } else {
-      axisLocked.current = true; // горизонталь — фиксируем, не даём перепрыгнуть
-    }
-  };
+  const badges = (
+    <>
+      {cat && <CategoryBadge cat={cat} tiny />}
+      {entry.status === 'paused' && <Badge tone="error">{t.badge_paused}</Badge>}
+      {entry.status === 'trial'  && <Badge tone="warning">{t.badge_trial}</Badge>}
+      {deadlineSoon && <DeadlineBadge days={deadlineDays} />}
+      {docCount > 0 && <Badge icon={Paperclip} title={t.docs_count(docCount)}>{docCount}</Badge>}
+    </>
+  );
 
   // ── Десктоп: клик по строке — редактирование, действия по наведению ──
   if (isDesktop) {
@@ -2254,41 +2495,30 @@ const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onEdit, onDelete, docCount
     ].filter(Boolean).join(' · ');
 
     return (
-      <div onClick={onEdit}
-        className="group flex items-center gap-4 px-5 py-3.5 bg-[#1C1C1E] hover:bg-zinc-800/40 transition cursor-pointer">
+      <div data-row onClick={onEdit}
+        className="group flex items-center gap-4 px-5 py-3.5 bg-surface-2 hover:bg-surface-3 transition cursor-pointer">
         <LogoIcon entry={entry} size="md" />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <p className="text-sm font-medium truncate">{entry.name}</p>
-            {cat && <CategoryBadge cat={cat} tiny />}
-            {entry.status === 'paused' && <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 border border-red-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_paused}</span>}
-            {entry.status === 'trial'  && <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_trial}</span>}
-            {deadlineSoon && <DeadlineBadge days={deadlineDays} />}
-            {docCount > 0 && (
-              <span title={t.docs_count(docCount)}
-                className="inline-flex items-center gap-1 text-[10px] font-semibold text-zinc-400 bg-zinc-500/10 border border-zinc-600/40 px-1.5 py-0.5 rounded-lg shrink-0">
-                <Paperclip className="w-2.5 h-2.5" />{docCount}
-              </span>
-            )}
+            {badges}
           </div>
-          <p className="text-xs text-zinc-500 truncate mt-0.5">{meta}</p>
+          <p className="text-xs text-ink-3 truncate mt-0.5">{meta}</p>
         </div>
         <div className="text-right shrink-0">
           <p className="text-sm font-semibold">{fmtOriginal(entry)}</p>
-          <p className="text-[10px] text-zinc-500 uppercase tracking-wide">
+          <p className="text-[11px] text-ink-3 uppercase tracking-[0.1em]">
             / {entry.period === 'yearly' ? t.sub_per_year : t.sub_per_month}
           </p>
         </div>
-        <div className="flex items-center gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition">
-          <button type="button" title={t.modal_edit}
-            onClick={e => { e.stopPropagation(); onEdit(); }}
-            className="w-8 h-8 rounded-xl border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-500/10 transition">
-            <Pencil className="w-3.5 h-3.5" />
+        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition">
+          <button type="button" title={t.modal_edit} onClick={e => { e.stopPropagation(); onEdit(); }}
+            className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-2 transition">
+            <Pencil className="w-4 h-4" />
           </button>
-          <button type="button" title={t.sub_delete}
-            onClick={e => { e.stopPropagation(); onDelete(); }}
-            className="w-8 h-8 rounded-xl border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition">
-            <Trash2 className="w-3.5 h-3.5" />
+          <button type="button" title={t.sub_delete} onClick={e => { e.stopPropagation(); onDelete(); }}
+            className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-3 hover:text-error hover:border-error/40 transition">
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -2296,55 +2526,31 @@ const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onEdit, onDelete, docCount
   }
 
   return (
-    <div className="relative overflow-hidden"
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}>
-      <div className="absolute inset-0 flex">
-        <div className="flex-1 bg-emerald-600/90 flex items-center pl-6 text-xs font-semibold gap-2">
-          <Pencil className="w-3.5 h-3.5" /> {t.modal_edit}
+    <div data-row className="relative overflow-hidden">
+      {/* Was unter der Zeile liegt */}
+      <div className="absolute inset-0 flex text-white">
+        <div className="flex-1 bg-success flex items-center pl-6 text-xs font-medium gap-2">
+          <Pencil className="w-4 h-4" /> {t.modal_edit}
         </div>
-        <div className="flex-1 bg-red-600/90 flex items-center justify-end pr-6 text-xs font-semibold gap-2">
-          {t.sub_delete} <Trash2 className="w-3.5 h-3.5" />
+        <div className="flex-1 bg-error flex items-center justify-end pr-6 text-xs font-medium gap-2">
+          {t.sub_delete} <Trash2 className="w-4 h-4" />
         </div>
       </div>
-      <motion.div
-        data-no-tab-swipe
-        drag={isVertical.current ? false : 'x'}
-        dragConstraints={{ left: -90, right: 90 }}
-        dragElastic={0.08}
-        dragSnapToOrigin
-        style={{ x }}
-        onDragEnd={(_, info) => {
-          if (!isVertical.current) {
-            if (info.offset.x <= -70) onDelete();
-            else if (info.offset.x >= 70) onEdit();
-          }
-          startRef.current = null;
-          isVertical.current = false;
-          axisLocked.current = false;
-        }}
-        className={`relative flex items-center px-4 py-3 gap-3 bg-[#1C1C1E]`}>
+      <div ref={swipeRef} data-no-tab-swipe {...handlers}
+        className="relative flex items-center px-4 py-3 gap-3 bg-surface-2 touch-pan-y">
         <LogoIcon entry={entry} size="sm" />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <p className="text-sm font-medium truncate">{entry.name}</p>
-            {cat && <CategoryBadge cat={cat} tiny />}
-            {entry.status === 'paused' && <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 border border-red-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_paused}</span>}
-            {entry.status === 'trial'  && <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded-lg shrink-0">{t.badge_trial}</span>}
-            {deadlineSoon && <DeadlineBadge days={deadlineDays} />}
-            {docCount > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-zinc-400 bg-zinc-500/10 border border-zinc-600/40 px-1.5 py-0.5 rounded-lg shrink-0">
-                <Paperclip className="w-2.5 h-2.5" />{docCount}
-              </span>
-            )}
+            {badges}
           </div>
-          <p className="text-xs text-zinc-500 truncate">
+          <p className="text-xs text-ink-3 truncate mt-0.5">
             {fmtOriginal(entry)} / {entry.period === 'yearly' ? t.sub_per_year : t.sub_per_month}
             {fmtBillingDate(entry.date, t, lang) && ` · ${fmtBillingDate(entry.date, t, lang)}`}
             {entry.status === 'trial' && entry.trial_end && ` · ${fmtDateFromISO(entry.trial_end, lang, t.months_short)}`}
           </p>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };
@@ -2352,27 +2558,26 @@ const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onEdit, onDelete, docCount
 // ─── Валюта ────────────────────────────────────────────────────────────────────
 const CurrencySelector = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const ref = useDismiss(open, close);
   const curr = getCurrency(value);
+
   return (
-    <div className="relative inline-block">
+    <div ref={ref} className="relative inline-block">
       <button onClick={() => setOpen(o => !o)}
-        className="inline-flex items-center gap-1.5 bg-zinc-800/70 hover:bg-zinc-700/70 border border-zinc-700 text-zinc-300 text-xs font-semibold px-3 py-1.5 rounded-full transition active:scale-95">
-        {curr.label} <ChevronDown className="w-3 h-3" />
+        className="inline-flex items-center gap-1.5 border border-border bg-surface-2 text-ink-2
+          hover:text-ink hover:bg-surface-3 text-xs font-medium px-3 py-1.5 rounded-full transition">
+        {curr.label} <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div initial={{ opacity: 0, y: -6, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.96 }} transition={{ duration: 0.12 }}
-            className="absolute top-9 left-1/2 -translate-x-1/2 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl overflow-hidden z-50 min-w-[130px]">
-            {CURRENCIES.map(c => (
-              <button key={c.code} onClick={() => { onChange(c.code); setOpen(false); }}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-zinc-800 transition">
-                <span className={value === c.code ? 'text-white font-semibold' : 'text-zinc-400'}>{c.label}</span>
-                {value === c.code && <Check className="w-3.5 h-3.5 text-white" />}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PopMenu open={open} className="top-10 left-0" width="w-[150px]">
+        {CURRENCIES.map(c => (
+          <MenuItem key={c.code} onClick={() => { onChange(c.code); setOpen(false); }}
+            className={value === c.code ? 'text-ink' : ''}>
+            <span className="flex-1">{c.label}</span>
+            {value === c.code && <Check className="w-4 h-4" />}
+          </MenuItem>
+        ))}
+      </PopMenu>
     </div>
   );
 };
@@ -2383,19 +2588,12 @@ const DatePicker = ({ value, onChange, label }) => {
   const t    = useT();
   const lang = useLang();
   const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const ref = useDismiss(open, close);
   const today = new Date();
   const parsed = value ? new Date(value) : null;
   const [viewYear,  setViewYear]  = useState(parsed?.getFullYear()  ?? today.getFullYear());
   const [viewMonth, setViewMonth] = useState(parsed?.getMonth()     ?? today.getMonth());
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('touchstart', handler);
-    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler); };
-  }, [open]);
 
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const offset = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7;
@@ -2417,86 +2615,99 @@ const DatePicker = ({ value, onChange, label }) => {
 
   return (
     <div ref={ref} className="relative">
-      <div
-        onClick={() => setOpen(v => !v)}
-        className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl px-4 py-3 cursor-pointer active:bg-amber-500/20 transition">
-        <CalendarDays className="w-4 h-4 text-amber-400 shrink-0" />
-        <span className="text-xs text-amber-400 font-medium">{label}</span>
+      <button type="button" onClick={() => setOpen(v => !v)} data-no-press
+        className={`${INPUT_CLASS} bg-surface-2 flex items-center gap-3 text-left hover:bg-surface-3`}>
+        <CalendarDays className="w-4 h-4 text-ink-3 shrink-0" />
+        <span className="text-xs text-ink-3">{label}</span>
         <span className="ml-auto text-sm">
           {parsed
-            ? <span className="text-zinc-200">{fmtDateFromISO(value, lang, t.months_short)}</span>
-            : <span className="text-zinc-600">{t.datepicker_choose}</span>}
+            ? <span className="text-ink">{fmtDateFromISO(value, lang, t.months_short)}</span>
+            : <span className="text-ink-3">{t.datepicker_choose}</span>}
         </span>
-      </div>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.97 }}
-            transition={{ duration: 0.15 }}
-            className="absolute top-full mt-2 left-0 right-0 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl z-50 p-4">
-            {/* Навигация по месяцу */}
-            <div className="flex items-center justify-between mb-3">
-              <button type="button" onClick={prevMonth}
-                className="w-7 h-7 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 active:scale-95 transition">
-                <ChevronDown className="w-3.5 h-3.5 rotate-90" />
-              </button>
-              <span className="text-sm font-semibold">{t.months_full[viewMonth]} {viewYear}</span>
-              <button type="button" onClick={nextMonth}
-                className="w-7 h-7 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 active:scale-95 transition">
-                <ChevronDown className="w-3.5 h-3.5 -rotate-90" />
-              </button>
-            </div>
-            {/* Дни недели */}
-            <div className="grid grid-cols-7 mb-1">
-              {t.days_short.map(d => <div key={d} className="text-center text-[10px] text-zinc-600 font-semibold uppercase py-1">{d}</div>)}
-            </div>
-            {/* Дни */}
-            <div className="grid grid-cols-7 gap-0.5">
-              {cells.map((day, i) => {
-                if (!day) return <div key={`e-${i}`} />;
-                const isSelected = day === selectedDay && viewMonth === selectedMonth && viewYear === selectedYear;
-                const isToday    = day === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
-                return (
-                  <button key={day} type="button" onClick={() => selectDay(day)}
-                    className={`aspect-square rounded-xl text-xs font-medium transition active:scale-95
-                      ${isSelected ? 'bg-amber-500 text-black font-bold'
-                        : isToday   ? 'bg-zinc-700 text-white'
-                        : 'text-zinc-300 hover:bg-zinc-800'}`}>
-                    {day}
-                  </button>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </button>
+
+      <PopMenu open={open} className="top-full mt-2 left-0 right-0" width="" >
+        <div className="p-3">
+          {/* Навигация по месяцу */}
+          <div className="flex items-center justify-between mb-3">
+            <button type="button" onClick={prevMonth} aria-label="←"
+              className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-2 hover:bg-surface-3 transition">
+              <ChevronDown className="w-4 h-4 rotate-90" />
+            </button>
+            <span className="text-sm font-medium">{t.months_full[viewMonth]} {viewYear}</span>
+            <button type="button" onClick={nextMonth} aria-label="→"
+              className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-2 hover:bg-surface-3 transition">
+              <ChevronDown className="w-4 h-4 -rotate-90" />
+            </button>
+          </div>
+          {/* Дни недели */}
+          <div className="grid grid-cols-7 mb-1">
+            {t.days_short.map(d => <div key={d} className="text-center text-[11px] text-ink-3 uppercase py-1">{d}</div>)}
+          </div>
+          {/* Дни */}
+          <div className="grid grid-cols-7 gap-0.5">
+            {cells.map((day, i) => {
+              if (!day) return <div key={`e-${i}`} />;
+              const isSelected = day === selectedDay && viewMonth === selectedMonth && viewYear === selectedYear;
+              const isToday    = day === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
+              return (
+                <button key={day} type="button" onClick={() => selectDay(day)} data-no-press
+                  className={`aspect-square rounded-lg text-xs font-medium transition
+                    ${isSelected ? 'bg-ink text-surface'
+                      : isToday   ? 'bg-surface-sunken text-ink'
+                      : 'text-ink-2 hover:bg-surface-3'}`}>
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </PopMenu>
     </div>
   );
 };
 
 // ─── Formular-Bausteine ───────────────────────────────────────────────────────
-const INPUT_CLASS = 'w-full bg-black border border-zinc-800 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-zinc-500 transition placeholder:text-zinc-600';
-
 const FieldShell = ({ label, hint, children }) => (
   <label className="block space-y-1.5">
-    <span className="block text-[11px] text-zinc-500 px-1">{label}</span>
+    <span className="block text-[11px] text-ink-3 px-1">{label}</span>
     {children}
-    {hint && <span className="block text-[10px] text-zinc-600 px-1">{hint}</span>}
+    {hint && <span className="block text-[11px] text-ink-3 px-1">{hint}</span>}
   </label>
+);
+
+// Der Ein-Zustand ist eine der wenigen Stellen, an denen der Akzent auftaucht (§2)
+const Switch = ({ checked, onChange, label }) => (
+  <button type="button" role="switch" aria-checked={checked} data-no-press
+    onClick={() => onChange(!checked)}
+    className="w-full flex items-center gap-3 text-left group">
+    <span className={`w-9 h-5 rounded-full p-0.5 shrink-0 transition-colors duration-200
+      ${checked ? 'bg-accent' : 'bg-border-strong'}`}>
+      <span className="block w-4 h-4 rounded-full bg-surface-2 shadow-sm transition-transform duration-300"
+        style={{ transform: `translateX(${checked ? 16 : 0}px)`, transitionTimingFunction: STANDARD_EASE }} />
+    </span>
+    <span className="text-xs text-ink-2 group-hover:text-ink transition-colors">{label}</span>
+  </button>
+);
+
+// Ruhiger Hinweis — Farbe nur als schmaler Streifen am Rand
+const Note = ({ tone = 'muted', icon: Icon = AlertTriangle, children }) => (
+  <div className={`flex gap-2.5 rounded-lg border px-3 py-2.5 ${TONE[tone]}`}>
+    <Icon className="w-4 h-4 shrink-0 mt-px" />
+    <p className="text-[11px] leading-relaxed">{children}</p>
+  </div>
 );
 
 const SelectInput = ({ value, onChange, placeholder, options }) => (
   <div className="relative">
     <select value={value} onChange={e => onChange(e.target.value)}
-      className={`${INPUT_CLASS} appearance-none pr-10 ${value ? 'text-white' : 'text-zinc-600'}`}>
+      className={`${INPUT_CLASS} appearance-none pr-10 ${value ? 'text-ink' : 'text-ink-3'}`}>
       <option value="">{placeholder}</option>
       {options.map(option => (
-        <option key={option.value} value={option.value} className="text-white">{option.label}</option>
+        <option key={option.value} value={option.value} className="text-ink">{option.label}</option>
       ))}
     </select>
-    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" />
   </div>
 );
 
@@ -2529,11 +2740,11 @@ const SecretInput = ({ value, onChange, placeholder, disabled = false, readOnly 
       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
         <button type="button" onClick={() => setRevealed(v => !v)} disabled={disabled}
           title={revealed ? t.access_hide : t.access_show}
-          className="w-8 h-8 flex items-center justify-center rounded-xl text-zinc-500 hover:text-zinc-200 transition disabled:opacity-40">
+          className="w-8 h-8 flex items-center justify-center rounded-md text-ink-3 hover:text-ink transition disabled:opacity-40">
           {revealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
         </button>
         <button type="button" onClick={copy} disabled={disabled || !value} title={t.access_copy}
-          className={`w-8 h-8 flex items-center justify-center rounded-xl transition disabled:opacity-40 ${copied ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-200'}`}>
+          className={`w-8 h-8 flex items-center justify-center rounded-md transition disabled:opacity-40 ${copied ? 'text-success' : 'text-ink-3 hover:text-ink'}`}>
           {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
         </button>
       </div>
@@ -2588,7 +2799,7 @@ const TemplateField = ({ field, value, onChange }) => {
       <input
         type={inputType}
         inputMode={inputType === 'number' ? 'decimal' : undefined}
-        className={`${INPUT_CLASS} ${inputType === 'date' ? '[color-scheme:dark]' : ''}`}
+        className={INPUT_CLASS}
         placeholder={field.placeholder || (field.type === 'money' ? t.modal_price_placeholder : '')}
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -2611,10 +2822,10 @@ const CustomFields = ({ custom, onChange }) => {
 
   return (
     <div className="space-y-3">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500 px-1">{t.custom_fields}</p>
+      <p className="text-[11px] uppercase tracking-[0.16em] text-ink-3 px-1">{t.custom_fields}</p>
 
       {custom.map(field => (
-        <div key={field.id} className="rounded-2xl border border-zinc-800 bg-black/40 p-3 space-y-2">
+        <div key={field.id} className="rounded-xl border border-border bg-surface p-3 space-y-2">
           <div className="flex gap-2">
             <input className={`${INPUT_CLASS} flex-1`} placeholder={t.custom_label}
               value={field.label} onChange={e => update(field.id, { label: e.target.value })} />
@@ -2627,8 +2838,8 @@ const CustomFields = ({ custom, onChange }) => {
               />
             </div>
             <button type="button" onClick={() => remove(field.id)} title={t.custom_remove}
-              className="w-11 shrink-0 rounded-2xl border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-red-400 hover:border-red-500/40 transition">
-              <Trash2 className="w-3.5 h-3.5" />
+              className="w-11 shrink-0 rounded-lg border border-border flex items-center justify-center text-ink-3 hover:text-error hover:border-error/40 transition">
+              <Trash2 className="w-4 h-4" />
             </button>
           </div>
 
@@ -2641,7 +2852,7 @@ const CustomFields = ({ custom, onChange }) => {
           ) : (
             <input
               type={field.type === 'number' || field.type === 'money' ? 'number' : field.type === 'date' ? 'date' : 'text'}
-              className={`${INPUT_CLASS} ${field.type === 'date' ? '[color-scheme:dark]' : ''}`}
+              className={INPUT_CLASS}
               placeholder={t.custom_value}
               value={field.value}
               onChange={e => update(field.id, { value: e.target.value })}
@@ -2651,8 +2862,9 @@ const CustomFields = ({ custom, onChange }) => {
       ))}
 
       <button type="button" onClick={add}
-        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-dashed border-zinc-700 text-xs font-semibold text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition">
-        <Plus className="w-3.5 h-3.5" />{t.custom_add}
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-dashed border-border-strong
+          text-xs font-medium text-ink-2 hover:text-ink hover:bg-surface-3 transition">
+        <Plus className="w-4 h-4" />{t.custom_add}
       </button>
     </div>
   );
@@ -2667,21 +2879,15 @@ const VaultPanel = ({ vaultState }) => {
   const [busy,       setBusy]       = useState(false);
 
   if (!vaultState.available) {
-    return (
-      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex gap-3">
-        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-        <p className="text-xs text-amber-200/90 leading-relaxed">{t.vault_unavailable}</p>
-      </div>
-    );
+    return <Note tone="warning">{t.vault_unavailable}</Note>;
   }
 
   if (vaultState.unlocked) {
     return (
-      <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
-        <KeyRound className="w-4 h-4 text-emerald-400 shrink-0" />
-        <p className="text-xs text-emerald-200/90 flex-1">{t.vault_title}</p>
-        <button type="button" onClick={vaultState.lock}
-          className="text-[11px] font-semibold text-emerald-300 border border-emerald-500/40 rounded-xl px-2.5 py-1 hover:bg-emerald-500/15 transition">
+      <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-2.5">
+        <KeyRound className="w-4 h-4 text-success shrink-0" />
+        <p className="text-xs text-ink-2 flex-1">{t.vault_title}</p>
+        <button type="button" onClick={vaultState.lock} className={btn('secondary', 'sm', 'text-xs')}>
           {t.vault_lock}
         </button>
       </div>
@@ -2715,15 +2921,15 @@ const VaultPanel = ({ vaultState }) => {
   };
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4 space-y-3">
+    <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
       <div className="flex items-center gap-2">
-        <Lock className="w-3.5 h-3.5 text-zinc-400" />
-        <p className="text-xs font-semibold text-zinc-200">
+        <Lock className="w-4 h-4 text-ink-3" />
+        <p className="text-xs font-medium text-ink">
           {vaultState.configured ? t.vault_locked : t.vault_title}
         </p>
       </div>
 
-      <p className="text-[11px] text-zinc-500 leading-relaxed">
+      <p className="text-[11px] text-ink-3 leading-relaxed">
         {vaultState.configured ? t.vault_locked_hint : t.vault_intro}
       </p>
 
@@ -2738,23 +2944,20 @@ const VaultPanel = ({ vaultState }) => {
             placeholder={t.vault_repeat} value={repeat}
             onChange={e => setRepeat(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && submit()} />
-          <div className="flex gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-            <p className="text-[11px] text-amber-200/90 leading-relaxed">{t.vault_warning}</p>
-          </div>
+          <Note tone="warning">{t.vault_warning}</Note>
         </>
       )}
 
-      {error && <p className="text-[11px] text-red-400 px-1">{error}</p>}
+      {error && <p className="text-[11px] text-error px-1">{error}</p>}
 
       <button type="button" onClick={submit} disabled={busy || !passphrase}
-        className="w-full bg-white text-black text-sm font-semibold py-2.5 rounded-2xl hover:bg-zinc-200 active:scale-[0.98] transition disabled:opacity-40">
+        className={btn('primary', 'md', 'w-full')}>
         {vaultState.configured ? t.vault_unlock : t.vault_create}
       </button>
 
       {vaultState.configured && (
         <button type="button" onClick={resetVault}
-          className="w-full text-[11px] text-zinc-600 hover:text-red-400 transition py-1">
+          className="w-full text-[11px] text-ink-3 hover:text-error transition py-1.5 rounded-lg">
           {t.vault_reset} · {t.vault_reset_hint}
         </button>
       )}
@@ -2809,44 +3012,39 @@ const DocumentsPanel = ({ entryId, onChange }) => {
   };
 
   if (!available) {
-    return (
-      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex gap-3">
-        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-        <p className="text-xs text-amber-200/90">{t.docs_unavailable}</p>
-      </div>
-    );
+    return <Note tone="warning">{t.docs_unavailable}</Note>;
   }
 
   return (
     <div className="space-y-3">
-      <p className="text-[11px] text-zinc-500 px-1">{t.docs_hint}</p>
+      <p className="text-[11px] text-ink-3 px-1">{t.docs_hint}</p>
 
       {documents.length === 0 ? (
-        <p className="text-sm text-zinc-600 text-center py-6">{t.docs_empty}</p>
+        <p className="text-sm text-ink-3 text-center py-6">{t.docs_empty}</p>
       ) : (
-        <div className="rounded-2xl border border-zinc-800 divide-y divide-zinc-800 overflow-hidden">
+        <div className="rounded-xl border border-border divide-y divide-border overflow-hidden">
           {documents.map(document => (
-            <div key={document.id} className="flex items-center gap-3 px-3 py-2.5 bg-black/40">
-              <FileText className="w-4 h-4 text-zinc-500 shrink-0" />
+            <div key={document.id} className="flex items-center gap-3 px-3 py-2.5 bg-surface">
+              <FileText className="w-4 h-4 text-ink-3 shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium truncate">{document.name}</p>
-                <p className="text-[10px] text-zinc-600">
+                <p className="text-[11px] text-ink-3">
                   {documentStore.formatSize(document.size)} · {fmtDateFromISO(document.addedAt, lang, t.months_short)}
                 </p>
               </div>
               <button type="button" title={t.docs_open}
                 onClick={() => documentStore.openDocument(document.id)}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 hover:text-sky-400 transition">
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-3 transition">
                 <ExternalLink className="w-3.5 h-3.5" />
               </button>
               <button type="button" title={t.docs_download}
                 onClick={() => documentStore.openDocument(document.id, { download: true })}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 hover:text-emerald-400 transition">
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-3 transition">
                 <Download className="w-3.5 h-3.5" />
               </button>
               <button type="button" title={t.docs_delete}
                 onClick={() => removeDocument(document.id)}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 hover:text-red-400 transition">
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-3 hover:text-error hover:bg-surface-3 transition">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -2854,11 +3052,12 @@ const DocumentsPanel = ({ entryId, onChange }) => {
         </div>
       )}
 
-      {error && <p className="text-[11px] text-red-400 px-1">{error}</p>}
+      {error && <p className="text-[11px] text-error px-1">{error}</p>}
 
       <button type="button" onClick={() => fileRef.current?.click()} disabled={busy}
-        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-zinc-700 text-xs font-semibold text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition disabled:opacity-40">
-        <Upload className="w-3.5 h-3.5" />{t.docs_add}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-lg border border-dashed border-border-strong
+          text-xs font-medium text-ink-2 hover:text-ink hover:bg-surface-3 transition disabled:opacity-50">
+        <Upload className="w-4 h-4" />{t.docs_add}
       </button>
       <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFiles} />
     </div>
@@ -2875,7 +3074,7 @@ const MODAL_TABS = [
 
 const NOTICE_OPTIONS = [1, 2, 3, 6, 12];
 
-const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChange }) => {
+const EntryModal = ({ open, initial, currency, vaultState, onSave, onClose, onDocsChange }) => {
   const t    = useT();
   const lang = useLang();
   const isDesktop = useIsDesktop();
@@ -3037,34 +3236,29 @@ const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChan
   const catalogEntry   = getCatalogEntry(initial?.name) || getCatalogEntry(name);
 
   return (
-    <>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" />
-      <motion.div
-        initial={isDesktop ? { opacity: 0, scale: 0.96, y: 12 } : { y: '100%', opacity: 0 }}
-        animate={isDesktop ? { opacity: 1, scale: 1, y: 0 }      : { y: 0, opacity: 1 }}
-        exit={isDesktop    ? { opacity: 0, scale: 0.96, y: 12 } : { y: '100%', opacity: 0 }}
-        transition={isDesktop ? { duration: 0.16, ease: 'easeOut' } : { type: 'spring', damping: 26, stiffness: 220 }}
-        className={isDesktop
-          ? 'fixed inset-0 m-auto h-fit w-[680px] max-h-[88vh] overflow-y-auto no-scrollbar bg-zinc-900 rounded-[32px] p-8 z-50 border border-zinc-800 shadow-2xl'
-          : 'fixed inset-x-4 bottom-4 top-16 overflow-y-auto no-scrollbar bg-zinc-900 rounded-[36px] p-6 z-50 border border-zinc-800 max-w-[450px] mx-auto shadow-2xl'}>
+    <Overlay open={open} onClose={onClose} sheet={!isDesktop} labelledBy="entry-modal-title"
+      panelClass={isDesktop
+        ? 'inset-0 m-auto h-fit w-[680px] max-h-[88vh] overflow-y-auto desktop-scroll bg-surface-2 rounded-2xl p-8 border border-border shadow-2xl'
+        : 'inset-x-3 bottom-3 top-14 overflow-y-auto bg-surface-2 rounded-2xl p-5 border border-border max-w-[450px] mx-auto shadow-2xl'}>
 
-        <h2 className="text-xl font-semibold mb-4 text-center lg:text-left lg:text-2xl">
+        <h2 id="entry-modal-title" className="text-xl font-semibold tracking-tight mb-5 lg:text-2xl">
           {initial ? t.modal_edit : t.modal_new}
         </h2>
 
-        {/* Reiter */}
-        <div className="flex gap-1 p-1 rounded-2xl bg-black/50 border border-zinc-800 mb-5">
-          {MODAL_TABS.map(({ id, labelKey, icon: Icon }) => (
-            <button key={id} type="button" onClick={() => setTab(id)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-semibold transition ${
-                tab === id ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
-              }`}>
-              <Icon className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{t[labelKey]}</span>
-            </button>
-          ))}
-        </div>
+        {/* Reiter — die Markierung gleitet mit */}
+        <Segmented
+          items={MODAL_TABS.map(({ id, labelKey, icon }) => ({ id, label: t[labelKey], icon }))}
+          value={tab} onChange={setTab}
+          className="w-full mb-5"
+          layout="grid grid-cols-4"
+          trackClass="bg-surface border border-border rounded-lg"
+          itemClass="flex items-center justify-center gap-1.5 py-2 text-xs"
+          renderItem={(item) => (
+            <>
+              <item.icon className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">{item.label}</span>
+            </>
+          )} />
 
         {/* ── Basis ── */}
         {tab === 'basics' && (
@@ -3073,36 +3267,24 @@ const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChan
               <input placeholder={t.modal_name_placeholder} className={INPUT_CLASS}
                 value={name} onChange={e => setName(e.target.value)}
                 onFocus={() => suggestions.length > 0 && setShowSuggestions(true)} />
-              <AnimatePresence>
-                {showSuggestions && (
-                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.12 }}
-                    className="absolute top-full mt-1 left-0 right-0 bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden z-50 shadow-2xl">
-                    {suggestions.map(service => {
-                      const cat = getCat(service.category);
-                      const Icon = cat?.icon || Package;
-                      const ServiceIcon = service.lucideIcon || null;
-                      return (
-                        <button key={service.name} type="button"
-                          onMouseDown={e => { e.preventDefault(); applySuggestion(service); }}
-                          onTouchEnd={e => { e.preventDefault(); applySuggestion(service); }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800 transition text-left">
-                          {ServiceIcon
-                            ? <ServiceIcon className="w-5 h-5 text-zinc-400" />
-                            : <img src={faviconUrl(service.domain, 32)} className="w-5 h-5 rounded object-contain" alt=""
-                                onError={e => { e.target.style.display = 'none'; }} />}
-                          <span className="text-sm flex-1">{service.name}</span>
-                          {cat && (
-                            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg ${cat.bg} border ${cat.border}`}>
-                              <Icon className={`w-2.5 h-2.5 ${cat.color}`} />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <PopMenu open={showSuggestions} className="top-full mt-1 left-0 right-0" width="">
+                {suggestions.map(service => {
+                  const cat = getCat(service.category);
+                  const ServiceIcon = service.lucideIcon || null;
+                  return (
+                    <MenuItem key={service.name}
+                      onMouseDown={e => { e.preventDefault(); applySuggestion(service); }}
+                      onTouchEnd={e => { e.preventDefault(); applySuggestion(service); }}>
+                      {ServiceIcon
+                        ? <ServiceIcon className="w-5 h-5 shrink-0" />
+                        : <img src={faviconUrl(service.domain, 32)} className="w-5 h-5 rounded object-contain shrink-0" alt=""
+                            onError={e => { e.target.style.display = 'none'; }} />}
+                      <span className="flex-1 text-ink">{service.name}</span>
+                      {cat && <CategoryBadge cat={cat} tiny />}
+                    </MenuItem>
+                  );
+                })}
+              </PopMenu>
             </div>
 
             <input placeholder={t.modal_provider_placeholder} className={`${INPUT_CLASS} lg:col-span-2`}
@@ -3111,7 +3293,7 @@ const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChan
             {/* Betrag + Währung */}
             <div className="flex gap-2 lg:col-span-1">
               <div className="relative flex-1">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">{curr.symbol}</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-2 text-sm pointer-events-none">{curr.symbol}</span>
                 <input ref={priceRef} type="number" inputMode="decimal" placeholder={t.modal_price_placeholder}
                   className={`${INPUT_CLASS} pl-9`}
                   value={price} onChange={e => setPrice(e.target.value)} />
@@ -3120,28 +3302,36 @@ const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChan
             </div>
 
             {/* Rhythmus */}
-            <div className="flex gap-2 lg:col-span-1">
-              {['monthly', 'yearly'].map(p => (
-                <button key={p} type="button" onClick={() => { setPeriod(p); if (p === 'monthly') setMonth(''); }}
-                  className={`flex-1 py-3 rounded-2xl text-sm font-medium border transition ${period === p ? 'bg-white text-black border-white' : 'bg-black border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'}`}>
-                  {p === 'monthly' ? t.modal_monthly : t.modal_yearly}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              items={[
+                { id: 'monthly', label: t.modal_monthly },
+                { id: 'yearly',  label: t.modal_yearly },
+              ]}
+              value={period}
+              onChange={p => { setPeriod(p); if (p === 'monthly') setMonth(''); }}
+              className="w-full lg:col-span-1"
+              layout="grid grid-cols-2"
+              trackClass="bg-surface border border-border rounded-lg"
+              itemClass="py-2 text-sm" />
 
             {/* Status */}
-            <div className="flex gap-2 lg:col-span-2">
-              {[
-                { id: 'active', label: t.modal_status_active, color: 'text-green-400', bg: 'bg-green-500/15', border: 'border-green-500/40' },
-                { id: 'paused', label: t.modal_status_paused, color: 'text-red-400',   bg: 'bg-red-500/15',   border: 'border-red-500/40'   },
-                { id: 'trial',  label: t.modal_status_trial,  color: 'text-amber-400', bg: 'bg-amber-500/15', border: 'border-amber-500/40' },
-              ].map(s => (
-                <button key={s.id} type="button" onClick={() => setStatus(s.id)}
-                  className={`flex-1 py-2.5 rounded-2xl text-xs font-semibold border transition ${status === s.id ? `${s.bg} ${s.border} ${s.color}` : 'bg-black border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}`}>
-                  {s.label}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              items={[
+                { id: 'active', label: t.modal_status_active, tone: 'success' },
+                { id: 'paused', label: t.modal_status_paused, tone: 'error' },
+                { id: 'trial',  label: t.modal_status_trial,  tone: 'warning' },
+              ]}
+              value={status} onChange={setStatus}
+              className="w-full lg:col-span-2"
+              layout="grid grid-cols-3"
+              trackClass="bg-surface border border-border rounded-lg"
+              itemClass="flex items-center justify-center gap-2 py-2 text-xs"
+              renderItem={(item, active) => (
+                <>
+                  <span className={`w-1.5 h-1.5 rounded-full transition-opacity ${DOT[item.tone]} ${active ? 'opacity-100' : 'opacity-40'}`} />
+                  {item.label}
+                </>
+              )} />
 
             {status === 'trial' && (
               <div className="lg:col-span-2">
@@ -3152,14 +3342,14 @@ const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChan
             {/* Abbuchungsdatum — bei Testphasen liefert trial_end das Datum */}
             {status !== 'trial' && (
               <div className="space-y-1.5 lg:col-span-2">
-                <p className="text-[11px] text-zinc-500 px-1">
+                <p className="text-[11px] text-ink-3 px-1">
                   {period === 'yearly' ? t.modal_billing_date : t.modal_billing_day}
                 </p>
                 <div className="flex gap-2">
                   <input type="number" inputMode="numeric" min="1" max="31"
                     placeholder={period === 'yearly' ? t.modal_day_placeholder : t.modal_day_billing_placeholder}
-                    className={`${period === 'yearly' ? 'flex-1' : 'w-full'} bg-black border rounded-2xl px-4 py-3 text-sm focus:outline-none transition
-                      ${dayError ? 'border-red-500 shake' : 'border-zinc-800 focus:border-zinc-500'}`}
+                    className={`${INPUT_CLASS} ${period === 'yearly' ? 'flex-1' : 'w-full'}
+                      ${dayError ? 'border-error shake' : ''}`}
                     value={day}
                     onChange={e => { const v = e.target.value; if (v === '' || (Number(v) >= 1 && Number(v) <= 31)) setDay(v); }} />
                   {period === 'yearly' && (
@@ -3170,14 +3360,17 @@ const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChan
             )}
 
             {/* Kategorie */}
-            <div className="flex flex-wrap gap-2 lg:col-span-2">
+            <div className="flex flex-wrap gap-1.5 lg:col-span-2">
               {CATEGORIES.map(cat => {
                 const Icon   = cat.icon;
                 const active = category === cat.id;
                 return (
                   <button key={cat.id} type="button" onClick={() => setCategory(active ? '' : cat.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-medium border transition ${active ? `${cat.bg} ${cat.border} ${cat.color}` : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}`}>
-                    <Icon className="w-3 h-3" />{t[cat.labelKey]}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition
+                      ${active
+                        ? 'bg-ink text-surface border-ink'
+                        : 'bg-surface border-border text-ink-2 hover:bg-surface-3 hover:text-ink'}`}>
+                    <Icon className="w-3.5 h-3.5" />{t[cat.labelKey]}
                   </button>
                 );
               })}
@@ -3196,16 +3389,16 @@ const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChan
         {tab === 'details' && (
           <div className="space-y-5">
             {/* Laufzeit & Kündigungsfrist */}
-            <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4 space-y-3">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">{t.contract_section}</p>
+            <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-ink-3">{t.contract_section}</p>
 
               <div className="grid grid-cols-2 gap-3">
                 <FieldShell label={t.contract_start}>
-                  <input type="date" className={`${INPUT_CLASS} [color-scheme:dark]`}
+                  <input type="date" className={`${INPUT_CLASS} bg-surface-2`}
                     value={contractStart} onChange={e => setContractStart(e.target.value)} />
                 </FieldShell>
                 <FieldShell label={t.contract_end}>
-                  <input type="date" className={`${INPUT_CLASS} [color-scheme:dark]`}
+                  <input type="date" className={`${INPUT_CLASS} bg-surface-2`}
                     value={contractEnd} onChange={e => setContractEnd(e.target.value)} />
                 </FieldShell>
               </div>
@@ -3215,29 +3408,17 @@ const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChan
                   options={NOTICE_OPTIONS.map(n => ({ value: String(n), label: t.notice_months(n) }))} />
               </FieldShell>
 
-              <button type="button" onClick={() => setAutoRenew(v => !v)}
-                className="w-full flex items-center gap-3 text-left">
-                <span className={`w-9 h-5 rounded-full p-0.5 transition shrink-0 ${autoRenew ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
-                  <motion.span animate={{ x: autoRenew ? 16 : 0 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                    className="block w-4 h-4 rounded-full bg-white" />
-                </span>
-                <span className="text-xs text-zinc-300">{t.auto_renew}</span>
-              </button>
+              <Switch checked={autoRenew} onChange={setAutoRenew} label={t.auto_renew} />
 
               {cancelBy && (
-                <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <p className="text-[11px] text-amber-200/90">
-                    {t.cancel_by_hint(fmtDateFromISO(cancelBy, lang, t.months_short))}
-                  </p>
-                </div>
+                <Note tone="warning">{t.cancel_by_hint(fmtDateFromISO(cancelBy, lang, t.months_short))}</Note>
               )}
             </div>
 
             {/* Kategoriespezifische Felder */}
             <div className="space-y-3">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500 px-1">{t.details_template}</p>
-              {!category && <p className="text-xs text-zinc-600 px-1">{t.details_empty}</p>}
+              <p className="text-[11px] uppercase tracking-[0.16em] text-ink-3 px-1">{t.details_template}</p>
+              {!category && <p className="text-xs text-ink-3 px-1">{t.details_empty}</p>}
               <div className="grid gap-3 lg:grid-cols-2">
                 {templateFields.map(field => (
                   <TemplateField key={field.id} field={field}
@@ -3248,7 +3429,7 @@ const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChan
 
             {/* Abrechnung & Kontakt */}
             <div className="space-y-3">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500 px-1">{t.details_common}</p>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-ink-3 px-1">{t.details_common}</p>
               <div className="grid gap-3 lg:grid-cols-2">
                 {COMMON_FIELDS.map(field => (
                   <TemplateField key={field.id} field={field}
@@ -3269,7 +3450,7 @@ const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChan
                 <input type="url" className={INPUT_CLASS} placeholder="https://..."
                   value={url} onChange={e => setUrl(e.target.value)} />
                 <a href={url || undefined} target="_blank" rel="noopener noreferrer" title={t.access_open}
-                  className={`w-12 shrink-0 rounded-2xl border border-zinc-800 flex items-center justify-center transition ${url ? 'text-zinc-400 hover:text-sky-400 hover:border-sky-500/40' : 'text-zinc-700 pointer-events-none'}`}>
+                  className={`w-11 shrink-0 rounded-lg border border-border flex items-center justify-center transition ${url ? 'text-ink-2 hover:text-ink hover:bg-surface-3' : 'text-ink-3 pointer-events-none opacity-50'}`}>
                   <ExternalLink className="w-4 h-4" />
                 </a>
               </div>
@@ -3291,7 +3472,7 @@ const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChan
               />
             </FieldShell>
 
-            {secretError && <p className="text-[11px] text-red-400 px-1">{secretError}</p>}
+            {secretError && <p className="text-[11px] text-error px-1">{secretError}</p>}
 
             <FieldShell label={t.access_note}>
               <textarea rows={2} className={`${INPUT_CLASS} resize-none`}
@@ -3307,13 +3488,13 @@ const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChan
 
         {/* Kündigungshilfe aus dem Katalog */}
         {catalogEntry?.cancelUrl && tab === 'basics' && (
-          <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-800">
-              <X className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-              <span className="text-xs text-zinc-400">
+          <div className="mt-5 rounded-xl border border-border bg-surface overflow-hidden">
+            <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
+              <X className="w-4 h-4 text-ink-3 shrink-0" />
+              <span className="text-xs text-ink-2">
                 {t.cancel_how}
                 <a href={catalogEntry.cancelUrl} target="_blank" rel="noopener noreferrer"
-                  className="text-red-400 hover:text-red-300 transition underline underline-offset-2">
+                  className="text-ink hover:text-ink-2 transition underline underline-offset-2">
                   {t.cancel_link}
                 </a>
               </span>
@@ -3321,52 +3502,48 @@ const EntryModal = ({ initial, currency, vaultState, onSave, onClose, onDocsChan
             <div className="px-4 py-3 space-y-2">
               {catalogEntry.cancelSteps.map((step, i) => (
                 <div key={i} className="flex items-start gap-2.5">
-                  <span className="text-[10px] font-bold text-zinc-600 mt-0.5 shrink-0 w-3">{i + 1}.</span>
-                  <span className="text-xs text-zinc-400 leading-relaxed">{step}</span>
+                  <span className="text-[11px] font-medium text-ink-3 mt-px shrink-0 w-3">{i + 1}.</span>
+                  <span className="text-xs text-ink-2 leading-relaxed">{step}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        <div className="lg:flex lg:flex-row-reverse lg:gap-3 lg:mt-7">
-          <button disabled={!canSave} onClick={handleSubmit}
-            className="mt-5 w-full bg-white text-black font-semibold py-3.5 rounded-2xl hover:bg-zinc-200 active:scale-95 transition disabled:opacity-40 disabled:hover:bg-white text-sm lg:mt-0 lg:flex-1">
+        <div className="flex flex-col gap-2 mt-6 lg:flex-row-reverse lg:gap-3 lg:mt-7">
+          <button disabled={!canSave} onClick={handleSubmit} className={btn('primary', 'md', 'w-full py-3 lg:flex-1')}>
             {initial ? t.modal_save : t.modal_add}
           </button>
-          <button type="button" onClick={onClose}
-            className="mt-3 mb-2 w-full text-zinc-400 text-sm py-2 hover:text-zinc-200 transition lg:my-0 lg:flex-1 lg:py-3.5 lg:rounded-2xl lg:border lg:border-zinc-800 lg:hover:bg-zinc-800">
+          <button type="button" onClick={onClose} className={btn('ghost', 'md', 'w-full py-3 lg:flex-1')}>
             {t.modal_cancel}
           </button>
         </div>
-      </motion.div>
-    </>
+    </Overlay>
   );
 };
 
 const ModalCurrencySelector = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const ref = useDismiss(open, close);
   const curr = getCurrency(value);
+
   return (
-    <div className="relative">
+    <div ref={ref} className="relative">
       <button type="button" onClick={() => setOpen(o => !o)}
-        className="h-full bg-black border border-zinc-800 rounded-2xl px-3 py-3 text-sm flex items-center gap-1 focus:outline-none focus:border-zinc-500 transition text-zinc-300 font-semibold whitespace-nowrap">
-        {curr.code} <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
+        className="h-full bg-surface border border-border rounded-lg px-3 text-sm flex items-center gap-1
+          hover:bg-surface-3 transition text-ink-2 font-medium whitespace-nowrap">
+        {curr.code} <ChevronDown className={`w-4 h-4 text-ink-3 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.12 }}
-            className="absolute bottom-14 right-0 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl overflow-hidden z-50 min-w-[120px]">
-            {CURRENCIES.map(c => (
-              <button key={c.code} type="button" onClick={() => { onChange(c.code); setOpen(false); }}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-zinc-800 transition">
-                <span className={value === c.code ? 'text-white font-semibold' : 'text-zinc-400'}>{c.label}</span>
-                {value === c.code && <Check className="w-3 h-3 text-white" />}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PopMenu open={open} className="bottom-14 right-0" origin="bottom right" width="w-[150px]">
+        {CURRENCIES.map(c => (
+          <MenuItem key={c.code} onClick={() => { onChange(c.code); setOpen(false); }}
+            className={value === c.code ? 'text-ink' : ''}>
+            <span className="flex-1">{c.label}</span>
+            {value === c.code && <Check className="w-4 h-4" />}
+          </MenuItem>
+        ))}
+      </PopMenu>
     </div>
   );
 };
@@ -3375,114 +3552,95 @@ const ModalCurrencySelector = ({ value, onChange }) => {
 const MonthPicker = ({ value, onChange }) => {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const ref = useDismiss(open, close);
   const selectedIndex = MONTHS_SHORT.indexOf(value);
 
   return (
-    <div className="relative">
+    <div ref={ref} className="relative">
       <button type="button" onClick={() => setOpen(o => !o)}
-        className="w-full bg-black border border-zinc-800 rounded-2xl px-4 py-3 text-sm text-left flex justify-between items-center focus:outline-none focus:border-zinc-500 transition">
-        <span className={value ? 'text-white' : 'text-zinc-600'}>
+        className={`${INPUT_CLASS} text-left flex justify-between items-center hover:bg-surface-3`}>
+        <span className={value ? 'text-ink' : 'text-ink-3'}>
           {selectedIndex >= 0 ? t.months_short[selectedIndex] : t.modal_month_placeholder}
         </span>
-        <ChevronDown className="w-4 h-4 text-zinc-500 shrink-0" />
+        <ChevronDown className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.12 }}
-            className="absolute bottom-14 left-0 right-0 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl overflow-hidden z-50 grid grid-cols-3">
-            {MONTHS_SHORT.map((m, i) => (
-              <button key={m} type="button" onClick={() => { onChange(m); setOpen(false); }}
-                className={`py-2.5 text-sm transition hover:bg-zinc-800 ${value === m ? 'font-semibold text-white' : 'text-zinc-400'}`}>
-                {t.months_short[i]}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PopMenu open={open} className="bottom-14 left-0 right-0" origin="bottom left" width="">
+        <div className="grid grid-cols-3">
+          {MONTHS_SHORT.map((m, i) => (
+            <button key={m} type="button" data-menu-item onClick={() => { onChange(m); setOpen(false); }}
+              className={`py-2 text-sm rounded-lg transition hover:bg-surface-3
+                ${value === m ? 'text-ink font-medium bg-surface-3' : 'text-ink-2'}`}>
+              {t.months_short[i]}
+            </button>
+          ))}
+        </div>
+      </PopMenu>
     </div>
   );
 };
-
-const NavItem = ({ icon: Icon, label, active, onClick }) => (
-  <button type="button" onClick={onClick}
-    className={`flex flex-col items-center justify-center gap-1 text-xs font-medium tracking-[0.1em] uppercase ${active ? 'text-white' : 'text-zinc-500'}`}>
-    <div className={`w-9 h-9 rounded-2xl flex items-center justify-center border transition ${active ? 'bg-white text-black border-white' : 'border-zinc-800 bg-zinc-900/60'}`}>
-      <Icon className="w-4 h-4" />
-    </div>
-    <span className="text-[9px]">{label}</span>
-  </button>
-);
 
 // ─── Десктоп: шапка страницы ──────────────────────────────────────────────────
 const PageHeader = ({ title, subtitle, children, className = '' }) => (
   <header className={`hidden lg:flex items-end justify-between gap-6 ${className}`}>
     <div className="min-w-0">
-      <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
-      {subtitle && <p className="text-sm text-zinc-500 mt-1.5">{subtitle}</p>}
+      <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+      {subtitle && <p className="text-sm text-ink-3 mt-1.5">{subtitle}</p>}
     </div>
     {children && <div className="shrink-0 flex items-center gap-2">{children}</div>}
   </header>
 );
 
 // ─── Десктоп: боковая навигация ───────────────────────────────────────────────
-const SideNavItem = ({ icon: Icon, label, shortcut, active, onClick }) => (
-  <button type="button" onClick={onClick}
-    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-sm font-medium border transition ${
-      active
-        ? 'bg-zinc-800 text-white border-zinc-700'
-        : 'text-zinc-500 border-transparent hover:text-zinc-200 hover:bg-zinc-900'
-    }`}>
-    <Icon className="w-4 h-4 shrink-0" />
-    <span className="truncate">{label}</span>
-    <kbd className={`ml-auto text-[10px] leading-none px-1.5 py-1 rounded-md border ${
-      active ? 'border-zinc-700 text-zinc-400' : 'border-zinc-800 text-zinc-600'
-    }`}>{shortcut}</kbd>
-  </button>
-);
-
-const DesktopSidebar = ({ activeTab, onSwitch, onAdd, lang, toggleLang, count, total }) => {
+// Auch hier gleitet die Markierung — senkrecht statt waagerecht.
+const DesktopSidebar = ({ activeTab, onSwitch, onAdd, lang, toggleLang, theme, toggleTheme, count, total }) => {
   const t = useT();
+  const items = [
+    { id: 'home',      label: t.nav_home,      icon: Home,         shortcut: '1' },
+    { id: 'calendar',  label: t.nav_calendar,  icon: CalendarDays, shortcut: '2' },
+    { id: 'analytics', label: t.nav_analytics, icon: BarChart2,    shortcut: '3' },
+  ];
+
   return (
-    <aside className="hidden lg:flex flex-col w-[264px] shrink-0 h-screen sticky top-0 bg-black border-r border-zinc-900 px-5 py-7">
+    <aside className="hidden lg:flex flex-col w-[264px] shrink-0 h-screen sticky top-0 bg-surface border-r border-border px-5 py-7">
       <div className="flex items-center gap-3 px-1">
-        <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-lg shrink-0">
-          <Wallet className="w-5 h-5 text-black" />
+        <div className="w-10 h-10 rounded-lg bg-ink flex items-center justify-center shrink-0">
+          <Wallet className="w-5 h-5 text-surface" strokeWidth={1.75} />
         </div>
         <div className="min-w-0">
           <p className="font-semibold tracking-tight leading-none">{APP_NAME}</p>
-          <p className="text-[11px] text-zinc-500 mt-1.5 truncate">{t.active_count(count)}</p>
+          <p className="text-[11px] text-ink-3 mt-1.5 truncate">{t.active_count(count)}</p>
         </div>
       </div>
 
-      <button onClick={onAdd}
-        className="mt-7 w-full flex items-center justify-center gap-2 bg-white text-black font-semibold text-sm rounded-2xl py-3 hover:bg-zinc-200 active:scale-[0.97] transition shadow-lg">
+      <button onClick={onAdd} className={btn('primary', 'md', 'mt-7 w-full py-3')}>
         <Plus className="w-4 h-4" />
         {t.add_sub}
       </button>
 
-      <nav className="mt-7 flex flex-col gap-1">
-        <SideNavItem icon={Home}         label={t.nav_home}      shortcut="1" active={activeTab === 'home'}      onClick={() => onSwitch('home')} />
-        <SideNavItem icon={CalendarDays} label={t.nav_calendar}  shortcut="2" active={activeTab === 'calendar'}  onClick={() => onSwitch('calendar')} />
-        <SideNavItem icon={BarChart2}    label={t.nav_analytics} shortcut="3" active={activeTab === 'analytics'} onClick={() => onSwitch('analytics')} />
-      </nav>
+      <Segmented
+        items={items} value={activeTab} onChange={onSwitch}
+        vertical className="mt-7 -mx-1"
+        trackClass="gap-1"
+        itemClass="flex items-center gap-3 px-3.5 py-2.5 text-sm w-full"
+        renderItem={(item, active) => (
+          <>
+            <item.icon className="w-4 h-4 shrink-0" />
+            <span className="truncate">{item.label}</span>
+            <kbd className={`ml-auto text-[10px] leading-none px-1.5 py-1 rounded-md border
+              ${active ? 'border-border-strong text-ink-2' : 'border-border text-ink-3'}`}>{item.shortcut}</kbd>
+          </>
+        )} />
 
       <div className="mt-auto space-y-3">
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 px-4 py-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-semibold">{t.per_month}</p>
+        <div className={`${CARD} px-4 py-3`}>
+          <p className="text-[11px] uppercase tracking-[0.16em] text-ink-3">{t.per_month}</p>
           <p className="text-2xl font-semibold tracking-tight mt-1">{total}</p>
         </div>
         <div className="flex items-center gap-2">
           <SupportMenu align="top" />
-          <button onClick={toggleLang}
-            className="relative flex items-center h-10 flex-1 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-1 hover:border-zinc-700 transition">
-            <motion.div
-              animate={{ x: lang === 'en' ? '100%' : '0%' }}
-              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className="absolute left-1 top-1 bottom-1 w-[calc(50%-4px)] rounded-xl bg-white shadow-sm"
-            />
-            <span className={`relative z-10 flex-1 text-center text-[11px] font-bold tracking-wide transition-colors ${lang === 'de' ? 'text-black' : 'text-zinc-500'}`}>DE</span>
-            <span className={`relative z-10 flex-1 text-center text-[11px] font-bold tracking-wide transition-colors ${lang === 'en' ? 'text-black' : 'text-zinc-500'}`}>EN</span>
-          </button>
+          <ThemeToggle theme={theme} onToggle={toggleTheme} label={t.theme_toggle} />
+          <LangToggle lang={lang} toggleLang={toggleLang} className="flex-1 justify-center" />
         </div>
       </div>
     </aside>
@@ -3496,10 +3654,13 @@ export default function Root() {
   const [lang,      setLang]      = useState(() => {
     const saved = localStorage.getItem('lang');
     if (saved) return saved;
-    // Автодетект при первом визите: ru/uk/be → RU, всё остальное → EN
+    // Autoerkennung beim ersten Besuch: de → DE, alles andere → EN
     const nav = (navigator.language || navigator.languages?.[0] || 'en').toLowerCase();
     return nav.startsWith('de') ? 'de' : 'en';
   });
+
+  const { theme, toggle: toggleTheme } = useTheme();
+  useButtonPress();
 
   const toggleLang = () => {
     const next = lang === 'de' ? 'en' : 'de';
@@ -3509,16 +3670,17 @@ export default function Root() {
 
   if (!onboarded) return (
     <LangContext.Provider value={lang}>
-      <Onboarding toggleLang={toggleLang} lang={lang} onDone={() => {
-        setOnboarded(true);
-        localStorage.setItem('onboarded', '1');
-      }} />
+      <Onboarding toggleLang={toggleLang} lang={lang} theme={theme} toggleTheme={toggleTheme}
+        onDone={() => {
+          setOnboarded(true);
+          localStorage.setItem('onboarded', '1');
+        }} />
     </LangContext.Provider>
   );
 
   return (
     <LangContext.Provider value={lang}>
-      <App toggleLang={toggleLang} lang={lang} />
+      <App toggleLang={toggleLang} lang={lang} theme={theme} toggleTheme={toggleTheme} />
     </LangContext.Provider>
   );
 }

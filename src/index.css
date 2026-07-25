@@ -1,99 +1,237 @@
 @import "tailwindcss";
 
+/* ════════════════════════════════════════════════════════════════════════════
+   Gold&Geld — umgesetzt nach design-language.html.
+   Ruhig, warm, praktisch monochrom. Bewegung ist die Signatur und läuft
+   ausschließlich über CSS-Keyframes.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Dunkelmodus hängt an der Klasse, nicht an der Media Query */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ─── Farbmarken ───────────────────────────────────────────────────────────── */
+:root {
+  /* Hell — warmes Creme */
+  --surface:        245 243 239;  /* #F5F3EF  Anwendungsfläche */
+  --surface-2:      255 255 255;  /* #FFFFFF  Karten, Panels */
+  --surface-3:      234 232 228;  /* #EAE8E4  Hover */
+  --surface-sunken: 232 229 222;  /* #E8E5DE  gedrückt / aktiv */
+  --border:         224 221 216;  /* #E0DDD8 */
+  --border-strong:  203 200 194;  /* #CBC8C2 */
+  --ink:             28  25  23;  /* #1C1917  Primärtext */
+  --ink-2:           87  83  78;  /* #57534E  Sekundärtext */
+  --ink-3:          168 162 158;  /* #A8A29E  gedämpft */
+  --accent:         245 158  11;  /* #F59E0B  Bernstein */
+  --accent-hover:   217 119   6;  /* #D97706 */
+}
+
+.dark {
+  /* Dunkel — warme Kohle, Akzent wird Pfirsich */
+  --surface:         22  20  20;  /* #161414 */
+  --surface-2:       32  29  29;  /* #201D1D */
+  --surface-3:       55  65  81;  /* #374151 */
+  --surface-sunken:  42  39  39;  /* #2A2727 */
+  --border:          31  41  55;  /* #1F2937 */
+  --border-strong:   55  65  81;  /* #374151 */
+  --ink:            249 250 251;  /* #F9FAFB */
+  --ink-2:          209 213 219;  /* #D1D5DB */
+  --ink-3:          156 163 175;  /* #9CA3AF */
+  --accent:         250 184 119;  /* #FAB877 */
+  --accent-hover:   230 169 109;  /* #E6A96D */
+}
+
+/* Semantische Marken für Tailwind. `inline` löst die Variablen erst am
+   Element auf — deshalb greift der Themenwechsel überall, nicht nur an :root. */
+@theme inline {
+  --color-surface:        rgb(var(--surface));
+  --color-surface-2:      rgb(var(--surface-2));
+  --color-surface-3:      rgb(var(--surface-3));
+  --color-surface-sunken: rgb(var(--surface-sunken));
+
+  --color-border:         rgb(var(--border));
+  --color-border-strong:  rgb(var(--border-strong));
+
+  --color-ink:            rgb(var(--ink));
+  --color-ink-2:          rgb(var(--ink-2));
+  --color-ink-3:          rgb(var(--ink-3));
+
+  --color-accent:         rgb(var(--accent));
+  --color-accent-hover:   rgb(var(--accent-hover));
+
+  /* Statusfarben sind themenunabhängig */
+  --color-success:        #10B981;
+  --color-warning:        #F59E0B;
+  --color-error:          #EF4444;
+
+  --font-sans: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+}
+
+/* ─── Grundlagen ───────────────────────────────────────────────────────────── */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'kern' 1, 'liga' 1;
+}
+
 body {
-  background-color: black;
   margin: 0;
-  color: white;
+  font-family: var(--font-sans);
+  background-color: rgb(var(--surface));
+  color: rgb(var(--ink));
+  line-height: 1.6;
+  letter-spacing: -0.01em;
   overflow-y: scroll;
-  scrollbar-width: none; /* Firefox */
+  transition: background-color 250ms ease, color 250ms ease;
 }
 
-body::-webkit-scrollbar { display: none; } /* Chrome/Safari */
-
-/* Прячем скроллбар везде */
-* {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-*::-webkit-scrollbar {
-  display: none;
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
 }
 
-/* iOS: font-size < 16px вызывает автозум при фокусе на инпут — фиксируем.
-   На десктопе автозума нет, там инпуты используют свой размер. */
-@media (max-width: 1023px) {
-  input, textarea, select {
-    font-size: 16px !important;
-  }
+/* Alles Interaktive teilt sich denselben 150ms-Übergang */
+button, a, input, select, textarea {
+  transition-property: color, background-color, border-color, transform, box-shadow, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Без стрелочек у numeric-input, но с цифровой клавиатурой */
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+button {
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
+button:active:not(:disabled):not([data-no-press]) { transform: scale(0.95); }
+button:disabled { cursor: not-allowed; }
 
-input[type="number"] {
-  -moz-appearance: textfield;
+/* Fokusring in Akzentfarbe — an Buttons übernimmt das Druckfeedback */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+  border-radius: 4px;
 }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; }
 
-/* Безопасные отступы под вырезы и жесты iPhone */
-.safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-}
+::selection { background: #3B82F6; color: #fff; }
 
-.safe-top {
-  padding-top: env(safe-area-inset-top);
-}
+/* ─── Scrollbalken ─────────────────────────────────────────────────────────── */
+/* Auf Touch versteckt, an der Maus schlank in Flächen- und Randfarbe */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; }
 
-/* Жесты для тача */
-.touch-pan-x {
-  touch-action: pan-x;
-}
-
-.touch-pan-y {
-  touch-action: pan-y;
-}
-
-/* Анимация прогресс-бара тоста (5 секунд) */
-@keyframes toast-progress {
-  from { width: 100%; }
-  to   { width: 0%; }
-}
-
-.animate-toast-progress {
-  animation: toast-progress 5s linear forwards;
-}
-
-/* Блокируем iOS 18 PWA back/forward gesture */
-html, body {
-  overscroll-behavior: none;
-  overscroll-behavior-x: none;
-}
-
-/* ─── Десктоп ────────────────────────────────────────────────────────────────
-   На мыши скроллбар нужен — возвращаем тонкий, для элементов с .desktop-scroll */
 @media (min-width: 1024px) and (pointer: fine) {
-  .no-scrollbar.desktop-scroll {
-    scrollbar-width: thin;
-    scrollbar-color: #3f3f46 transparent;
-    -ms-overflow-style: auto;
-  }
-  .no-scrollbar.desktop-scroll::-webkit-scrollbar {
-    display: block;
-    width: 10px;
-  }
-  .no-scrollbar.desktop-scroll::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .no-scrollbar.desktop-scroll::-webkit-scrollbar-thumb {
-    background-color: #3f3f46;
-    border: 3px solid transparent;
-    border-radius: 999px;
-    background-clip: content-box;
-  }
-  .no-scrollbar.desktop-scroll::-webkit-scrollbar-thumb:hover {
-    background-color: #52525b;
+  .desktop-scroll { scrollbar-width: thin; scrollbar-color: rgb(var(--border-strong)) transparent; -ms-overflow-style: auto; }
+  .desktop-scroll::-webkit-scrollbar { display: block; width: 8px; height: 8px; }
+  .desktop-scroll::-webkit-scrollbar-track { background: rgb(var(--surface-3)); }
+  .desktop-scroll::-webkit-scrollbar-thumb { background: rgb(var(--border-strong)); border-radius: 4px; }
+}
+
+/* ─── Eingaben ─────────────────────────────────────────────────────────────── */
+/* iOS zoomt bei Schriftgrößen unter 16px in Eingabefelder */
+@media (max-width: 1023px) {
+  input, textarea, select { font-size: 16px !important; }
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
+input[type="date"] { color-scheme: light; }
+.dark input[type="date"] { color-scheme: dark; }
+
+/* ─── Layout-Hilfen ────────────────────────────────────────────────────────── */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-top    { padding-top: env(safe-area-inset-top); }
+.touch-pan-x { touch-action: pan-x; }
+.touch-pan-y { touch-action: pan-y; }
+
+/* iOS 18 PWA: Zurück-Geste unterbinden */
+html, body { overscroll-behavior: none; overscroll-behavior-x: none; }
+
+/* Glasleiste für schwebende Balken */
+.glass {
+  background: rgb(var(--surface-2) / 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Karte, die sich beim Überfahren anhebt */
+.lift { transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms ease; }
+@media (hover: hover) {
+  .lift:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgb(0 0 0 / 0.08); }
+  .dark .lift:hover { box-shadow: 0 8px 20px rgb(0 0 0 / 0.35); }
+}
+
+/* Gleitende Markierung im Segmented Control */
+.seg-pill {
+  position: absolute; top: 0; left: 0;
+  background: rgb(var(--surface-sunken));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  opacity: 0; pointer-events: none;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Keyframe-Bibliothek (design-language.html §4.6).
+   Ein-Endpunkt-Keyframes: Eintritte definieren nur `from`, Austritte nur `to`.
+   Das andere Ende ist der Ruhezustand des Elements — Hover- und Zustandsklassen
+   überleben die Animation und ein Keyframe bedient viele Komponenten.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+@keyframes rise-in { from { opacity: 0; transform: translateY(var(--rise-y, 16px)); } }
+
+/* Dropdown 'pop' samt Zeilenkaskade */
+@keyframes dd-pop-in   { from { opacity: 0; transform: translateY(-10px) scale(0.96); } }
+@keyframes dd-pop-out  { to   { opacity: 0; transform: translateY(-6px)  scale(0.97); } }
+@keyframes dd-item-in  { from { opacity: 0; transform: translateY(14px); } }
+@keyframes dd-item-out { to   { opacity: 0; } }
+
+/* Ansichtswechsel */
+@keyframes view-in  { from { opacity: 0; transform: translateX(20px); } }
+@keyframes view-out { to   { opacity: 0; transform: translateX(-20px); } }
+
+/* Modal */
+@keyframes modal-backdrop-in  { from { opacity: 0; } }
+@keyframes modal-backdrop-out { to   { opacity: 0; } }
+@keyframes modal-panel-in  { from { opacity: 0; transform: translateY(16px) scale(0.96); } }
+@keyframes modal-panel-out { to   { opacity: 0; transform: translateY(10px) scale(0.97); } }
+
+/* Blatt von unten (Mobil: Modal und Bestätigung) */
+@keyframes sheet-in  { from { opacity: 0; transform: translateY(24px); } }
+@keyframes sheet-out { to   { opacity: 0; transform: translateY(24px); } }
+
+/* Toast */
+@keyframes toast-in  { from { opacity: 0; transform: translateY(30px) scale(0.95); } }
+@keyframes toast-out { to   { opacity: 0; transform: translateY(50px) scale(0.95); } }
+
+/* Balken in der Auswertung — wächst aus dem Boden */
+@keyframes bar-grow { from { transform: scaleY(0); } }
+@keyframes bar-fill { from { transform: scaleX(0); } }
+
+/* Druckfeedback — die Kurven stecken im Keyframe, angewandt mit `linear` */
+@keyframes btn-press {
+  0%   { transform: scale(1);    animation-timing-function: cubic-bezier(0.55, 0.085, 0.68, 0.53); }
+  50%  { transform: scale(0.95); animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+  100% { transform: scale(1); }
+}
+
+/* Laufbalken des Toasts (5 Sekunden bis zum endgültigen Löschen) */
+@keyframes toast-progress { from { width: 100%; } to { width: 0%; } }
+.animate-toast-progress { animation: toast-progress 5s linear forwards; }
+
+/* Fehlerhafte Eingabe */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+.shake { animation: shake 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
