@@ -1360,7 +1360,7 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
     } else {
       const created = entryStore.create({ ...row, id });
       setSubscriptions(prev => [
-        ...prev,
+        ...prev.filter(entry => entry.id !== created.id),
         { ...created, billingDay: extractBillingDay(created.date) },
       ]);
     }

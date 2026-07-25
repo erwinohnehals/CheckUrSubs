@@ -149,9 +149,15 @@ const normalize = (input, createId = newId) => {
 const duplicateKey = (entry) =>
   `${entry.name}|${entry.price}|${entry.period}`;
 
+// Eine ID bezeichnet genau einen Eintrag. Falls derselbe Speichervorgang
+// wiederholt ankommt, gewinnt die letzte Fassung, ohne eine zweite Zeile
+// anzulegen. Gleiche Verträge mit unterschiedlichen IDs bleiben erhalten.
+const uniqueById = (entries) =>
+  [...new Map(entries.map((entry) => [entry.id, entry])).values()];
+
 export const createEntryStore = (storage, createId = newId) => {
   const write = (entries) => {
-    const normalized = entries.map((entry) => normalize(entry, createId));
+    const normalized = uniqueById(entries.map((entry) => normalize(entry, createId)));
 
     storage.setItem(STORAGE_KEY, JSON.stringify({
       version: STORAGE_VERSION,
@@ -184,8 +190,10 @@ export const createEntryStore = (storage, createId = newId) => {
       const version = Array.isArray(parsed) ? 0 : Number(parsed?.version) || 0;
       const outdated = legacy || version < STORAGE_VERSION;
 
-      const entries = rows
-        .map((row) => normalize(row, createId))
+      const normalized = rows.map((row) => normalize(row, createId));
+      const hadDuplicateIds = new Set(normalized.map(({ id }) => id)).size !== normalized.length;
+
+      const entries = uniqueById(normalized)
         // Wer eine Adresse schon in den Vertragsdaten stehen hat, bekommt sie
         // als Ort vorgeschlagen — sonst wäre die Gruppierung anfangs leer.
         .map((entry) => (outdated && !entry.location
@@ -194,7 +202,7 @@ export const createEntryStore = (storage, createId = newId) => {
         .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
       // Altbestand einmalig im aktuellen Format sichern
-      if (outdated && entries.length) write(entries);
+      if ((outdated || hadDuplicateIds) && entries.length) write(entries);
 
       return entries;
     } catch {

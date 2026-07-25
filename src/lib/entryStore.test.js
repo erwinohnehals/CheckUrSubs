@@ -99,6 +99,43 @@ test('imports new rows while skipping duplicates', () => {
   assert.deepEqual(store.list().map(({ name }) => name), ['Music', 'Cloud']);
 });
 
+test('returns an entry ID only once when the same save is repeated', () => {
+  const store = createStore();
+  const entry = {
+    id: 'same-entry',
+    name: 'Mobilfunk',
+    provider: 'Freenet',
+    price: 34.99,
+    period: 'monthly',
+  };
+
+  store.create(entry);
+  store.create(entry);
+
+  assert.deepEqual(store.list().map(({ id }) => id), ['same-entry']);
+});
+
+test('repairs duplicate IDs already present in storage', () => {
+  const repeated = {
+    id: 'same-entry',
+    name: 'Mobilfunk',
+    provider: 'Freenet',
+    price: 34.99,
+    period: 'monthly',
+  };
+  const storage = createMemoryStorage({
+    'goldgeld.entries': JSON.stringify({
+      version: 4,
+      entries: [repeated, repeated],
+    }),
+  });
+
+  assert.deepEqual(createStore(storage).list().map(({ id }) => id), ['same-entry']);
+
+  const persisted = JSON.parse(storage.getItem('goldgeld.entries'));
+  assert.equal(persisted.entries.length, 1);
+});
+
 test('keeps contract, access, and custom field data', () => {
   const storage = createMemoryStorage();
   const store = createStore(storage);
@@ -114,7 +151,12 @@ test('keeps contract, access, and custom field data', () => {
     url: 'https://mein.eon.de',
     login_username: 'max@example.de',
     login_secret: 'v1.aaa.bbb',
-    fields: { zaehlernummer: '1ESY123', consumption_last_year: 2450, empty: '' },
+    fields: {
+      contract_holder: 'Max Mustermann',
+      zaehlernummer: '1ESY123',
+      consumption_last_year: 2450,
+      empty: '',
+    },
     custom: [{ label: 'Ableseportal', value: 'portal.eon.de', type: 'url' }],
     notes: 'Abschlag zum 1.',
   });
@@ -125,7 +167,11 @@ test('keeps contract, access, and custom field data', () => {
   assert.equal(entry.notice_period_months, 3);
   assert.equal(entry.auto_renew, false);
   assert.equal(entry.login_secret, 'v1.aaa.bbb');
-  assert.deepEqual(entry.fields, { zaehlernummer: '1ESY123', consumption_last_year: '2450' });
+  assert.deepEqual(entry.fields, {
+    contract_holder: 'Max Mustermann',
+    zaehlernummer: '1ESY123',
+    consumption_last_year: '2450',
+  });
   assert.equal(entry.custom[0].label, 'Ableseportal');
   assert.equal(entry.custom[0].id, 'local-2');
 });

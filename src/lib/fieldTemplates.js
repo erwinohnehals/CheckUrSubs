@@ -12,6 +12,7 @@ export const optionLabel = (option, lang) => option[lang] || option.en;
 
 // Felder, die für jeden Vertrag sinnvoll sind
 export const COMMON_FIELDS = [
+  { id: 'contract_holder',   label: t('Vertragsinhaber', 'Contract holder'),    type: 'text' },
   { id: 'customer_number',   label: t('Kundennummer', 'Customer number'),        type: 'text' },
   { id: 'contract_number',   label: t('Vertragsnummer', 'Contract number'),      type: 'text' },
   { id: 'payment_method',    label: t('Zahlungsweise', 'Payment method'),        type: 'select', options: [
