@@ -120,6 +120,26 @@ test('restores entries and settings from a backup file', async () => {
   assert.equal(settingsStorage.getItem('currency'), null);
 });
 
+test('a damaged document cannot replace the current data', async () => {
+  const entryStorage = createMemoryStorage();
+  const store = createStore(entryStorage);
+  store.create({ name: 'Bestehender Eintrag', price: 42 });
+  const settingsStorage = createMemoryStorage({ lang: 'de' });
+
+  await assert.rejects(
+    () => restoreBackup({
+      format: 'goldgeld-backup',
+      version: 1,
+      settings: { lang: 'en' },
+      entries: [{ name: 'Importierter Eintrag', price: 9 }],
+      documents: [{ name: 'kaputt.pdf', data: '%%%keine-base64-daten%%%' }],
+    }, { entryStore: store, storage: settingsStorage }),
+  );
+
+  assert.deepEqual(store.list().map(entry => entry.name), ['Bestehender Eintrag']);
+  assert.equal(settingsStorage.getItem('lang'), 'de');
+});
+
 test('refuses a file that is not a backup', async () => {
   await assert.rejects(
     () => restoreBackup({ entries: [] }, { entryStore: createStore(), storage: createMemoryStorage() }),

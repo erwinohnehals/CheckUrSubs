@@ -941,7 +941,7 @@ const FilterBar = ({ kind, onKind, place, onPlace, group, onGroup, locations, ha
 
   const groupOptions = [
     { value: 'none',     label: t.group_none },
-    ...(locations.length > 0 ? [{ value: 'location', label: t.group_location }] : []),
+    ...(locations.length > 0 || hasUnplaced ? [{ value: 'location', label: t.group_location }] : []),
     { value: 'kind',     label: t.group_kind },
     { value: 'category', label: t.group_category },
   ];
@@ -1030,16 +1030,21 @@ const EntryList = ({ groups, count, docCounts, searchQuery, menuKey, fmt, fmtOri
     if (listRef.current) staggerIn(listRef.current.querySelectorAll('[data-row]'));
   }, [searchQuery, grouped, menuKey]);
 
+  // Gruppiert atmet jede Gruppe als eigene Karte, ungruppiert bleibt es eine Tafel
+  const shell = grouped ? 'space-y-3 lg:space-y-4' : `${CARD} overflow-hidden`;
+  const block = grouped ? `${CARD} overflow-hidden` : '';
+
   return (
-    <div ref={listRef} className={`${CARD} overflow-hidden`}>
+    <div ref={listRef} className={shell}>
       {hint && count > 0 && (
-        <div className="px-4 py-2 text-[11px] text-ink-3 text-center border-b border-border lg:hidden">{hint}</div>
+        <div className={`px-4 py-2 text-[11px] text-ink-3 text-center lg:hidden
+          ${grouped ? block : 'border-b border-border'}`}>{hint}</div>
       )}
-      {groups.map((group, i) => (
-        <section key={group.id}>
+      {groups.map(group => (
+        <section key={group.id} className={block}>
           {grouped && (
-            <header className={`flex items-center justify-between gap-3 px-4 py-2 bg-surface-3
-              border-b border-border ${i > 0 ? 'border-t' : ''}`}>
+            <header className="flex items-center justify-between gap-3 px-4 py-2.5 bg-surface-3
+              border-b border-border">
               <span className="flex items-center gap-2 min-w-0">
                 {group.icon && <group.icon className="w-3.5 h-3.5 text-ink-3 shrink-0" />}
                 <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-2 truncate">
@@ -1061,7 +1066,7 @@ const EntryList = ({ groups, count, docCounts, searchQuery, menuKey, fmt, fmtOri
         </section>
       ))}
       {count === 0 && (searchQuery || filtered) && (
-        <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+        <div className={`flex flex-col items-center gap-2 px-4 py-10 text-center ${block}`}>
           <Search className="w-5 h-5 text-ink-3" />
           <p className="text-sm text-ink-3">
             {searchQuery ? t.nothing_found(searchQuery) : t.filter_empty}
@@ -1127,7 +1132,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
   const [searchOpen,   setSearchOpen]   = useState(false);
   const [kindFilter,   setKindFilter]   = useState('all');   // all | abo | fixed
   const [placeFilter,  setPlaceFilter]  = useState('all');   // all | '' (ohne) | Adresse
-  const [groupBy,      setGroupBy]      = useState('none');  // none | location | kind | category
+  const [groupBy,      setGroupBy]      = useState('location'); // none | location | kind | category
   const [swipeHinted,  setSwipeHinted]  = useState(() => localStorage.getItem('swipeHinted') === '1');
   const [calMonth,     setCalMonth]     = useState(() => new Date().getMonth());
   const [calYear,      setCalYear]      = useState(() => new Date().getFullYear());
@@ -2507,6 +2512,9 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
     try {
       const payload = await backup.createBackup({ entries });
       download(backup.backupFilename(), 'application/json', JSON.stringify(payload));
+      setImportMsg(t.io_backup_ok);
+      setImportStatus('ok');
+      setTimeout(() => setImportStatus(null), 3500);
     } catch {
       setImportMsg(t.io_backup_err);
       setImportStatus('err');
@@ -2522,9 +2530,8 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
     if (!file) return;
     e.target.value = '';
 
-    const text = await file.text();
-
     try {
+      const text = await file.text();
       let rows = [];
 
       if (file.name.endsWith('.json')) {
@@ -2573,17 +2580,56 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
 
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen(v => !v)} title={t.io_title} aria-label={t.io_title}
-        className="w-10 h-10 rounded-lg border border-border bg-surface-2 flex items-center justify-center
+      <button onClick={() => setOpen(v => !v)} title={t.io_title}
+        aria-label={t.io_title} aria-haspopup="menu" aria-expanded={open}
+        className="h-10 px-3 rounded-lg border border-border bg-surface-2 inline-flex items-center justify-center gap-2
           text-ink-2 hover:text-ink hover:bg-surface-3 transition shrink-0">
-        <Download className="w-4 h-4" />
+        <Archive className="w-4 h-4" />
+        <span className="text-xs font-medium">{t.io_title}</span>
       </button>
 
-      <PopMenu open={open} className="right-0 top-12" origin="top right" width="w-[248px]">
+      <PopMenu open={open} className="right-0 top-12" origin="top right" width="w-[280px]">
         <MenuHeader title={t.io_title} hint={t.io_subtitle} />
+        {importStatus && (
+          <div data-menu-item role="status"
+            className={`mx-3 mb-1 rounded-lg px-3 py-2 text-[11px] text-center
+              ${importStatus === 'ok' ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
+            {importMsg}
+          </div>
+        )}
 
-        {/* Экспорт */}
+        {/* Полная резервная копия — главный Weg gegen Datenverlust */}
         <div data-menu-item className="px-3 py-2">
+          <div className="flex items-center gap-2 mb-2 text-ink">
+            <Archive className="w-4 h-4 text-ink-2" />
+            <span className="text-sm font-medium">{t.io_backup}</span>
+          </div>
+          <button onClick={exportBackup} disabled={backupBusy}
+            className={btn('primary', 'sm', 'w-full text-xs disabled:opacity-60')}>
+            <Download className="w-3.5 h-3.5" />
+            <span>{backupBusy ? t.io_backup_busy : t.io_backup_btn}</span>
+          </button>
+          <p className="text-[11px] text-ink-3 mt-2">{t.io_backup_note}</p>
+          <p className="text-[11px] text-ink-3">{t.io_backup_keep}</p>
+        </div>
+
+        {/* Import erkennt vollständige Sicherungen und flache Exporte */}
+        <div data-menu-item className="px-3 py-2 border-t border-border mt-1 pt-3">
+          <div className="flex items-center gap-2 mb-2 text-ink">
+            <Upload className="w-4 h-4 text-ink-2" />
+            <span className="text-sm font-medium">{t.io_import}</span>
+            <span className="text-[11px] text-ink-3 ml-auto">{t.io_import_hint}</span>
+          </div>
+          <button onClick={() => fileRef.current?.click()} className={btn('secondary', 'sm', 'w-full text-xs')}>
+            <Upload className="w-3.5 h-3.5" />
+            <span>{t.io_import_btn}</span>
+          </button>
+          <input ref={fileRef} type="file" accept=".csv,.json" className="hidden" onChange={handleFile} />
+          <p className="text-[11px] text-ink-3 mt-2">{t.io_restore_hint}</p>
+        </div>
+
+        {/* Flache Exporte zum Weiterverarbeiten */}
+        <div data-menu-item className="px-3 py-2 border-t border-border mt-1 pt-3">
           <div className="flex items-center gap-2 mb-2 text-ink">
             <Download className="w-4 h-4 text-ink-2" />
             <span className="text-sm font-medium">{t.io_export}</span>
@@ -2593,38 +2639,6 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
             <button onClick={exportJSON} className={btn('secondary', 'sm', 'flex-1 text-xs')}>JSON</button>
           </div>
           <p className="text-[11px] text-ink-3 mt-2">{t.io_docs_note}</p>
-        </div>
-
-        {/* Полная резервная копия */}
-        <div data-menu-item className="px-3 py-2 border-t border-border mt-1 pt-3">
-          <div className="flex items-center gap-2 mb-2 text-ink">
-            <Archive className="w-4 h-4 text-ink-2" />
-            <span className="text-sm font-medium">{t.io_backup}</span>
-          </div>
-          <button onClick={exportBackup} disabled={backupBusy}
-            className={btn('secondary', 'sm', 'w-full text-xs disabled:opacity-60')}>
-            {backupBusy ? t.io_backup_busy : t.io_backup_btn}
-          </button>
-          <p className="text-[11px] text-ink-3 mt-2">{t.io_backup_note}</p>
-        </div>
-
-        {/* Импорт */}
-        <div data-menu-item className="px-3 py-2 border-t border-border mt-1 pt-3">
-          <div className="flex items-center gap-2 mb-2 text-ink">
-            <Upload className="w-4 h-4 text-ink-2" />
-            <span className="text-sm font-medium">{t.io_import}</span>
-            <span className="text-[11px] text-ink-3 ml-auto">{t.io_import_hint}</span>
-          </div>
-          <button onClick={() => fileRef.current?.click()} className={btn('secondary', 'sm', 'w-full text-xs')}>
-            {t.io_import_btn}
-          </button>
-          <input ref={fileRef} type="file" accept=".csv,.json" className="hidden" onChange={handleFile} />
-          <p className="text-[11px] text-ink-3 mt-2">{t.io_restore_hint}</p>
-          {importStatus && (
-            <p className={`text-[11px] text-center mt-2 ${importStatus === 'ok' ? 'text-success' : 'text-error'}`}>
-              {importMsg}
-            </p>
-          )}
         </div>
       </PopMenu>
     </div>

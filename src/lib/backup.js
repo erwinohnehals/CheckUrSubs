@@ -161,6 +161,9 @@ export const restoreBackup = async (parsed, { entryStore, storage = globalThis.l
 
   const rows      = Array.isArray(parsed.entries)   ? parsed.entries   : [];
   const documents = Array.isArray(parsed.documents) ? parsed.documents : [];
+  // Binärdaten vollständig prüfen, bevor wir den bestehenden Stand verändern.
+  // Eine beschädigte Sicherungsdatei darf nicht erst nach dem Löschen auffallen.
+  const decodedDocuments = documents.map(decodeDocument);
 
   // Der Tresor zuerst: ohne die Metadaten der Sicherung bleiben deren
   // verschlüsselte Zugangsdaten auch mit dem richtigen Passwort unlesbar.
@@ -177,7 +180,7 @@ export const restoreBackup = async (parsed, { entryStore, storage = globalThis.l
 
   let restoredDocuments = 0;
   if (documentStore.isAvailable()) {
-    restoredDocuments = await documentStore.replaceAll(documents.map(decodeDocument));
+    restoredDocuments = await documentStore.replaceAll(decodedDocuments);
   }
 
   return { entries: entries.length, documents: restoredDocuments, settings };
