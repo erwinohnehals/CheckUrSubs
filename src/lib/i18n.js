@@ -27,8 +27,16 @@ export const translations = {
     trial_count:   (n) => `${n} Testphase`,
     canceled_count:(n) => `${n} gekündigt`,
     all_subs:      'Alle Einträge',
+    archive_current: 'Aktuell',
+    archive_title:   'Archiv',
+    archive_action:  'Archivieren',
+    archive_restore: 'Wiederherstellen',
+    archive_badge:   'Archiviert',
+    archive_empty:   'Noch keine archivierten Einträge',
+    current_empty:   'Alle Einträge sind archiviert',
     search_placeholder: 'Suchen...',
-    swipe_hint:    '← wischen zum Löschen · wischen zum Bearbeiten →',
+    swipe_hint:    '← wischen zum Archivieren · wischen zum Bearbeiten →',
+    swipe_hint_archived: '← wischen zum Löschen · wischen zum Wiederherstellen →',
     sort_az:       'A–Z',
     sort_price:    'Betrag',
     sort_date:     'Datum',
@@ -267,6 +275,14 @@ export const translations = {
 
     // Oberfläche
     theme_toggle:   'Hell oder dunkel',
+    settings_title: 'Einstellungen',
+    settings_subtitle: 'Darstellung, Sprache und Daten',
+    settings_theme: 'Farbschema',
+    settings_currency: 'Anzeigewährung',
+    settings_currency_hint: 'Beträge in der Übersicht werden in dieser Währung angezeigt.',
+    settings_language: 'Sprache',
+    theme_light: 'Hell',
+    theme_dark: 'Dunkel',
     rates_refresh:  'Wechselkurse aktualisieren',
     entries_count:  (n) => `${n} Eintrag${n === 1 ? '' : 'e'}`,
 
@@ -317,7 +333,7 @@ export const translations = {
     // Onboarding
     onb_skip: 'Überspringen',
     onb_next: 'Weiter',
-    onb_manage_desktop: 'Mit der Maus über einen Eintrag fahren — Bearbeiten und Löschen erscheinen. Ein Klick auf die Zeile öffnet den Eintrag direkt.',
+    onb_manage_desktop: 'Mit der Maus über einen Eintrag fahren — Bearbeiten, Archivieren und Löschen erscheinen. Ein Klick auf die Zeile öffnet den Eintrag direkt.',
     pwa_ios_share: '„Teilen“ antippen',
     pwa_ios_share_hint: 'Button unten in Safari',
     pwa_ios_add: '„Zum Home-Bildschirm“',
@@ -339,7 +355,7 @@ export const translations = {
       },
       {
         title: 'Einträge verwalten',
-        subtitle: 'Antippen zeigt alles Erfasste auf einen Blick. Nach links wischen zum Löschen, nach rechts zum Bearbeiten.',
+        subtitle: 'Antippen zeigt alles Erfasste auf einen Blick. Nach links wischen zum Archivieren, nach rechts zum Bearbeiten.',
       },
       {
         title: 'Fristen im Blick',
@@ -378,8 +394,16 @@ export const translations = {
     trial_count:   (n) => `${n} trial`,
     canceled_count:(n) => `${n} canceled`,
     all_subs:      'All entries',
+    archive_current: 'Current',
+    archive_title:   'Archived',
+    archive_action:  'Archive',
+    archive_restore: 'Restore',
+    archive_badge:   'Archived',
+    archive_empty:   'No archived entries yet',
+    current_empty:   'All entries are archived',
     search_placeholder: 'Search...',
-    swipe_hint:    '← swipe to delete · swipe to edit →',
+    swipe_hint:    '← swipe to archive · swipe to edit →',
+    swipe_hint_archived: '← swipe to delete · swipe to restore →',
     sort_az:       'A–Z',
     sort_price:    'Amount',
     sort_date:     'Date',
@@ -618,6 +642,14 @@ export const translations = {
 
     // Interface
     theme_toggle:   'Light or dark',
+    settings_title: 'Settings',
+    settings_subtitle: 'Appearance, language and data',
+    settings_theme: 'Color theme',
+    settings_currency: 'Display currency',
+    settings_currency_hint: 'Overview amounts are displayed in this currency.',
+    settings_language: 'Language',
+    theme_light: 'Light',
+    theme_dark: 'Dark',
     rates_refresh:  'Refresh exchange rates',
     entries_count:  (n) => `${n} entr${n === 1 ? 'y' : 'ies'}`,
 
@@ -668,7 +700,7 @@ export const translations = {
     // Onboarding
     onb_skip: 'Skip',
     onb_next: 'Next',
-    onb_manage_desktop: 'Hover an entry to reveal edit and delete. Clicking the row opens it right away.',
+    onb_manage_desktop: 'Hover an entry to reveal edit, archive and delete. Clicking the row opens it right away.',
     pwa_ios_share: 'Tap "Share"',
     pwa_ios_share_hint: 'Button at the bottom of Safari',
     pwa_ios_add: '"Add to Home Screen"',
@@ -690,7 +722,7 @@ export const translations = {
       },
       {
         title: 'Manage entries',
-        subtitle: 'Tap one to see everything you saved at a glance. Swipe left to delete, swipe right to edit.',
+        subtitle: 'Tap one to see everything you saved at a glance. Swipe left to archive, swipe right to edit.',
       },
       {
         title: 'Never miss a deadline',

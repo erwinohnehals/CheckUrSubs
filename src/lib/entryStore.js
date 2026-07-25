@@ -1,6 +1,6 @@
 const STORAGE_KEY     = 'goldgeld.entries';
 const LEGACY_KEY      = 'checkursubs.subscriptions';
-const STORAGE_VERSION = 3;
+const STORAGE_VERSION = 4;
 
 // Kategorien, die es unter altem Namen gab
 const CATEGORY_ALIASES = { telecom: 'mobile' };
@@ -41,7 +41,8 @@ export const kindForCategory = (category) => KIND_BY_CATEGORY[category] || 'abo'
 export const STATUSES = ['active', 'paused', 'trial', 'canceled'];
 
 // Ein Eintrag, der nicht abgerechnet wird
-export const isBilled = (entry) => !entry?.status || entry.status === 'active';
+export const isBilled = (entry) =>
+  !entry?.archived_at && (!entry?.status || entry.status === 'active');
 
 // ─── Ort des Vertrags ─────────────────────────────────────────────────────────
 // Eine Adresse ist eine schlichte Beschriftung ("Hauptstraße 5, Berlin") — sie
@@ -141,6 +142,7 @@ const normalize = (input, createId = newId) => {
     notes: asString(input?.notes),
 
     created_at: asString(input?.created_at) || new Date().toISOString(),
+    archived_at: asString(input?.archived_at) || null,
   };
 };
 

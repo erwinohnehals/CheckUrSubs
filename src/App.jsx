@@ -7,7 +7,7 @@ import {
   Wallet, Download, Upload, Smartphone, Droplets, Car, Radio, Dumbbell,
   Users, Lock, Eye, EyeOff, Copy, ExternalLink, Paperclip, FileText,
   AlertTriangle, KeyRound, Flame, Plug, Trash, HeartPulse, ClipboardList,
-  Sun, Moon, MapPin, Layers, Archive
+  Sun, Moon, MapPin, Layers, Archive, Settings, Languages
 } from 'lucide-react';
 import { createEntryStore, newId, kindForCategory, isBilled } from './lib/entryStore';
 import { LangContext, useLang, useT, APP_NAME } from './lib/i18n';
@@ -1025,7 +1025,7 @@ const FilterSelect = ({ icon: Icon, label, active, value, options, onChange }) =
 // ─── Liste der Einträge ───────────────────────────────────────────────────────
 // Die Zeilen kaskadieren herein: 250ms, 50ms Versatz, 20px Aufstieg (§4.3)
 const EntryList = ({ groups, count, docCounts, searchQuery, menuKey, fmt, fmtOriginal, monthly,
-  groupBy, filtered, hint, onOpen, onEdit, onDelete }) => {
+  groupBy, filtered, hint, archived, emptyMessage, onOpen, onEdit, onArchive, onRestore, onDelete }) => {
   const t = useT();
   const listRef = useRef(null);
   const grouped = groupBy !== 'none';
@@ -1064,16 +1064,21 @@ const EntryList = ({ groups, count, docCounts, searchQuery, menuKey, fmt, fmtOri
             {group.entries.map(entry => (
               <EntryRow key={entry.id} entry={entry} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
                 docCount={docCounts[entry.id] || 0} hideLocation={groupBy === 'location'}
-                onOpen={() => onOpen(entry)} onEdit={() => onEdit(entry)} onDelete={() => onDelete(entry)} />
+                archived={archived}
+                onOpen={() => onOpen(entry)} onEdit={() => onEdit(entry)}
+                onArchive={() => onArchive(entry)} onRestore={() => onRestore(entry)}
+                onDelete={() => onDelete(entry)} />
             ))}
           </div>
         </section>
       ))}
-      {count === 0 && (searchQuery || filtered) && (
+      {count === 0 && (
         <div className={`${board}flex flex-col items-center gap-2 px-4 py-10 text-center`}>
-          <Search className="w-5 h-5 text-ink-3" />
+          {searchQuery || filtered
+            ? <Search className="w-5 h-5 text-ink-3" />
+            : <Archive className="w-5 h-5 text-ink-3" />}
           <p className="text-sm text-ink-3">
-            {searchQuery ? t.nothing_found(searchQuery) : t.filter_empty}
+            {searchQuery ? t.nothing_found(searchQuery) : filtered ? t.filter_empty : emptyMessage}
           </p>
         </div>
       )}
@@ -1105,7 +1110,7 @@ const ThemeToggle = ({ theme, onToggle, label }) => (
 
 // ─── Schriftzug ───────────────────────────────────────────────────────────────
 // Platform trägt den Namen fett, das Kaufmanns-Und bleibt leicht — der Gewichts-
-// sprung trennt die beiden Wortteile, ohne ein Leerzeichen zu setzen.
+// sprung und ein kleiner Abstand trennen die beiden Wortteile.
 const Wordmark = ({ className = '' }) => {
   const [head, ...rest] = APP_NAME.split('&');
   return (
@@ -1113,7 +1118,7 @@ const Wordmark = ({ className = '' }) => {
       {head}
       {rest.length > 0 && (
         <>
-          <span className="font-light">&</span>
+          <span className="inline-block mx-[0.06em] font-light">&</span>
           {rest.join('&')}
         </>
       )}
@@ -1124,7 +1129,7 @@ const Wordmark = ({ className = '' }) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════════════════════════════════════════
-const App = ({ toggleLang, lang, theme, toggleTheme }) => {
+const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) => {
   const t = useT();
   const isDesktop = useIsDesktop();
 
@@ -1150,6 +1155,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
   const [toast,        setToast]        = useState(null);
   const [confirmEntry,   setConfirmEntry]   = useState(null);
   const [sortBy,       setSortBy]       = useState('name');
+  const [listView,     setListView]     = useState('current'); // current | archived
   const [searchQuery,  setSearchQuery]  = useState('');
   const [searchOpen,   setSearchOpen]   = useState(false);
   const [kindFilter,   setKindFilter]   = useState('all');   // all | abo | fixed
@@ -1268,12 +1274,26 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
     }
   }, [currency]);
 
+  const changeCurrency = (next) => {
+    setCurrency(next);
+    localStorage.setItem('currencyManual', '1');
+    localStorage.setItem('currency', next);
+  };
+
+  const refreshRates = () => {
+    setRatesLoading(true);
+    fetchRates().then(r => {
+      if (r) setRates(r);
+      setRatesLoading(false);
+    });
+  };
+
   useEffect(() => {
-    if (!swipeHinted && entries.length > 0) {
+    if (!swipeHinted && entries.some(entry => !entry.archived_at)) {
       const t = setTimeout(() => { setSwipeHinted(true); localStorage.setItem('swipeHinted', '1'); }, 3000);
       return () => clearTimeout(t);
     }
-  }, [entries.length, swipeHinted]);
+  }, [entries, swipeHinted]);
 
   // Авто-активация пробных у которых trial_end прошёл
   const activatingRef = useRef(new Set());
@@ -1281,7 +1301,8 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
     if (entries.length === 0) return;
     const today = new Date().toISOString().split('T')[0];
     const toActivate = entries.filter(s =>
-      s.status === 'trial' && s.trial_end && s.trial_end <= today && !activatingRef.current.has(s.id)
+      !s.archived_at && s.status === 'trial' && s.trial_end && s.trial_end <= today
+        && !activatingRef.current.has(s.id)
     );
     if (toActivate.length === 0) return;
     toActivate.forEach((s) => {
@@ -1304,7 +1325,10 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
   }, [entries]);
 
   // Только активные считаются в суммах (пробные и паузные = 0)
-  const activeEntries  = entries.filter(isBilled);
+  const currentEntries = entries.filter(entry => !entry.archived_at);
+  const archivedEntries = entries.filter(entry => Boolean(entry.archived_at));
+  const listedEntries = listView === 'archived' ? archivedEntries : currentEntries;
+  const activeEntries  = currentEntries.filter(isBilled);
   const totalMonthlyUSD = activeEntries.reduce((a, s) => a + monthly(s), 0);
   const totalYearlyUSD  = totalMonthlyUSD * 12;
 
@@ -1343,6 +1367,23 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
     refreshDocCounts();
     setIsModalOpen(false); setEditingEntry(null);
   };
+
+  const setArchived = (entry, archived) => {
+    const updated = entryStore.update(entry.id, {
+      archived_at: archived ? new Date().toISOString() : null,
+    });
+    if (!updated) return;
+
+    setSubscriptions(prev => prev.map(item =>
+      item.id === entry.id
+        ? { ...updated, billingDay: extractBillingDay(updated.date) }
+        : item
+    ));
+    if (detailId === entry.id) setDetailOpen(false);
+  };
+
+  const archiveEntry = (entry) => setArchived(entry, true);
+  const restoreEntry = (entry) => setArchived(entry, false);
 
   const triggerDelete = (entry) => {
     // Hing noch ein Toast — den einfach schließen
@@ -1393,7 +1434,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
 
   // Kündigungsfristen der nächsten 90 Tage — inklusive bereits verstrichener.
   // Was pausiert oder schon gekündigt ist, drängt zu keiner Frist mehr.
-  const deadlineEntries = entries
+  const deadlineEntries = currentEntries
     .filter(s => s.status !== 'paused' && s.status !== 'canceled')
     .map(s => ({ entry: s, date: cancelByDate(s) }))
     .filter(({ date }) => date !== null)
@@ -1412,12 +1453,17 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
   };
 
   // Alle erfassten Adressen — Grundlage für Filter und Vorschläge im Formular
-  const locations = [...new Set(entries.map(locationOf).filter(Boolean))].sort(byLocation);
-  const hasUnplaced = entries.some(s => !locationOf(s));
+  const locations = [...new Set(currentEntries.map(locationOf).filter(Boolean))].sort(byLocation);
+  const hasUnplaced = currentEntries.some(s => !locationOf(s));
+  const listLocations = [...new Set(listedEntries.map(locationOf).filter(Boolean))].sort(byLocation);
+  const listHasUnplaced = listedEntries.some(s => !locationOf(s));
 
   // Eine Adresse, die es nicht mehr gibt, darf den Filter nicht blockieren
-  const activePlace = placeFilter !== 'all' && placeFilter !== '' && !locations.includes(placeFilter)
-    ? 'all' : placeFilter;
+  const activePlace =
+    (placeFilter === '' && !listHasUnplaced)
+      || (placeFilter !== 'all' && placeFilter !== '' && !listLocations.includes(placeFilter))
+      ? 'all'
+      : placeFilter;
 
   const matchesFilters = (entry) =>
     (kindFilter  === 'all' || kindOf(entry) === kindFilter) &&
@@ -1425,7 +1471,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
 
   const filtersActive = kindFilter !== 'all' || activePlace !== 'all';
 
-  const sortedEntries = [...entries]
+  const sortedEntries = [...listedEntries]
     .filter(s => matchesSearch(s, searchQuery.trim().toLowerCase()))
     .filter(matchesFilters)
     .sort((a, b) => {
@@ -1534,7 +1580,11 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
       {/* ── Боковая навигация (десктоп) ── */}
       <DesktopSidebar
         activeTab={activeTab} onSwitch={switchTab} onAdd={openAdd}
-        lang={lang} toggleLang={toggleLang} theme={theme} toggleTheme={toggleTheme}
+        lang={lang} toggleLang={toggleLang}
+        theme={theme} themePreference={themePreference} setThemePreference={setThemePreference}
+        currency={currency} onCurrencyChange={changeCurrency}
+        ratesLoading={ratesLoading} onRefreshRates={refreshRates}
+        entries={entries} onImport={handleImport} vaultState={vaultState}
         total={fmt(totalMonthlyUSD)}
       />
 
@@ -1554,11 +1604,16 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                 <SupportMenu />
                 <div className="flex items-center gap-2 min-w-0">
                   <BrandMark className="w-10 h-8 rounded-md p-0.5" />
-                  <h1 className="whitespace-nowrap"><Wordmark className="text-base" /></h1>
+                  <h1 className="whitespace-nowrap"><Wordmark className="text-[21px]" /></h1>
                 </div>
                 <div className="flex items-center gap-2">
-                  <ThemeToggle theme={theme} onToggle={toggleTheme} label={t.theme_toggle} />
-                  <LangToggle lang={lang} toggleLang={toggleLang} />
+                  <SettingsMenu
+                    entries={entries} onImport={handleImport} vaultState={vaultState}
+                    lang={lang} toggleLang={toggleLang}
+                    theme={theme} themePreference={themePreference} onThemeChange={setThemePreference}
+                    currency={currency} onCurrencyChange={changeCurrency}
+                    ratesLoading={ratesLoading} onRefreshRates={refreshRates}
+                  />
                 </div>
               </header>
 
@@ -1569,20 +1624,12 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
               <div className="lg:flex-1 lg:min-w-0">
                 <p className="text-ink-3 uppercase text-[11px] tracking-[0.18em] font-medium mb-2">{t.per_month}</p>
                 <h2 className="text-5xl font-semibold tracking-tight mb-4 lg:text-6xl">{fmt(totalMonthlyUSD)}</h2>
-                <div className="flex items-center gap-2">
-                  <CurrencySelector value={currency} onChange={(c) => { setCurrency(c); localStorage.setItem('currencyManual', '1'); }} />
-                  <button onClick={() => { setRatesLoading(true); fetchRates().then(r => { if (r) setRates(r); setRatesLoading(false); }); }}
-                    title={t.rates_refresh}
-                    className="w-8 h-8 flex items-center justify-center rounded-full border border-border text-ink-3 hover:text-ink hover:bg-surface-3 transition">
-                    <RefreshCw className={`w-3.5 h-3.5 ${ratesLoading ? 'animate-spin' : ''}`} />
-                  </button>
-                </div>
-                <div className="flex items-center flex-wrap gap-2 mt-4">
+                <div className="flex items-center flex-wrap gap-2">
                   {(() => {
-                    const active   = entries.filter(isBilled).length;
-                    const paused   = entries.filter(s => s.status === 'paused').length;
-                    const trial    = entries.filter(s => s.status === 'trial').length;
-                    const canceled = entries.filter(s => s.status === 'canceled').length;
+                    const active   = currentEntries.filter(isBilled).length;
+                    const paused   = currentEntries.filter(s => s.status === 'paused').length;
+                    const trial    = currentEntries.filter(s => s.status === 'trial').length;
+                    const canceled = currentEntries.filter(s => s.status === 'canceled').length;
                     return <>
                       <StatusPill tone="success" label={t.active_count(active)} pulse />
                       {paused > 0 && <StatusPill tone="error"   label={t.paused_count(paused)} />}
@@ -1615,7 +1662,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
 
               <div data-group className="space-y-5 lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:self-start lg:space-y-6">
                 <SoonSection soonEntries={soonEntries} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly} />
-                {(deadlineEntries.length > 0 || entries.length > 0) && (
+                {(deadlineEntries.length > 0 || currentEntries.length > 0) && (
                   <DeadlinesSection deadlines={deadlineEntries} onOpen={openDetail} />
                 )}
               </div>
@@ -1647,7 +1694,8 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
               ) : (
                 <section data-group className="space-y-3 lg:col-span-2 lg:col-start-1 lg:row-start-2">
                   <div className="flex items-center justify-between px-1 gap-3">
-                    <SectionTitle icon={List} label={t.all_subs} />
+                    <SectionTitle icon={listView === 'archived' ? Archive : List}
+                      label={listView === 'archived' ? t.archive_title : t.all_subs} />
                     <div ref={searchWrapRef} className="relative ml-auto">
                       <button type="button"
                         onClick={() => {
@@ -1690,11 +1738,21 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                       <ArrowUpDown className="w-3.5 h-3.5" />{sortLabel}
                     </button>
                   </div>
+                  <Segmented
+                    items={[
+                      { id: 'current', label: `${t.archive_current} (${currentEntries.length})` },
+                      { id: 'archived', label: `${t.archive_title} (${archivedEntries.length})` },
+                    ]}
+                    value={listView}
+                    onChange={setListView}
+                    trackClass="w-full bg-surface border border-border rounded-lg"
+                    itemClass="flex-1 px-3 py-2 text-xs"
+                  />
                   <FilterBar
                     kind={kindFilter} onKind={setKindFilter}
                     place={activePlace} onPlace={setPlaceFilter}
                     group={groupBy} onGroup={setGroupBy}
-                    locations={locations} hasUnplaced={hasUnplaced}
+                    locations={listLocations} hasUnplaced={listHasUnplaced}
                     summary={filtersActive || groupBy !== 'none'
                       ? t.filter_summary(t.entries_count(sortedEntries.length), fmt(shownMonthlyUSD))
                       : null}
@@ -1704,8 +1762,14 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                     docCounts={docCounts} searchQuery={searchQuery} menuKey={kindFilter}
                     fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
                     groupBy={groupBy} filtered={filtersActive}
-                    hint={!swipeHinted ? t.swipe_hint : null}
-                    onOpen={openDetail} onEdit={openEdit} onDelete={setConfirmEntry} />
+                    archived={listView === 'archived'}
+                    emptyMessage={listView === 'archived' ? t.archive_empty : t.current_empty}
+                    hint={!swipeHinted
+                      ? (listView === 'archived' ? t.swipe_hint_archived : t.swipe_hint)
+                      : null}
+                    onOpen={openDetail} onEdit={openEdit}
+                    onArchive={archiveEntry} onRestore={restoreEntry}
+                    onDelete={setConfirmEntry} />
                 </section>
               )}
             </div>
@@ -1716,11 +1780,19 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
           <div ref={tabRefs.calendar} className={`absolute inset-0 overflow-y-auto desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'calendar' || exitingTab === 'calendar' ? 'block' : 'hidden'}`}>
             <div className="p-4 pt-6 space-y-5 lg:p-8 lg:pt-7 lg:space-y-7 lg:max-w-[1180px]">
               <PageHeader title={t.calendar_title} subtitle={t.calendar_subtitle} />
-              <MobilePageHeader icon={CalendarDays} title={t.calendar_title} />
+              <MobilePageHeader icon={CalendarDays} title={t.calendar_title}>
+                <SettingsMenu
+                  entries={entries} onImport={handleImport} vaultState={vaultState}
+                  lang={lang} toggleLang={toggleLang}
+                  theme={theme} themePreference={themePreference} onThemeChange={setThemePreference}
+                  currency={currency} onCurrencyChange={changeCurrency}
+                  ratesLoading={ratesLoading} onRefreshRates={refreshRates}
+                />
+              </MobilePageHeader>
               {(() => {
                 const now    = new Date();
                 const isPast = calYear < now.getFullYear() || (calYear === now.getFullYear() && calMonth < now.getMonth());
-                const calEntries = entries.filter(entry => entry.status !== 'paused' && entry.status !== 'canceled');
+                const calEntries = currentEntries.filter(entry => entry.status !== 'paused' && entry.status !== 'canceled');
                 const activeCalEntries = calEntries.filter(isBilled);
                 const calTotal = activeCalEntries.reduce((a, s) => {
                   if (s.period === 'yearly') {
@@ -1731,7 +1803,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                 }, 0);
                 const calYearly = activeCalEntries.reduce((a, s) => a + monthly(s) * 12, 0);
                 return (
-                  <CalendarSection entries={entries} fmt={fmt} fmtReal={fmtReal} monthly={monthly} month={calMonth} year={calYear}
+                  <CalendarSection entries={currentEntries} fmt={fmt} fmtReal={fmtReal} monthly={monthly} month={calMonth} year={calYear}
                     onPrev={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y-1); } else setCalMonth(m => m-1); }}
                     onNext={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y+1); } else setCalMonth(m => m+1); }}
                     onToday={() => { setCalMonth(now.getMonth()); setCalYear(now.getFullYear()); }}
@@ -1745,11 +1817,15 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
           {/* ════ ANALYTICS ════ */}
           <div ref={tabRefs.analytics} className={`absolute inset-0 overflow-y-auto desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'analytics' || exitingTab === 'analytics' ? 'block' : 'hidden'}`}>
             <div className="p-4 pt-6 space-y-4 lg:p-8 lg:pt-7 lg:space-y-0 lg:max-w-[1180px]">
-              <PageHeader title={t.analytics_title} subtitle={t.analytics_subtitle} className="lg:mb-7">
-                <ImportExportMenu entries={entries} onImport={handleImport} vaultState={vaultState} />
-              </PageHeader>
+              <PageHeader title={t.analytics_title} subtitle={t.analytics_subtitle} className="lg:mb-7" />
               <MobilePageHeader icon={BarChart2} title={t.analytics_title}>
-                <ImportExportMenu entries={entries} onImport={handleImport} vaultState={vaultState} />
+                <SettingsMenu
+                  entries={entries} onImport={handleImport} vaultState={vaultState}
+                  lang={lang} toggleLang={toggleLang}
+                  theme={theme} themePreference={themePreference} onThemeChange={setThemePreference}
+                  currency={currency} onCurrencyChange={changeCurrency}
+                  ratesLoading={ratesLoading} onRefreshRates={refreshRates}
+                />
               </MobilePageHeader>
 
               {/* Сетка карточек: колонка на мобиле, 2 колонки на десктопе */}
@@ -1912,7 +1988,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
               </div>
               {/* Пробный период — внизу */}
               {(() => {
-                const trialEntries = entries.filter(s => s.status === 'trial');
+                const trialEntries = currentEntries.filter(s => s.status === 'trial');
                 if (trialEntries.length === 0) return null;
                 return (
                   <div data-group className={`${CARD} p-5 space-y-3`}>
@@ -1937,7 +2013,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
               })()}
               {/* На паузе — внизу */}
               {(() => {
-                const pausedEntries = entries.filter(s => s.status === 'paused');
+                const pausedEntries = currentEntries.filter(s => s.status === 'paused');
                 if (pausedEntries.length === 0) return null;
                 return (
                   <div data-group className={`${CARD} p-5 space-y-3`}>
@@ -1959,7 +2035,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
               })()}
               {/* Gekündigt — ganz unten, kostet nichts mehr */}
               {(() => {
-                const canceledEntries = entries.filter(s => s.status === 'canceled');
+                const canceledEntries = currentEntries.filter(s => s.status === 'canceled');
                 if (canceledEntries.length === 0) return null;
                 return (
                   <div data-group className={`${CARD} p-5 space-y-3`}>
@@ -2015,6 +2091,8 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
           fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
           vaultState={vaultState}
           onEdit={() => detailEntry && openEdit(detailEntry)}
+          onArchive={() => detailEntry && archiveEntry(detailEntry)}
+          onRestore={() => detailEntry && restoreEntry(detailEntry)}
           onDelete={() => detailEntry && setConfirmEntry(detailEntry)}
           onClose={closeDetail} />
 
@@ -2484,7 +2562,7 @@ const SupportMenu = ({ align = 'left' }) => {
 
 
 // ─── Import / Export Menu ─────────────────────────────────────────────────────
-const ImportExportMenu = ({ entries, onImport, vaultState }) => {
+const ImportExportMenu = ({ entries, onImport, vaultState, embedded = false }) => {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [importStatus, setImportStatus] = useState(null); // null | 'ok' | 'err'
@@ -2498,7 +2576,7 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
   // CSV bleibt die flache Übersicht; alles Strukturierte steckt im JSON.
   const CSV_HEADERS = [
     'name', 'provider', 'price', 'currency_code', 'period', 'category', 'kind', 'location', 'status',
-    'date', 'trial_end', 'contract_start', 'contract_end', 'notice_period_months', 'url',
+    'date', 'trial_end', 'contract_start', 'contract_end', 'notice_period_months', 'url', 'archived_at',
   ];
 
   const exportCSV = () => {
@@ -2510,7 +2588,7 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
   const exportJSON = () => {
     const payload = {
       app: APP_NAME,
-      version: 3,
+      version: 4,
       exported_at: new Date().toISOString(),
       vault: vault.readMeta(),
       entries: entries.map(({ billingDay, ...rest }) => rest),
@@ -2603,17 +2681,8 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
     setTimeout(() => setImportStatus(null), 3500);
   };
 
-  return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen(v => !v)} title={t.io_title}
-        aria-label={t.io_title} aria-haspopup="menu" aria-expanded={open}
-        className="h-10 px-3 rounded-lg border border-border bg-surface-2 inline-flex items-center justify-center gap-2
-          text-ink-2 hover:text-ink hover:bg-surface-3 transition shrink-0">
-        <Archive className="w-4 h-4" />
-        <span className="text-xs font-medium">{t.io_title}</span>
-      </button>
-
-      <PopMenu open={open} className="right-0 top-12" origin="top right" width="w-[280px]">
+  const content = (
+    <>
         <MenuHeader title={t.io_title} hint={t.io_subtitle} />
         {importStatus && (
           <div data-menu-item role="status"
@@ -2664,6 +2733,139 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
             <button onClick={exportJSON} className={btn('secondary', 'sm', 'flex-1 text-xs')}>JSON</button>
           </div>
           <p className="text-[11px] text-ink-3 mt-2">{t.io_docs_note}</p>
+        </div>
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen(v => !v)} title={t.io_title}
+        aria-label={t.io_title} aria-haspopup="menu" aria-expanded={open}
+        className="h-10 px-3 rounded-lg border border-border bg-surface-2 inline-flex items-center justify-center gap-2
+          text-ink-2 hover:text-ink hover:bg-surface-3 transition shrink-0">
+        <Archive className="w-4 h-4" />
+        <span className="text-xs font-medium">{t.io_title}</span>
+      </button>
+
+      <PopMenu open={open} className="right-0 top-12" origin="top right" width="w-[280px]">
+        {content}
+      </PopMenu>
+    </div>
+  );
+};
+
+// ─── Einstellungen ────────────────────────────────────────────────────────────
+// Alle app-weiten Entscheidungen sind an einem Ort. Der Import-/Export-Block
+// nutzt weiterhin dieselbe Logik wie bisher, wird hier aber direkt eingebettet.
+const SettingsMenu = ({
+  entries, onImport, vaultState,
+  lang, toggleLang,
+  theme, themePreference, onThemeChange,
+  currency, onCurrencyChange,
+  ratesLoading, onRefreshRates,
+  align = 'right',
+  buttonClass = '',
+  triggerLabel,
+}) => {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const ref = useDismiss(open, close);
+  const menuPosition = align === 'top' ? 'left-0 bottom-12' : 'right-0 top-12';
+  const origin = align === 'top' ? 'bottom left' : 'top right';
+  const selectedTheme = themePreference === 'system' ? theme : themePreference;
+
+  return (
+    <div ref={ref} className={`relative ${buttonClass}`}>
+      <button type="button" onClick={() => setOpen(value => !value)}
+        title={t.settings_title} aria-label={t.settings_title}
+        aria-haspopup="menu" aria-expanded={open}
+        className={`${triggerLabel ? 'w-full px-3 gap-2 justify-start' : 'w-10 justify-center'}
+          h-10 shrink-0 flex items-center rounded-lg border border-border
+          bg-surface-2 text-ink-2 hover:text-ink hover:bg-surface-3 transition`}>
+        <Settings className="w-4 h-4" />
+        {triggerLabel && <span className="text-sm font-medium">{triggerLabel}</span>}
+      </button>
+
+      <PopMenu open={open} className={menuPosition} origin={origin}
+        width="w-[min(340px,calc(100vw-2rem))]">
+        <div className="max-h-[min(680px,calc(100vh-7rem))] overflow-y-auto overscroll-contain">
+          <MenuHeader title={t.settings_title} hint={t.settings_subtitle} />
+
+          <section data-menu-item className="px-3 py-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              {theme === 'dark'
+                ? <Moon className="w-4 h-4 text-ink-2" />
+                : <Sun className="w-4 h-4 text-ink-2" />}
+              <span className="text-sm font-medium">{t.settings_theme}</span>
+            </div>
+            <Segmented
+              items={[
+                { id: 'light', label: t.theme_light },
+                { id: 'dark', label: t.theme_dark },
+              ]}
+              value={selectedTheme}
+              onChange={onThemeChange}
+              className="w-full"
+              layout="grid grid-cols-2"
+              trackClass="h-10 bg-surface border border-border rounded-lg"
+              itemClass="text-xs"
+            />
+          </section>
+
+          <section data-menu-item className="px-3 py-3 border-t border-border">
+            <div className="flex items-center gap-2 mb-2">
+              <Wallet className="w-4 h-4 text-ink-2" />
+              <span className="text-sm font-medium">{t.settings_currency}</span>
+              <button type="button" onClick={onRefreshRates} title={t.rates_refresh}
+                aria-label={t.rates_refresh}
+                className="ml-auto w-8 h-8 flex items-center justify-center rounded-lg text-ink-3
+                  hover:text-ink hover:bg-surface-3 transition">
+                <RefreshCw className={`w-3.5 h-3.5 ${ratesLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {CURRENCIES.map(item => (
+                <button type="button" key={item.code} onClick={() => onCurrencyChange(item.code)}
+                  aria-pressed={currency === item.code}
+                  className={`h-10 px-3 rounded-lg border text-xs font-medium flex items-center justify-between transition
+                    ${currency === item.code
+                      ? 'bg-ink text-surface border-ink'
+                      : 'bg-surface border-border text-ink-2 hover:bg-surface-3 hover:text-ink'}`}>
+                  <span>{item.code}</span>
+                  <span className={currency === item.code ? 'text-surface/70' : 'text-ink-3'}>{item.symbol}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-ink-3 mt-2">{t.settings_currency_hint}</p>
+          </section>
+
+          <section data-menu-item className="px-3 py-3 border-t border-border">
+            <div className="flex items-center gap-2 mb-2">
+              <Languages className="w-4 h-4 text-ink-2" />
+              <span className="text-sm font-medium">{t.settings_language}</span>
+            </div>
+            <Segmented
+              items={[
+                { id: 'de', label: 'Deutsch' },
+                { id: 'en', label: 'English' },
+              ]}
+              value={lang}
+              onChange={next => { if (next !== lang) toggleLang(); }}
+              className="w-full"
+              layout="grid grid-cols-2"
+              trackClass="h-10 bg-surface border border-border rounded-lg"
+              itemClass="text-xs"
+            />
+          </section>
+
+          <div className="border-t border-border">
+            <ImportExportMenu
+              entries={entries} onImport={onImport} vaultState={vaultState} embedded
+            />
+          </div>
         </div>
       </PopMenu>
     </div>
@@ -3080,15 +3282,21 @@ const useSwipeRow = ({ onLeft, onRight, onTap, max = 90, threshold = 70 }) => {
   return { ref, handlers: { onPointerDown, onPointerMove, onPointerUp: end, onPointerCancel: end, onClick } };
 };
 
-const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onOpen, onEdit, onDelete, docCount = 0,
-  hideLocation = false }) => {
+const EntryRow = ({
+  entry, fmt, fmtOriginal, monthly, onOpen, onEdit, onArchive, onRestore, onDelete,
+  docCount = 0, hideLocation = false, archived = false,
+}) => {
   const t    = useT();
   const lang = useLang();
   const isDesktop = useIsDesktop();
   const cat = entry.category ? getCat(entry.category) : null;
   const deadlineDays = daysUntil(cancelByDate(entry));
-  const deadlineSoon = deadlineDays !== null && deadlineDays <= 60;
-  const { ref: swipeRef, handlers } = useSwipeRow({ onLeft: onDelete, onRight: onEdit, onTap: onOpen });
+  const deadlineSoon = !archived && deadlineDays !== null && deadlineDays <= 60;
+  const { ref: swipeRef, handlers } = useSwipeRow({
+    onLeft: archived ? onDelete : onArchive,
+    onRight: archived ? onRestore : onEdit,
+    onTap: onOpen,
+  });
 
   const badges = (
     <>
@@ -3134,6 +3342,11 @@ const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onOpen, onEdit, onDelete, 
             className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-2 transition">
             <Pencil className="w-4 h-4" />
           </button>
+          <button type="button" title={archived ? t.archive_restore : t.archive_action}
+            onClick={e => { e.stopPropagation(); archived ? onRestore() : onArchive(); }}
+            className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-2 transition">
+            {archived ? <RefreshCw className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+          </button>
           <button type="button" title={t.sub_delete} onClick={e => { e.stopPropagation(); onDelete(); }}
             className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-3 hover:text-error hover:border-error/40 transition">
             <Trash2 className="w-4 h-4" />
@@ -3148,10 +3361,15 @@ const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onOpen, onEdit, onDelete, 
       {/* Was unter der Zeile liegt */}
       <div className="absolute inset-0 flex text-white">
         <div className="flex-1 bg-success flex items-center pl-6 text-xs font-medium gap-2">
-          <Pencil className="w-4 h-4" /> {t.modal_edit}
+          {archived
+            ? <><RefreshCw className="w-4 h-4" /> {t.archive_restore}</>
+            : <><Pencil className="w-4 h-4" /> {t.modal_edit}</>}
         </div>
-        <div className="flex-1 bg-error flex items-center justify-end pr-6 text-xs font-medium gap-2">
-          {t.sub_delete} <Trash2 className="w-4 h-4" />
+        <div className={`flex-1 flex items-center justify-end pr-6 text-xs font-medium gap-2
+          ${archived ? 'bg-error' : 'bg-ink-2'}`}>
+          {archived
+            ? <>{t.sub_delete} <Trash2 className="w-4 h-4" /></>
+            : <>{t.archive_action} <Archive className="w-4 h-4" /></>}
         </div>
       </div>
       <div ref={swipeRef} data-no-tab-swipe {...handlers}
@@ -3169,33 +3387,6 @@ const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onOpen, onEdit, onDelete, 
           </p>
         </div>
       </div>
-    </div>
-  );
-};
-
-// ─── Валюта ────────────────────────────────────────────────────────────────────
-const CurrencySelector = ({ value, onChange }) => {
-  const [open, setOpen] = useState(false);
-  const close = useCallback(() => setOpen(false), []);
-  const ref = useDismiss(open, close);
-  const curr = getCurrency(value);
-
-  return (
-    <div ref={ref} className="relative inline-block">
-      <button onClick={() => setOpen(o => !o)}
-        className="inline-flex items-center gap-1.5 border border-border bg-surface-2 text-ink-2
-          hover:text-ink hover:bg-surface-3 text-xs font-medium px-3 py-1.5 rounded-full transition">
-        {curr.label} <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      <PopMenu open={open} className="top-10 left-0" width="w-[150px]">
-        {CURRENCIES.map(c => (
-          <MenuItem key={c.code} onClick={() => { onChange(c.code); setOpen(false); }}
-            className={value === c.code ? 'text-ink' : ''}>
-            <span className="flex-1">{c.label}</span>
-            {value === c.code && <Check className="w-4 h-4" />}
-          </MenuItem>
-        ))}
-      </PopMenu>
     </div>
   );
 };
@@ -3892,7 +4083,10 @@ const STATUS_LABEL = {
   canceled: 'modal_status_canceled',
 };
 
-const EntryDetail = ({ open, entry, currency, fmt, fmtOriginal, monthly, vaultState, onEdit, onDelete, onClose }) => {
+const EntryDetail = ({
+  open, entry, currency, fmt, fmtOriginal, monthly, vaultState,
+  onEdit, onArchive, onRestore, onDelete, onClose,
+}) => {
   const t    = useT();
   const lang = useLang();
   const isDesktop = useIsDesktop();
@@ -3974,7 +4168,8 @@ const EntryDetail = ({ open, entry, currency, fmt, fmtOriginal, monthly, vaultSt
         )}
         <StatusPill tone={STATUS_TONE[status] || 'muted'} label={t[STATUS_LABEL[status]] || status}
           pulse={status === 'trial'} />
-        {cancelDays !== null && cancelDays <= 60 && <DeadlineBadge days={cancelDays} />}
+        {entry.archived_at && <Badge icon={Archive}>{t.archive_badge}</Badge>}
+        {!entry.archived_at && cancelDays !== null && cancelDays <= 60 && <DeadlineBadge days={cancelDays} />}
       </div>
 
       {/* ── Betrag ── */}
@@ -4142,11 +4337,23 @@ const EntryDetail = ({ open, entry, currency, fmt, fmtOriginal, monthly, vaultSt
       </div>
 
       <div className="flex flex-col gap-2 mt-6 lg:flex-row-reverse lg:gap-3 lg:mt-7">
-        <button type="button" onClick={onEdit} className={btn('primary', 'md', 'w-full py-3 lg:flex-1')}>
-          <Pencil className="w-4 h-4" />{t.modal_edit}
+        <button type="button" onClick={entry.archived_at ? onRestore : onEdit}
+          className={btn('primary', 'md', 'w-full py-3 lg:flex-1')}>
+          {entry.archived_at
+            ? <><RefreshCw className="w-4 h-4" />{t.archive_restore}</>
+            : <><Pencil className="w-4 h-4" />{t.modal_edit}</>}
         </button>
+        {entry.archived_at ? (
+          <button type="button" onClick={onEdit} className={btn('secondary', 'md', 'w-full py-3 lg:flex-1')}>
+            <Pencil className="w-4 h-4" />{t.modal_edit}
+          </button>
+        ) : (
+          <button type="button" onClick={onArchive} className={btn('secondary', 'md', 'w-full py-3 lg:flex-1')}>
+            <Archive className="w-4 h-4" />{t.archive_action}
+          </button>
+        )}
         <button type="button" onClick={onDelete}
-          className={btn('ghost', 'md', 'w-full py-3 lg:flex-1 hover:text-error')}>
+          className={btn('ghost', 'md', 'w-full py-3 lg:hover:text-error')}>
           <Trash2 className="w-4 h-4" />{t.sub_delete}
         </button>
       </div>
@@ -4935,7 +5142,14 @@ const BrandMark = ({ className = '' }) => (
 
 // ─── Десктоп: боковая навигация ───────────────────────────────────────────────
 // Auch hier gleitet die Markierung — senkrecht statt waagerecht.
-const DesktopSidebar = ({ activeTab, onSwitch, onAdd, lang, toggleLang, theme, toggleTheme, total }) => {
+const DesktopSidebar = ({
+  activeTab, onSwitch, onAdd, total,
+  lang, toggleLang,
+  theme, themePreference, setThemePreference,
+  currency, onCurrencyChange,
+  ratesLoading, onRefreshRates,
+  entries, onImport, vaultState,
+}) => {
   const t = useT();
   const items = [
     { id: 'home',      label: t.nav_home,      icon: Home,         shortcut: '1' },
@@ -4947,7 +5161,7 @@ const DesktopSidebar = ({ activeTab, onSwitch, onAdd, lang, toggleLang, theme, t
     <aside className="hidden lg:flex flex-col w-[264px] shrink-0 h-screen sticky top-0 bg-surface border-r border-border px-5 py-7">
       <div className="flex items-center gap-3 px-1">
         <BrandMark className="w-14 h-10 rounded-lg p-1" />
-        <Wordmark className="text-[23px] leading-none min-w-0 block truncate" />
+        <Wordmark className="text-[30px] leading-none min-w-0 block truncate" />
       </div>
 
       <button onClick={onAdd} className={btn('primary', 'md', 'mt-7 w-full py-3')}>
@@ -4971,13 +5185,16 @@ const DesktopSidebar = ({ activeTab, onSwitch, onAdd, lang, toggleLang, theme, t
 
       <div className="mt-auto space-y-3">
         <div className={`${CARD} px-4 py-3`}>
-          <p className="text-[11px] uppercase tracking-[0.16em] text-ink-3">{t.per_month}</p>
-          <p className="text-2xl font-semibold tracking-tight mt-1">{total}</p>
+          <p className="text-2xl font-semibold tracking-tight">{total}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <ThemeToggle theme={theme} onToggle={toggleTheme} label={t.theme_toggle} />
-          <LangToggle lang={lang} toggleLang={toggleLang} className="flex-1" />
-        </div>
+        <SettingsMenu
+          align="top" buttonClass="w-full" triggerLabel={t.settings_title}
+          entries={entries} onImport={onImport} vaultState={vaultState}
+          lang={lang} toggleLang={toggleLang}
+          theme={theme} themePreference={themePreference} onThemeChange={setThemePreference}
+          currency={currency} onCurrencyChange={onCurrencyChange}
+          ratesLoading={ratesLoading} onRefreshRates={onRefreshRates}
+        />
       </div>
     </aside>
   );
@@ -4995,7 +5212,12 @@ export default function Root() {
     return nav.startsWith('de') ? 'de' : 'en';
   });
 
-  const { theme, toggle: toggleTheme } = useTheme();
+  const {
+    theme,
+    preference: themePreference,
+    setPreference: setThemePreference,
+    toggle: toggleTheme,
+  } = useTheme();
   useButtonPress();
 
   const toggleLang = () => {
@@ -5016,7 +5238,10 @@ export default function Root() {
 
   return (
     <LangContext.Provider value={lang}>
-      <App toggleLang={toggleLang} lang={lang} theme={theme} toggleTheme={toggleTheme} />
+      <App
+        toggleLang={toggleLang} lang={lang}
+        theme={theme} themePreference={themePreference} setThemePreference={setThemePreference}
+      />
     </LangContext.Provider>
   );
 }

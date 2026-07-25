@@ -35,6 +35,7 @@ test('creates and reloads a normalized entry', () => {
   assert.equal(created.price, 12.5);
   assert.equal(created.period, 'monthly');
   assert.equal(created.auto_renew, true);
+  assert.equal(created.archived_at, null);
 
   const reloadedStore = createStore(storage);
   assert.deepEqual(reloadedStore.list(), [created]);
@@ -67,6 +68,21 @@ test('keeps known statuses and falls back to active for anything else', () => {
   assert.equal(store.create({ name: 'Water', status: 'cancelled' }).status, 'active');
   assert.equal(store.create({ name: 'Power' }).status, 'active');
   assert.equal(isBilled({ name: 'Power' }), true);
+});
+
+test('archives and restores an entry without losing its data', () => {
+  const store = createStore();
+  const created = store.create({ name: 'Old contract', price: 42 });
+  const archivedAt = '2026-07-25T12:00:00.000Z';
+
+  const archived = store.update(created.id, { archived_at: archivedAt });
+  assert.equal(archived.archived_at, archivedAt);
+  assert.equal(isBilled(archived), false);
+
+  const restored = store.update(created.id, { archived_at: null });
+  assert.equal(restored.archived_at, null);
+  assert.equal(restored.price, 42);
+  assert.equal(isBilled(restored), true);
 });
 
 test('imports new rows while skipping duplicates', () => {
@@ -128,7 +144,7 @@ test('migrates subscriptions saved by the previous app version', () => {
 
   assert.equal(entry.id, 'old-1');
   assert.equal(entry.category, 'mobile');
-  assert.match(storage.getItem('goldgeld.entries'), /"version":3/);
+  assert.match(storage.getItem('goldgeld.entries'), /"version":4/);
 });
 
 test('derives the kind from the category and keeps an explicit override', () => {
@@ -164,7 +180,7 @@ test('takes the address from contract fields when upgrading older data', () => {
 
   assert.equal(entries[0].location, 'Hauptstraße 5, 10115 Berlin');
   assert.equal(entries[1].location, '');
-  assert.match(storage.getItem('goldgeld.entries'), /"version":3/);
+  assert.match(storage.getItem('goldgeld.entries'), /"version":4/);
 });
 
 test('treats malformed persisted data as empty', () => {
