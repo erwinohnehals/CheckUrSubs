@@ -675,6 +675,19 @@ const Overlay = ({ open, onClose, children, panelClass = '', sheet = false, labe
             : `${keyframe}-out ${DURATION.modalOut}ms ${STANDARD_EASE} forwards`);
   }, [open, rendered, sheet]);
 
+  // Escape schließt — aber erst, wenn kein Menü mehr offen ist. Ein offenes
+  // PopMenu fängt die Taste selbst ab und darf das Modal nicht mitreißen.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (document.querySelector('[role="menu"]')) return;
+      onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   if (!rendered) return null;
   return (
     <>
@@ -3009,12 +3022,27 @@ const DatePicker = ({ value, onChange, label }) => {
 };
 
 // ─── Formular-Bausteine ───────────────────────────────────────────────────────
-const FieldShell = ({ label, hint, children }) => (
-  <label className="block space-y-1.5">
+const FieldShell = ({ label, hint, children, className = '' }) => (
+  <label className={`block space-y-1.5 ${className}`}>
     <span className="block text-[11px] text-ink-3 px-1">{label}</span>
     {children}
     {hint && <span className="block text-[11px] text-ink-3 px-1">{hint}</span>}
   </label>
+);
+
+// Wie FieldShell, aber ohne <label> — für Gruppen aus mehreren Bedienelementen,
+// wo ein Klick auf die Beschriftung nicht sinnvoll in ein Feld springen kann.
+const FieldGroup = ({ label, hint, children, className = '' }) => (
+  <div className={`space-y-1.5 ${className}`}>
+    {label && <p className="text-[11px] text-ink-3 px-1">{label}</p>}
+    {children}
+    {hint && <p className="text-[11px] text-ink-3 px-1">{hint}</p>}
+  </div>
+);
+
+// Abschnittsüberschrift — der einzige Taktgeber in langen Formularen
+const SectionTitle = ({ children, className = '' }) => (
+  <p className={`text-[11px] uppercase tracking-[0.16em] text-ink-3 px-1 ${className}`}>{children}</p>
 );
 
 // Der Ein-Zustand ist eine der wenigen Stellen, an denen der Akzent auftaucht (§2)
@@ -3862,14 +3890,97 @@ const EntryDetail = ({ open, entry, currency, fmt, fmtOriginal, monthly, vaultSt
 };
 
 // ─── Eintrag anlegen / bearbeiten ─────────────────────────────────────────────
+// Drei Reiter statt vier, entlang der Fragen, die ein Vertrag beantwortet:
+// Was ist das und was kostet es · Wie lange läuft er und wie kommt man raus ·
+// Wo liegen Zugang und Papiere. Eine einzelne Dateiablage trug keinen Reiter.
 const MODAL_TABS = [
-  { id: 'basics',  labelKey: 'tab_basics',  icon: Wallet },
-  { id: 'details', labelKey: 'tab_details', icon: ClipboardList },
-  { id: 'access',  labelKey: 'tab_access',  icon: KeyRound },
-  { id: 'docs',    labelKey: 'tab_docs',    icon: Paperclip },
+  { id: 'basics',   labelKey: 'tab_basics',   icon: Wallet },
+  { id: 'contract', labelKey: 'tab_contract', icon: ClipboardList },
+  { id: 'filing',   labelKey: 'tab_filing',   icon: Paperclip },
 ];
 
 const NOTICE_OPTIONS = [1, 2, 3, 6, 12];
+
+// ─── Kategorieauswahl ─────────────────────────────────────────────────────────
+// Neunzehn Kategorien als Chipwand haben das halbe Formular gefressen. Jetzt
+// steht eine Zeile da; die volle Auswahl kommt auf Klick — mit Suche, weil
+// Tippen ab etwa einem Dutzend Einträgen schneller ist als Zielen.
+const CategoryPicker = ({ value, onChange }) => {
+  const t = useT();
+  const [open,  setOpen]  = useState(false);
+  const [query, setQuery] = useState('');
+  const close = useCallback(() => setOpen(false), []);
+  const ref = useDismiss(open, close);
+  const searchRef = useRef(null);
+
+  const cat  = getCat(value);
+  const Icon = cat?.icon || Layers;
+
+  useEffect(() => {
+    if (!open) { setQuery(''); return; }
+    const id = setTimeout(() => searchRef.current?.focus(), 40);
+    return () => clearTimeout(id);
+  }, [open]);
+
+  const q = query.trim().toLowerCase();
+  const matches = q ? CATEGORIES.filter(c => t[c.labelKey].toLowerCase().includes(q)) : CATEGORIES;
+
+  const pick = (id) => { onChange(id); setOpen(false); };
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)} aria-haspopup="listbox" aria-expanded={open}
+        className={`${INPUT_CLASS} flex items-center gap-2.5 text-left hover:bg-surface-3`}>
+        <Icon className={`w-4 h-4 shrink-0 ${cat ? 'text-ink-2' : 'text-ink-3'}`} />
+        <span className={`flex-1 truncate ${cat ? 'text-ink' : 'text-ink-3'}`}>
+          {cat ? t[cat.labelKey] : t.cat_choose}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      <PopMenu open={open} className="top-full mt-1 left-0 right-0" width="">
+        <div className="relative mb-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-3 pointer-events-none" />
+          <input ref={searchRef} value={query} placeholder={t.cat_search}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && matches.length) { e.preventDefault(); pick(matches[0].id); } }}
+            className="w-full bg-surface border border-border rounded-lg pl-9 pr-3 py-2 text-sm
+              text-ink placeholder:text-ink-3 focus:outline-none focus:border-border-strong" />
+        </div>
+
+        <div className="max-h-[240px] overflow-y-auto desktop-scroll">
+          {matches.length === 0
+            ? <p className="px-3 py-5 text-xs text-ink-3 text-center">{t.cat_empty}</p>
+            : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5">
+                {matches.map(item => {
+                  const ItemIcon = item.icon;
+                  const active   = item.id === value;
+                  return (
+                    <button key={item.id} type="button" data-menu-item onClick={() => pick(item.id)}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition
+                        ${active ? 'bg-surface-3 text-ink' : 'text-ink-2 hover:bg-surface-3 hover:text-ink'}`}>
+                      <ItemIcon className="w-4 h-4 shrink-0" />
+                      <span className="flex-1 truncate">{t[item.labelKey]}</span>
+                      {active && <Check className="w-4 h-4 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+        </div>
+
+        {value && (
+          <button type="button" onClick={() => pick('')}
+            className="w-full mt-1 pt-2 border-t border-border flex items-center gap-2.5 px-3 py-2
+              text-sm text-ink-3 hover:text-ink transition">
+            <X className="w-4 h-4 shrink-0" />{t.cat_clear}
+          </button>
+        )}
+      </PopMenu>
+    </div>
+  );
+};
 
 const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSave, onClose, onDocsChange }) => {
   const t    = useT();
@@ -3923,6 +4034,27 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
   const [saving,   setSaving]   = useState(false);
   const justApplied = useRef(false);
   const priceRef    = useRef(null);
+  const nameRef     = useRef(null);
+
+  // Die Art folgt der Kategorie — die Umschaltung kommt erst auf Nachfrage
+  const [kindOpen, setKindOpen] = useState(false);
+
+  // Anzahl der Dokumente für die Markierung am Reiter
+  const [docCount, setDocCount] = useState(0);
+  const refreshDocs = useCallback(() => {
+    if (!documentStore.isAvailable()) return;
+    documentStore.listFor(entryId).then(list => setDocCount(list.length)).catch(() => {});
+  }, [entryId]);
+  useEffect(() => { refreshDocs(); }, [refreshDocs]);
+
+  // Welcher Reiter hat die Eingabe abgelehnt — sonst springt das Formular
+  // wortlos woandershin
+  const [tabError, setTabError] = useState('');
+  const flagTab = (id) => {
+    setTab(id);
+    setTabError(id);
+    setTimeout(() => setTabError(''), 2000);
+  };
 
   // Gespeichertes Passwort entschlüsseln, sobald der Tresor offen ist
   useEffect(() => {
@@ -3970,7 +4102,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
 
     const dayNum = Number(day);
     if (day && (dayNum < 1 || dayNum > 31)) {
-      setTab('basics');
+      flagTab('basics');
       setDayError(true);
       setTimeout(() => setDayError(false), 600);
       return;
@@ -3987,13 +4119,13 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
           loginSecret = await vaultState.encrypt(secret);
         } catch {
           setSaving(false);
-          setTab('access');
+          flagTab('filing');
           setSecretError(t.vault_locked);
           return;
         }
         setSaving(false);
       } else {
-        setTab('access');
+        flagTab('filing');
         setSecretError(t.vault_locked_hint);
         return;
       }
@@ -4030,6 +4162,26 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
     });
   };
 
+  // ⌘/Strg + Enter speichert — die Hand bleibt auf der Tastatur
+  const submitRef = useRef(null);
+  useEffect(() => { submitRef.current = handleSubmit; });
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); submitRef.current?.(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  // Ein neuer Eintrag beginnt im Namensfeld; am Telefon bleibt die Tastatur
+  // unten, damit das Blatt erst zu Ende fährt
+  useEffect(() => {
+    if (!open || initial || !isDesktop) return;
+    const id = setTimeout(() => nameRef.current?.focus(), DURATION.modalIn);
+    return () => clearTimeout(id);
+  }, [open, initial, isDesktop]);
+
   const cancelBy = cancelByDate({
     contract_end: contractEnd,
     notice_period_months: noticeMonths ? Number(noticeMonths) : null,
@@ -4038,6 +4190,27 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
 
   const templateFields = templateFor(category);
   const catalogEntry   = getCatalogEntry(initial?.name) || getCatalogEntry(name);
+
+  const cat        = getCat(category);
+  const activeKind = getKind(kind) || KINDS[0];
+  const KindIcon   = activeKind.icon;
+  const HeaderIcon = cat?.icon || Wallet;
+  const subtitle   = [provider.trim(), cat && t[cat.labelKey]].filter(Boolean).join(' · ');
+
+  // Was steckt hinter den Reitern? Ohne Markierung müsste man alle drei öffnen,
+  // nur um zu sehen, dass zwei leer sind.
+  const hasContractData = Boolean(
+    contractStart || contractEnd || noticeMonths || custom.length ||
+    Object.values(fields).some(value => String(value || '').trim()));
+  const hasFilingData = Boolean(url || username || secret || loginNote || initial?.login_secret);
+
+  const tabMark = (id) => {
+    if (tabError === id)                 return <span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" />;
+    if (id === 'filing' && docCount > 0) return <span className="text-[10px] leading-none text-ink-3 tabular-nums shrink-0">{docCount}</span>;
+    if (id === 'contract' && hasContractData) return <span className="w-1.5 h-1.5 rounded-full bg-ink-3 shrink-0" />;
+    if (id === 'filing'   && hasFilingData)   return <span className="w-1.5 h-1.5 rounded-full bg-ink-3 shrink-0" />;
+    return null;
+  };
 
   return (
     <Overlay open={open} onClose={onClose} sheet={!isDesktop} labelledBy="entry-modal-title"

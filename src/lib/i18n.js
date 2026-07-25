@@ -116,6 +116,13 @@ export const translations = {
     modal_name_placeholder: 'Name (z. B. Stromvertrag)',
     modal_provider_placeholder: 'Anbieter (z. B. E.ON)',
     modal_price_placeholder: 'Betrag',
+    // Beschriftungen stehen über dem Feld, das Beispiel bleibt im Feld
+    field_name:          'Name',
+    field_provider:      'Anbieter',
+    field_amount:        'Betrag',
+    field_period:        'Rhythmus',
+    modal_name_hint:     'z. B. Stromvertrag',
+    modal_provider_hint: 'z. B. E.ON',
     modal_monthly:      'Monatlich',
     modal_yearly:       'Jährlich',
     modal_status_active:'Aktiv',
@@ -139,6 +146,24 @@ export const translations = {
     tab_details:'Details',
     tab_access: 'Zugang',
     tab_docs:   'Dokumente',
+    tab_contract:'Vertrag',
+    tab_filing: 'Ablage',
+    tab_filled: 'enthält Daten',
+
+    // Abschnitte im Formular
+    sec_money:  'Was & wie viel',
+    sec_status: 'Status & Abbuchung',
+    sec_place:  'Einordnung',
+    sec_access: 'Zugangsdaten',
+    modal_billing_suffix: 'des Monats',
+
+    // Kategorieauswahl
+    cat_label:  'Kategorie',
+    cat_choose: 'Kategorie wählen',
+    cat_search: 'Kategorie suchen',
+    cat_empty:  'Keine Kategorie gefunden',
+    cat_clear:  'Ohne Kategorie',
+    kind_change:'ändern',
 
     // Detailansicht
     detail_open:       'Eintrag ansehen',
@@ -423,6 +448,13 @@ export const translations = {
     modal_name_placeholder: 'Name (e.g. Electricity)',
     modal_provider_placeholder: 'Provider (e.g. E.ON)',
     modal_price_placeholder: 'Amount',
+    // Labels sit above the field, the example stays inside it
+    field_name:          'Name',
+    field_provider:      'Provider',
+    field_amount:        'Amount',
+    field_period:        'Billing cycle',
+    modal_name_hint:     'e.g. Electricity',
+    modal_provider_hint: 'e.g. E.ON',
     modal_monthly:      'Monthly',
     modal_yearly:       'Yearly',
     modal_status_active:'Active',
@@ -446,6 +478,24 @@ export const translations = {
     tab_details:'Details',
     tab_access: 'Access',
     tab_docs:   'Documents',
+    tab_contract:'Contract',
+    tab_filing: 'Filing',
+    tab_filled: 'contains data',
+
+    // Form sections
+    sec_money:  'What & how much',
+    sec_status: 'Status & billing',
+    sec_place:  'Classification',
+    sec_access: 'Credentials',
+    modal_billing_suffix: 'of the month',
+
+    // Category picker
+    cat_label:  'Category',
+    cat_choose: 'Choose category',
+    cat_search: 'Search categories',
+    cat_empty:  'No category found',
+    cat_clear:  'No category',
+    kind_change:'change',
 
     // Detail view
     detail_open:       'View entry',
