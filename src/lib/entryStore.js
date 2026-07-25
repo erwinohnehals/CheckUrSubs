@@ -1,9 +1,66 @@
 const STORAGE_KEY     = 'goldgeld.entries';
 const LEGACY_KEY      = 'checkursubs.subscriptions';
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 
 // Kategorien, die es unter altem Namen gab
 const CATEGORY_ALIASES = { telecom: 'mobile' };
+
+// ─── Art des Eintrags ─────────────────────────────────────────────────────────
+// Ein Eintrag ist entweder ein Abo, das man morgen kündigen könnte (Netflix,
+// Claude), oder eine laufende Fixkostenposition am Haushalt (Strom, Miete,
+// Versicherung). Die Kategorie schlägt die Art vor — überschreibbar bleibt sie.
+export const KINDS = ['abo', 'fixed'];
+
+const KIND_BY_CATEGORY = {
+  insurance:     'fixed',
+  health:        'fixed',
+  energy:        'fixed',
+  water:         'fixed',
+  housing:       'fixed',
+  internet:      'fixed',
+  mobile:        'fixed',
+  broadcast:     'fixed',
+  banking:       'fixed',
+  transport:     'abo',
+  fitness:       'abo',
+  membership:    'abo',
+  entertainment: 'abo',
+  work:          'abo',
+  ai:            'abo',
+  games:         'abo',
+  education:     'abo',
+  vpn:           'abo',
+  other:         'abo',
+};
+
+export const kindForCategory = (category) => KIND_BY_CATEGORY[category] || 'abo';
+
+// ─── Stand des Eintrags ───────────────────────────────────────────────────────
+// Aktiv kostet Geld, pausiert und gekündigt nicht, die Testphase noch nicht.
+// Gekündigtes bleibt in der Liste — als Beleg, nicht als Ausgabe.
+export const STATUSES = ['active', 'paused', 'trial', 'canceled'];
+
+// Ein Eintrag, der nicht abgerechnet wird
+export const isBilled = (entry) => !entry?.status || entry.status === 'active';
+
+// ─── Ort des Vertrags ─────────────────────────────────────────────────────────
+// Eine Adresse ist eine schlichte Beschriftung ("Hauptstraße 5, Berlin") — sie
+// wird nur verglichen, nie geparst. Mehrzeiliges wird zu einer Zeile.
+const normalizeLocation = (value) =>
+  typeof value === 'string'
+    ? value.replace(/\s*\n+\s*/g, ', ').replace(/\s+/g, ' ').trim()
+    : '';
+
+// Adressfelder der Vorlagen — Grundlage für die einmalige Übernahme
+const ADDRESS_FIELD_IDS = ['address', 'supply_address', 'connection_address'];
+
+const locationFromFields = (fields) => {
+  for (const id of ADDRESS_FIELD_IDS) {
+    const found = normalizeLocation(fields?.[id]);
+    if (found) return found;
+  }
+  return '';
+};
 
 export const newId = () => {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -49,7 +106,8 @@ const normalizeCustom = (input, createId) => {
 
 const normalize = (input, createId = newId) => {
   const numericPrice = Number(input?.price);
-  const category = asString(input?.category, 'other') || 'other';
+  const stored = asString(input?.category, 'other') || 'other';
+  const category = CATEGORY_ALIASES[stored] || stored;
 
   return {
     id: asString(input?.id) || createId(),
@@ -59,9 +117,11 @@ const normalize = (input, createId = newId) => {
     currency_code: asString(input?.currency_code, 'EUR') || 'EUR',
     date: asString(input?.date),
     period: asString(input?.period, 'monthly') || 'monthly',
-    category: CATEGORY_ALIASES[category] || category,
+    category,
+    kind: KINDS.includes(input?.kind) ? input.kind : kindForCategory(category),
+    location: normalizeLocation(input?.location),
     logo: asString(input?.logo),
-    status: asString(input?.status, 'active') || 'active',
+    status: STATUSES.includes(input?.status) ? input.status : 'active',
     trial_end: asString(input?.trial_end) || null,
 
     // Vertragslaufzeit — Grundlage für die Kündigungsfrist
@@ -119,12 +179,20 @@ export const createEntryStore = (storage, createId = newId) => {
 
       if (!Array.isArray(rows)) return [];
 
+      const version = Array.isArray(parsed) ? 0 : Number(parsed?.version) || 0;
+      const outdated = legacy || version < STORAGE_VERSION;
+
       const entries = rows
         .map((row) => normalize(row, createId))
+        // Wer eine Adresse schon in den Vertragsdaten stehen hat, bekommt sie
+        // als Ort vorgeschlagen — sonst wäre die Gruppierung anfangs leer.
+        .map((entry) => (outdated && !entry.location
+          ? { ...entry, location: locationFromFields(entry.fields) }
+          : entry))
         .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
-      // Altbestand aus CheckUrSubs einmalig übernehmen
-      if (legacy && entries.length) write(entries);
+      // Altbestand einmalig im aktuellen Format sichern
+      if (outdated && entries.length) write(entries);
 
       return entries;
     } catch {

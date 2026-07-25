@@ -7,12 +7,13 @@ import {
   Wallet, Download, Upload, Smartphone, Droplets, Car, Radio, Dumbbell,
   Users, Lock, Eye, EyeOff, Copy, ExternalLink, Paperclip, FileText,
   AlertTriangle, KeyRound, Flame, Plug, Trash, HeartPulse, ClipboardList,
-  Sun, Moon
+  Sun, Moon, MapPin, Layers
 } from 'lucide-react';
-import { createEntryStore, newId } from './lib/entryStore';
+import { createEntryStore, newId, kindForCategory, isBilled } from './lib/entryStore';
 import { LangContext, useLang, useT, APP_NAME } from './lib/i18n';
 import {
   templateFor, COMMON_FIELDS, label as fieldLabel, optionLabel, CUSTOM_FIELD_TYPES,
+  findFieldDef,
 } from './lib/fieldTemplates';
 import * as vault from './lib/vault';
 import * as documentStore from './lib/documentStore';
@@ -50,6 +51,25 @@ const CATEGORIES = [
   { id: 'other',         labelKey: 'cat_other',         icon: Package    },
 ];
 const getCat = (id) => CATEGORIES.find(c => c.id === id) || null;
+
+// ─── Art des Eintrags ──────────────────────────────────────────────────────────
+// Zwei Töpfe, quer zu den Kategorien: was man kündigen könnte (Abos) und was
+// zum Haushalt gehört (Strom, Miete, Versicherung). Die Kategorie schlägt vor,
+// entschieden wird im Formular.
+const KINDS = [
+  { id: 'abo',   labelKey: 'kind_abo',   oneKey: 'kind_abo_one',   icon: RefreshCw },
+  { id: 'fixed', labelKey: 'kind_fixed', oneKey: 'kind_fixed_one', icon: Home      },
+];
+const getKind      = (id) => KINDS.find(k => k.id === id) || null;
+const kindOf       = (entry) => entry.kind || kindForCategory(entry.category);
+const locationOf   = (entry) => (entry.location || '').trim();
+
+// Sortierung von Adressen — leere ans Ende, sonst alphabetisch
+const byLocation = (a, b) => {
+  if (!a) return 1;
+  if (!b) return -1;
+  return a.localeCompare(b);
+};
 
 // Anteile in einer Liste werden über die Deckkraft einer einzigen Tintenfläche
 // unterschieden — kein Farbkreis, aber jede Zeile bleibt auseinanderzuhalten.
@@ -103,6 +123,13 @@ const fmtDateFromISO = (isoStr, lang, months) => {
   if (isNaN(d)) return '';
   const short = months?.[d.getMonth()] ?? MONTHS_SHORT[d.getMonth()];
   return lang === 'de' ? `${d.getDate()}. ${short}` : `${d.getDate()} ${short}`;
+};
+
+// Wie fmtDateFromISO, zusätzlich mit Jahr → "14. Mär 2026" bzw. "14 Mar 2026".
+// Für Vertragsdaten, die auch Jahre in der Zukunft/Vergangenheit liegen können.
+const fmtDateFromISOWithYear = (isoStr, lang, months) => {
+  const base = fmtDateFromISO(isoStr, lang, months);
+  return base ? `${base} ${new Date(isoStr).getFullYear()}` : '';
 };
 
 // Gespeichertes Abbuchungsdatum ("24" oder "8 Mar") übersetzt anzeigen
@@ -756,30 +783,144 @@ const TrendBars = ({ totals, maxVal, months, labels, fmt, isDesktop, range }) =>
   </div>
 );
 
+// ─── Filter- und Gruppenleiste ────────────────────────────────────────────────
+// Zwei Achsen liegen quer zur Kategorie: die Art (Abo oder Fixkosten) und die
+// Adresse. Beide filtern, beide gruppieren — die Leiste hält sie beieinander.
+const FilterBar = ({ kind, onKind, place, onPlace, group, onGroup, locations, hasUnplaced, summary, onReset }) => {
+  const t = useT();
+  const placeOptions = [
+    { value: 'all', label: t.filter_all },
+    ...locations.map(name => ({ value: name, label: name })),
+    ...(hasUnplaced ? [{ value: '', label: t.location_none }] : []),
+  ];
+
+  const groupOptions = [
+    { value: 'none',     label: t.group_none },
+    ...(locations.length > 0 ? [{ value: 'location', label: t.group_location }] : []),
+    { value: 'kind',     label: t.group_kind },
+    { value: 'category', label: t.group_category },
+  ];
+
+  const placeLabel = place === 'all' ? t.filter_address : place === '' ? t.location_none : place;
+
+  return (
+    <div className="px-1 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Segmented
+          items={[
+            { id: 'all',   label: t.filter_all },
+            ...KINDS.map(k => ({ id: k.id, label: t[k.labelKey], icon: k.icon })),
+          ]}
+          value={kind} onChange={onKind}
+          trackClass="bg-surface border border-border rounded-lg"
+          itemClass="flex items-center gap-1.5 px-3 py-1.5 text-xs"
+          renderItem={(item) => (
+            <>
+              {item.icon && <item.icon className="w-3.5 h-3.5 shrink-0" />}
+              {item.label}
+            </>
+          )} />
+
+        {(locations.length > 0 || hasUnplaced) && (
+          <FilterSelect icon={MapPin} label={placeLabel} active={place !== 'all'}
+            value={place} options={placeOptions} onChange={onPlace} />
+        )}
+
+        <FilterSelect icon={Layers} label={t[`group_${group === 'none' ? 'by' : group}`]}
+          active={group !== 'none'} value={group} options={groupOptions} onChange={onGroup} />
+
+        {onReset && (
+          <button type="button" onClick={onReset} title={t.filter_reset}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-ink-3
+              hover:text-ink hover:bg-surface-3 transition">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {summary && <p className="text-[11px] text-ink-3 px-1">{summary}</p>}
+    </div>
+  );
+};
+
+// Knopf mit Auswahlliste — dieselbe Mechanik wie die Währungswahl
+const FilterSelect = ({ icon: Icon, label, active, value, options, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const ref = useDismiss(open, close);
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className={`inline-flex items-center gap-1.5 max-w-[190px] border rounded-lg px-3 py-1.5 text-xs font-medium transition
+          ${active
+            ? 'bg-ink text-surface border-ink'
+            : 'bg-surface border-border text-ink-2 hover:bg-surface-3 hover:text-ink'}`}>
+        <Icon className="w-3.5 h-3.5 shrink-0" />
+        <span className="truncate">{label}</span>
+        <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <PopMenu open={open} className="top-9 left-0" width="w-[240px] max-w-[calc(100vw-2.5rem)]">
+        {options.map(option => (
+          <MenuItem key={option.value || '__none'}
+            onClick={() => { onChange(option.value); setOpen(false); }}
+            className={value === option.value ? 'text-ink' : ''}>
+            <span className="flex-1 truncate">{option.label}</span>
+            {value === option.value && <Check className="w-4 h-4 shrink-0" />}
+          </MenuItem>
+        ))}
+      </PopMenu>
+    </div>
+  );
+};
+
 // ─── Liste der Einträge ───────────────────────────────────────────────────────
 // Die Zeilen kaskadieren herein: 250ms, 50ms Versatz, 20px Aufstieg (§4.3)
-const EntryList = ({ entries, docCounts, searchQuery, fmt, fmtOriginal, monthly, hint, onEdit, onDelete }) => {
+const EntryList = ({ groups, count, docCounts, searchQuery, fmt, fmtOriginal, monthly,
+  grouped, filtered, hint, onOpen, onEdit, onDelete }) => {
   const t = useT();
   const listRef = useRef(null);
 
   useLayoutEffect(() => {
     if (listRef.current) staggerIn(listRef.current.querySelectorAll('[data-row]'));
-  }, [searchQuery]);
+  }, [searchQuery, grouped]);
 
   return (
-    <div ref={listRef} className={`${CARD} divide-y divide-border overflow-hidden`}>
-      {hint && entries.length > 0 && (
-        <div className="px-4 py-2 text-[11px] text-ink-3 text-center lg:hidden">{hint}</div>
+    <div ref={listRef} className={`${CARD} overflow-hidden`}>
+      {hint && count > 0 && (
+        <div className="px-4 py-2 text-[11px] text-ink-3 text-center border-b border-border lg:hidden">{hint}</div>
       )}
-      {entries.map(entry => (
-        <EntryRow key={entry.id} entry={entry} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
-          docCount={docCounts[entry.id] || 0}
-          onEdit={() => onEdit(entry)} onDelete={() => onDelete(entry)} />
+      {groups.map((group, i) => (
+        <section key={group.id}>
+          {grouped && (
+            <header className={`flex items-center justify-between gap-3 px-4 py-2 bg-surface-3
+              border-b border-border ${i > 0 ? 'border-t' : ''}`}>
+              <span className="flex items-center gap-2 min-w-0">
+                {group.icon && <group.icon className="w-3.5 h-3.5 text-ink-3 shrink-0" />}
+                <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-2 truncate">
+                  {group.label}
+                </span>
+              </span>
+              <span className="text-[11px] text-ink-3 shrink-0">
+                {t.entries_count(group.entries.length)} · {fmt(group.total)}
+              </span>
+            </header>
+          )}
+          <div className="divide-y divide-border">
+            {group.entries.map(entry => (
+              <EntryRow key={entry.id} entry={entry} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
+                docCount={docCounts[entry.id] || 0}
+                onOpen={() => onOpen(entry)} onEdit={() => onEdit(entry)} onDelete={() => onDelete(entry)} />
+            ))}
+          </div>
+        </section>
       ))}
-      {entries.length === 0 && searchQuery && (
+      {count === 0 && (searchQuery || filtered) && (
         <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
           <Search className="w-5 h-5 text-ink-3" />
-          <p className="text-sm text-ink-3">{t.nothing_found(searchQuery)}</p>
+          <p className="text-sm text-ink-3">
+            {searchQuery ? t.nothing_found(searchQuery) : t.filter_empty}
+          </p>
         </div>
       )}
     </div>
@@ -787,13 +928,15 @@ const EntryList = ({ entries, docCounts, searchQuery, fmt, fmtOriginal, monthly,
 };
 
 // ─── Sprache und Farbschema ───────────────────────────────────────────────────
+// Beide Kürzel teilen sich die Spur zu gleichen Teilen — so bleibt die Pille
+// auch dann bündig, wenn die Spur breiter als ihr Inhalt gezogen wird.
 const LangToggle = ({ lang, toggleLang, className = '' }) => (
   <Segmented
     items={[{ id: 'de', label: 'DE' }, { id: 'en', label: 'EN' }]}
     value={lang}
     onChange={next => { if (next !== lang) toggleLang(); }}
-    trackClass={`bg-surface border border-border rounded-lg ${className}`}
-    itemClass="px-3 py-1.5 text-xs font-semibold tracking-wide"
+    trackClass={`h-10 bg-surface border border-border rounded-lg ${className}`}
+    itemClass="flex-1 basis-0 px-3 text-xs font-semibold tracking-wide"
     pillClass="shadow-sm"
   />
 );
@@ -826,12 +969,19 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
   const [activeTab,    setActiveTab]    = useState('home');
   const [isModalOpen,  setIsModalOpen]  = useState(false);
   const [editingEntry,   setEditingEntry]   = useState(null);
+  // Die ID überlebt das Schließen — so bleibt der Eintrag während der
+  // Ausblendung sichtbar. Sichtbar ist die Ansicht nur über detailOpen.
+  const [detailId,     setDetailId]     = useState(null);
+  const [detailOpen,   setDetailOpen]   = useState(false);
   const [docCounts,    setDocCounts]    = useState({});
   const vaultState = useVault();
   const [toast,        setToast]        = useState(null);
   const [confirmEntry,   setConfirmEntry]   = useState(null);
   const [sortBy,       setSortBy]       = useState('name');
   const [searchQuery,  setSearchQuery]  = useState('');
+  const [kindFilter,   setKindFilter]   = useState('all');   // all | abo | fixed
+  const [placeFilter,  setPlaceFilter]  = useState('all');   // all | '' (ohne) | Adresse
+  const [groupBy,      setGroupBy]      = useState('none');  // none | location | kind | category
   const [swipeHinted,  setSwipeHinted]  = useState(() => localStorage.getItem('swipeHinted') === '1');
   const [calMonth,     setCalMonth]     = useState(() => new Date().getMonth());
   const [calYear,      setCalYear]      = useState(() => new Date().getFullYear());
@@ -891,7 +1041,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const swipeRef = useTabSwipe(activeTab, switchTab, !isModalOpen && !isDesktop);
+  const swipeRef = useTabSwipe(activeTab, switchTab, !isModalOpen && !detailOpen && !isDesktop);
 
   // ── Anzahl hinterlegter Dokumente je Eintrag ───────────────────────────────
   const refreshDocCounts = useCallback(() => {
@@ -910,10 +1060,11 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
       if (e.key === 'Escape') {
         if (isModalOpen) { setIsModalOpen(false); setEditingEntry(null); }
         else if (confirmEntry) setConfirmEntry(null);
+        else if (detailOpen) setDetailOpen(false);
         else if (typing) e.target.blur();
         return;
       }
-      if (isModalOpen || confirmEntry || typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isModalOpen || confirmEntry || detailOpen || typing || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === 'n' || e.key === 'т') { e.preventDefault(); setEditingEntry(null); setIsModalOpen(true); }
       if (e.key === '/') { e.preventDefault(); switchTab('home'); setTimeout(() => searchRef.current?.focus(), 0); }
       if (e.key === '1') switchTab('home');
@@ -922,7 +1073,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isDesktop, isModalOpen, confirmEntry, switchTab]);
+  }, [isDesktop, isModalOpen, confirmEntry, detailOpen, switchTab]);
 
   // ── Курсы валют ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -972,12 +1123,21 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
   }, [entries]);
 
   // Только активные считаются в суммах (пробные и паузные = 0)
-  const activeEntries  = entries.filter(s => !s.status || s.status === 'active');
+  const activeEntries  = entries.filter(isBilled);
   const totalMonthlyUSD = activeEntries.reduce((a, s) => a + monthly(s), 0);
   const totalYearlyUSD  = totalMonthlyUSD * 12;
 
-  const openAdd  = () => { setEditingEntry(null); setIsModalOpen(true); };
-  const openEdit = (s) => { setEditingEntry(s);   setIsModalOpen(true); };
+  // Die Detailansicht hängt an der ID, nicht am Objekt — nach dem Speichern
+  // zeigt sie damit sofort die neuen Werte.
+  const detailEntry = detailId ? entries.find(s => s.id === detailId) || null : null;
+
+  const openAdd     = () => { setEditingEntry(null); setIsModalOpen(true); };
+  const openEdit    = (s) => { setEditingEntry(s);   setIsModalOpen(true); };
+  const openDetail  = (s) => { setDetailId(s.id);    setDetailOpen(true); };
+  const closeDetail = () => setDetailOpen(false);
+
+  // Beim Bearbeiten tritt die Detailansicht zurück und kommt danach wieder
+  const closeModal = () => { setIsModalOpen(false); setEditingEntry(null); };
 
   // ── Lokale Ablage ──────────────────────────────────────────────────────────
   const handleSave = (payload) => {
@@ -1009,6 +1169,8 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
       clearTimeout(toast.timeoutId);
       setToast(null);
     }
+
+    if (detailId === entry.id) setDetailOpen(false);
 
     // Sofort aus der Liste nehmen
     setSubscriptions(prev => prev.filter(s => s.id !== entry.id));
@@ -1048,9 +1210,10 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
     .filter(s => isDueWithinDays(s, 7))
     .sort((a, b) => (a.billingDay || 99) - (b.billingDay || 99));
 
-  // Kündigungsfristen der nächsten 90 Tage — inklusive bereits verstrichener
+  // Kündigungsfristen der nächsten 90 Tage — inklusive bereits verstrichener.
+  // Was pausiert oder schon gekündigt ist, drängt zu keiner Frist mehr.
   const deadlineEntries = entries
-    .filter(s => s.status !== 'paused')
+    .filter(s => s.status !== 'paused' && s.status !== 'canceled')
     .map(s => ({ entry: s, date: cancelByDate(s) }))
     .filter(({ date }) => date !== null)
     .map(item => ({ ...item, days: daysUntil(item.date) }))
@@ -1060,20 +1223,80 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
   const matchesSearch = (entry, query) => {
     if (!query) return true;
     const haystack = [
-      entry.name, entry.provider, entry.notes,
+      entry.name, entry.provider, entry.notes, entry.location,
       ...Object.values(entry.fields || {}),
       ...(entry.custom || []).flatMap(field => [field.label, field.value]),
     ].filter(Boolean).join(' ').toLowerCase();
     return haystack.includes(query);
   };
 
+  // Alle erfassten Adressen — Grundlage für Filter und Vorschläge im Formular
+  const locations = [...new Set(entries.map(locationOf).filter(Boolean))].sort(byLocation);
+  const hasUnplaced = entries.some(s => !locationOf(s));
+
+  // Eine Adresse, die es nicht mehr gibt, darf den Filter nicht blockieren
+  const activePlace = placeFilter !== 'all' && placeFilter !== '' && !locations.includes(placeFilter)
+    ? 'all' : placeFilter;
+
+  const matchesFilters = (entry) =>
+    (kindFilter  === 'all' || kindOf(entry) === kindFilter) &&
+    (activePlace === 'all' || locationOf(entry) === activePlace);
+
+  const filtersActive = kindFilter !== 'all' || activePlace !== 'all';
+
   const sortedEntries = [...entries]
     .filter(s => matchesSearch(s, searchQuery.trim().toLowerCase()))
+    .filter(matchesFilters)
     .sort((a, b) => {
       if (sortBy === 'price') return monthly(b) - monthly(a);
       if (sortBy === 'date')  return (a.billingDay || 99) - (b.billingDay || 99);
       return a.name.localeCompare(b.name);
     });
+
+  // Summe der gefilterten Auswahl — nur Aktive zählen, wie überall sonst
+  const shownMonthlyUSD = sortedEntries
+    .filter(isBilled)
+    .reduce((a, s) => a + monthly(s), 0);
+
+  // Gruppen für die Liste: Beschriftung, Symbol, Einträge, Monatssumme
+  const groupedEntries = (() => {
+    if (groupBy === 'none') return [{ id: 'all', entries: sortedEntries }];
+
+    const keyOf = {
+      location: (entry) => locationOf(entry),
+      kind:     (entry) => kindOf(entry),
+      category: (entry) => entry.category || 'other',
+    }[groupBy];
+
+    const buckets = new Map();
+    for (const entry of sortedEntries) {
+      const key = keyOf(entry);
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(entry);
+    }
+
+    const meta = (key) => {
+      if (groupBy === 'location') return { label: key || t.location_none, icon: MapPin };
+      if (groupBy === 'kind')     return { label: t[getKind(key)?.labelKey] || key, icon: getKind(key)?.icon };
+      const cat = getCat(key);
+      return { label: cat ? t[cat.labelKey] : key, icon: cat?.icon };
+    };
+
+    const order = groupBy === 'location'
+      ? [...buckets.keys()].sort(byLocation)
+      : groupBy === 'kind'
+        ? KINDS.map(k => k.id).filter(id => buckets.has(id))
+        : CATEGORIES.map(c => c.id).filter(id => buckets.has(id));
+
+    return order.map(key => ({
+      id: key || '__none',
+      ...meta(key),
+      entries: buckets.get(key),
+      total: buckets.get(key)
+        .filter(isBilled)
+        .reduce((a, s) => a + monthly(s), 0),
+    }));
+  })();
 
   const sortLabel   = sortBy === 'name' ? t.sort_az : sortBy === 'price' ? t.sort_price : t.sort_date;
   const cycleSortBy = () => setSortBy(p => p === 'name' ? 'price' : p === 'price' ? 'date' : 'name');
@@ -1083,6 +1306,28 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
     entries:  activeEntries.filter(s => s.category === cat.id),
     total: activeEntries.filter(s => s.category === cat.id).reduce((a, s) => a + monthly(s), 0),
   })).filter(c => c.entries.length > 0);
+
+  // Auswertung: Kosten je Adresse, größte zuerst — Unverortetes ans Ende
+  const byLocationTotals = [...locations, ...(hasUnplaced ? [''] : [])]
+    .map(place => {
+      const rows = activeEntries.filter(s => locationOf(s) === place);
+      return {
+        id: place || '__none',
+        label: place || t.location_none,
+        entries: rows,
+        total: rows.reduce((a, s) => a + monthly(s), 0),
+      };
+    })
+    .filter(row => row.entries.length > 0)
+    .sort((a, b) => b.total - a.total);
+
+  const byKindTotals = KINDS
+    .map(kind => {
+      const rows = activeEntries.filter(s => kindOf(s) === kind.id);
+      return { ...kind, entries: rows, total: rows.reduce((a, s) => a + monthly(s), 0) };
+    })
+    .filter(row => row.entries.length > 0)
+    .sort((a, b) => b.total - a.total);
 
   const handleImport = (rows) => {
     const imported = entryStore.importRows(rows);
@@ -1115,9 +1360,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
           <div ref={tabRefs.home} className={`absolute inset-0 overflow-y-auto desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'home' || exitingTab === 'home' ? 'block' : 'hidden'}`}>
             <div className="p-4 space-y-5 lg:p-8 lg:pt-7 lg:space-y-7 lg:max-w-[1180px]">
               {/* Заголовок — десктоп */}
-              <PageHeader title={t.nav_home} subtitle={t.home_subtitle}>
-                <ThemeToggle theme={theme} onToggle={toggleTheme} label={t.theme_toggle} />
-              </PageHeader>
+              <PageHeader title={t.nav_home} subtitle={t.home_subtitle} />
 
               <header className="relative flex items-center justify-between gap-2 px-1 pt-2 lg:hidden">
                 <SupportMenu />
@@ -1145,13 +1388,15 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                 </div>
                 <div className="flex items-center flex-wrap gap-2 mt-4">
                   {(() => {
-                    const active  = entries.filter(s => !s.status || s.status === 'active').length;
-                    const paused  = entries.filter(s => s.status === 'paused').length;
-                    const trial   = entries.filter(s => s.status === 'trial').length;
+                    const active   = entries.filter(isBilled).length;
+                    const paused   = entries.filter(s => s.status === 'paused').length;
+                    const trial    = entries.filter(s => s.status === 'trial').length;
+                    const canceled = entries.filter(s => s.status === 'canceled').length;
                     return <>
                       <StatusPill tone="success" label={t.active_count(active)} pulse />
                       {paused > 0 && <StatusPill tone="error"   label={t.paused_count(paused)} />}
                       {trial  > 0 && <StatusPill tone="warning" label={t.trial_count(trial)} pulse />}
+                      {canceled > 0 && <StatusPill label={t.canceled_count(canceled)} />}
                     </>;
                   })()}
                 </div>
@@ -1180,7 +1425,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
               <div data-group className="space-y-5 lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:self-start lg:space-y-6">
                 <SoonSection soonEntries={soonEntries} fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly} />
                 {(deadlineEntries.length > 0 || entries.length > 0) && (
-                  <DeadlinesSection deadlines={deadlineEntries} onOpen={openEdit} />
+                  <DeadlinesSection deadlines={deadlineEntries} onOpen={openDetail} />
                 )}
               </div>
 
@@ -1236,11 +1481,22 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                       </button>
                     )}
                   </div>
+                  <FilterBar
+                    kind={kindFilter} onKind={setKindFilter}
+                    place={activePlace} onPlace={setPlaceFilter}
+                    group={groupBy} onGroup={setGroupBy}
+                    locations={locations} hasUnplaced={hasUnplaced}
+                    summary={filtersActive || groupBy !== 'none'
+                      ? t.filter_summary(t.entries_count(sortedEntries.length), fmt(shownMonthlyUSD))
+                      : null}
+                    onReset={filtersActive ? () => { setKindFilter('all'); setPlaceFilter('all'); } : null} />
                   <EntryList
-                    entries={sortedEntries} docCounts={docCounts} searchQuery={searchQuery}
+                    groups={groupedEntries} count={sortedEntries.length}
+                    docCounts={docCounts} searchQuery={searchQuery}
                     fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
+                    grouped={groupBy !== 'none'} filtered={filtersActive}
                     hint={!swipeHinted ? t.swipe_hint : null}
-                    onEdit={openEdit} onDelete={setConfirmEntry} />
+                    onOpen={openDetail} onEdit={openEdit} onDelete={setConfirmEntry} />
                 </section>
               )}
             </div>
@@ -1255,8 +1511,8 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
               {(() => {
                 const now    = new Date();
                 const isPast = calYear < now.getFullYear() || (calYear === now.getFullYear() && calMonth < now.getMonth());
-                const calEntries = entries.filter(entry => entry.status !== 'paused');
-                const activeCalEntries = calEntries.filter(s => !s.status || s.status === 'active');
+                const calEntries = entries.filter(entry => entry.status !== 'paused' && entry.status !== 'canceled');
+                const activeCalEntries = calEntries.filter(isBilled);
                 const calTotal = activeCalEntries.reduce((a, s) => {
                   if (s.period === 'yearly') {
                     const billingMonth = extractBillingMonth(s.date);
@@ -1309,6 +1565,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                 const monthlyTotals = months.map(({ month }) => {
                   return entries.reduce((sum, s) => {
                     if (s.status === 'paused') return sum;
+                    if (s.status === 'canceled') return sum; // отменённые больше не списываются
                     if (s.status === 'trial') return sum; // пробные не списываются
 
                     const billingDay   = extractBillingDay(s.date);
@@ -1380,6 +1637,47 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                   })}
                 </div>
               )}
+              {/* Abos gegen Fixkosten */}
+              {byKindTotals.length > 0 && (
+                <div data-group className={`${CARD} p-5 space-y-4`}>
+                  <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">{t.by_kind}</p>
+                  {byKindTotals.map((row, i) => {
+                    const share = totalMonthlyUSD ? (row.total / totalMonthlyUSD) * 100 : 0;
+                    const Icon  = row.icon;
+                    return (
+                      <MeterRow key={row.id} share={share} rank={i} index={i}
+                        leading={
+                          <div className="w-8 h-8 rounded-lg bg-surface-3 flex items-center justify-center shrink-0">
+                            <Icon className="w-4 h-4 text-ink-2" />
+                          </div>
+                        }
+                        title={t[row.labelKey]} subtitle={t.entries_count(row.entries.length)}
+                        value={fmt(row.total)} meta={`${share.toFixed(0)}%`} />
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Nach Adresse */}
+              {byLocationTotals.length > 1 && (
+                <div data-group className={`${CARD} p-5 space-y-4`}>
+                  <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">{t.by_locations}</p>
+                  {byLocationTotals.map((row, i) => {
+                    const share = totalMonthlyUSD ? (row.total / totalMonthlyUSD) * 100 : 0;
+                    return (
+                      <MeterRow key={row.id} share={share} rank={i} index={i}
+                        leading={
+                          <div className="w-8 h-8 rounded-lg bg-surface-3 flex items-center justify-center shrink-0">
+                            <MapPin className="w-4 h-4 text-ink-2" />
+                          </div>
+                        }
+                        title={row.label} subtitle={t.entries_count(row.entries.length)}
+                        value={fmt(row.total)} meta={`${share.toFixed(0)}%`} />
+                    );
+                  })}
+                </div>
+              )}
+
               {/* По подпискам */}
               <div data-group className={`${CARD} p-5 space-y-4`}>
                 <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">{t.by_subscriptions}</p>
@@ -1441,6 +1739,28 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                   </div>
                 );
               })()}
+              {/* Gekündigt — ganz unten, kostet nichts mehr */}
+              {(() => {
+                const canceledEntries = entries.filter(s => s.status === 'canceled');
+                if (canceledEntries.length === 0) return null;
+                return (
+                  <div data-group className={`${CARD} p-5 space-y-3`}>
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-ink-3" />
+                      <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">{t.canceled_section}</p>
+                    </div>
+                    {canceledEntries.map(entry => (
+                      <div key={entry.id} className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <LogoIcon entry={entry} size="sm" />
+                          <p className="text-sm font-medium truncate">{entry.name}</p>
+                        </div>
+                        <p className="text-sm text-ink-3 shrink-0">—</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
               </div>
             </div>
           </div>
@@ -1470,10 +1790,21 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
           />
         </div>
 
+        {/* ── Eintrag ansehen ── */}
+        <EntryDetail
+          open={detailOpen && Boolean(detailEntry) && !isModalOpen && !confirmEntry}
+          entry={detailEntry} currency={currency}
+          fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
+          vaultState={vaultState}
+          onEdit={() => detailEntry && openEdit(detailEntry)}
+          onDelete={() => detailEntry && setConfirmEntry(detailEntry)}
+          onClose={closeDetail} />
+
         {/* ── Eintrag anlegen / bearbeiten ── */}
         <EntryModal key={editingEntry?.id || 'new'} open={isModalOpen} initial={editingEntry} currency={currency}
+          locations={locations}
           vaultState={vaultState} onDocsChange={refreshDocCounts}
-          onSave={handleSave} onClose={() => { setIsModalOpen(false); setEditingEntry(null); }} />
+          onSave={handleSave} onClose={closeModal} />
 
         {/* ── Toast mit Rückgängig ── */}
         <Toast open={Boolean(toast)} entry={toast?.entry} onUndo={undoDelete} />
@@ -1947,7 +2278,7 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
   // ── Export ─────────────────────────────────────────────────────────────────
   // CSV bleibt die flache Übersicht; alles Strukturierte steckt im JSON.
   const CSV_HEADERS = [
-    'name', 'provider', 'price', 'currency_code', 'period', 'category', 'status',
+    'name', 'provider', 'price', 'currency_code', 'period', 'category', 'kind', 'location', 'status',
     'date', 'trial_end', 'contract_start', 'contract_end', 'notice_period_months', 'url',
   ];
 
@@ -1966,7 +2297,7 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
   const exportJSON = () => {
     const payload = {
       app: APP_NAME,
-      version: 2,
+      version: 3,
       exported_at: new Date().toISOString(),
       vault: vault.readMeta(),
       entries: entries.map(({ billingDay, ...rest }) => rest),
@@ -2087,7 +2418,7 @@ const CalendarSection = ({ entries, fmt, fmtReal, monthly, month, year, onPrev, 
   const offset      = (new Date(year, month, 1).getDay() + 6) % 7;
 
   const visibleSubs = entries.filter(entry => {
-    if (entry.status === 'paused') return false;
+    if (entry.status === 'paused' || entry.status === 'canceled') return false;
     return true;
   });
 
@@ -2155,10 +2486,10 @@ const CalendarSection = ({ entries, fmt, fmtReal, monthly, month, year, onPrev, 
           if (!day) return <div key={`e-${i}`} />;
           const daySubs = subsByDay[day] || [];
           const hasAny  = daySubs.length > 0;
-          const hasActive = daySubs.some(s => !s.status || s.status === 'active');
+          const hasActive = daySubs.some(isBilled);
           const today_ = isToday(day);
           const total   = daySubs
-            .filter(s => !s.status || s.status === 'active')
+            .filter(isBilled)
             .reduce((a, s) => a + (s.period === 'yearly' ? monthly(s) * 12 : monthly(s)), 0);
 
           // ── Десктоп: крупная ячейка со списком сервисов ──
@@ -2415,9 +2746,9 @@ const SoonCard = ({ entry, fmtOriginal }) => {
 // ─── Wischen am Telefon ───────────────────────────────────────────────────────
 // Ohne Animationsbibliothek: touch-action übernimmt die vertikale Achse, die
 // horizontale bewegen wir selbst und lassen sie mit der Hauskurve zurückgleiten.
-const useSwipeRow = ({ onLeft, onRight, max = 90, threshold = 70 }) => {
+const useSwipeRow = ({ onLeft, onRight, onTap, max = 90, threshold = 70 }) => {
   const ref   = useRef(null);
-  const state = useRef({ active: false, axis: null, dx: 0, startX: 0, startY: 0 });
+  const state = useRef({ active: false, axis: null, dx: 0, startX: 0, startY: 0, swiped: false });
 
   const move = (px, animate) => {
     const el = ref.current;
@@ -2428,7 +2759,7 @@ const useSwipeRow = ({ onLeft, onRight, max = 90, threshold = 70 }) => {
 
   const onPointerDown = (e) => {
     if (e.pointerType === 'mouse') return; // Mit der Maus wird geklickt, nicht gewischt
-    state.current = { active: true, axis: null, dx: 0, startX: e.clientX, startY: e.clientY };
+    state.current = { active: true, axis: null, dx: 0, startX: e.clientX, startY: e.clientY, swiped: false };
     move(0, false);
   };
 
@@ -2459,27 +2790,36 @@ const useSwipeRow = ({ onLeft, onRight, max = 90, threshold = 70 }) => {
     try { ref.current?.releasePointerCapture(e.pointerId); } catch { /* nie gefangen */ }
     move(0, true);
     if (s.axis !== 'x') return;
+
+    // Eine Wischgeste löst danach noch ein click aus — das schlucken wir
+    s.swiped = true;
     if (s.dx <= -threshold) onLeft?.();
     else if (s.dx >= threshold) onRight?.();
   };
 
-  return { ref, handlers: { onPointerDown, onPointerMove, onPointerUp: end, onPointerCancel: end } };
+  const onClick = () => {
+    if (state.current.swiped) { state.current.swiped = false; return; }
+    onTap?.();
+  };
+
+  return { ref, handlers: { onPointerDown, onPointerMove, onPointerUp: end, onPointerCancel: end, onClick } };
 };
 
-const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onEdit, onDelete, docCount = 0 }) => {
+const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onOpen, onEdit, onDelete, docCount = 0 }) => {
   const t    = useT();
   const lang = useLang();
   const isDesktop = useIsDesktop();
   const cat = entry.category ? getCat(entry.category) : null;
   const deadlineDays = daysUntil(cancelByDate(entry));
   const deadlineSoon = deadlineDays !== null && deadlineDays <= 60;
-  const { ref: swipeRef, handlers } = useSwipeRow({ onLeft: onDelete, onRight: onEdit });
+  const { ref: swipeRef, handlers } = useSwipeRow({ onLeft: onDelete, onRight: onEdit, onTap: onOpen });
 
   const badges = (
     <>
       {cat && <CategoryBadge cat={cat} tiny />}
-      {entry.status === 'paused' && <Badge tone="error">{t.badge_paused}</Badge>}
-      {entry.status === 'trial'  && <Badge tone="warning">{t.badge_trial}</Badge>}
+      {entry.status === 'paused'   && <Badge tone="error">{t.badge_paused}</Badge>}
+      {entry.status === 'trial'    && <Badge tone="warning">{t.badge_trial}</Badge>}
+      {entry.status === 'canceled' && <Badge>{t.badge_canceled}</Badge>}
       {deadlineSoon && <DeadlineBadge days={deadlineDays} />}
       {docCount > 0 && <Badge icon={Paperclip} title={t.docs_count(docCount)}>{docCount}</Badge>}
     </>
@@ -2489,13 +2829,14 @@ const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onEdit, onDelete, docCount
   if (isDesktop) {
     const meta = [
       entry.provider || null,
+      entry.location || null,
       fmtBillingDate(entry.date, t, lang),
       entry.status === 'trial' && entry.trial_end ? fmtDateFromISO(entry.trial_end, lang, t.months_short) : null,
       entry.period === 'yearly' ? `≈ ${fmt(monthly(entry))} / ${t.sub_per_month}` : null,
     ].filter(Boolean).join(' · ');
 
     return (
-      <div data-row onClick={onEdit}
+      <div data-row onClick={onOpen} title={t.detail_open}
         className="group flex items-center gap-4 px-5 py-3.5 bg-surface-2 hover:bg-surface-3 transition cursor-pointer">
         <LogoIcon entry={entry} size="md" />
         <div className="min-w-0 flex-1">
@@ -2537,7 +2878,7 @@ const EntryRow = ({ entry, fmt, fmtOriginal, monthly, onEdit, onDelete, docCount
         </div>
       </div>
       <div ref={swipeRef} data-no-tab-swipe {...handlers}
-        className="relative flex items-center px-4 py-3 gap-3 bg-surface-2 touch-pan-y">
+        className="relative flex items-center px-4 py-3 gap-3 bg-surface-2 touch-pan-y cursor-pointer">
         <LogoIcon entry={entry} size="sm" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
@@ -3064,6 +3405,462 @@ const DocumentsPanel = ({ entryId, onChange }) => {
   );
 };
 
+// ─── Eintrag ansehen ──────────────────────────────────────────────────────────
+// Die Detailansicht zeigt ausschließlich, was auch gefüllt ist. Aus einem
+// Formular mit dreißig Feldern wird so eine Karte mit sechs Zeilen.
+
+const CopyButton = ({ value }) => {
+  const t = useT();
+  const [copied, setCopied] = useState(false);
+
+  const copy = () => {
+    if (!value) return;
+    navigator.clipboard?.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    }).catch(() => {});
+  };
+
+  return (
+    <button type="button" onClick={copy} title={t.access_copy}
+      className={`w-7 h-7 shrink-0 rounded-md flex items-center justify-center transition
+        ${copied ? 'text-success' : 'text-ink-3 hover:text-ink hover:bg-surface-3'}`}>
+      {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+};
+
+// Geheimes bleibt verdeckt, bis jemand hinsieht
+const SecretValue = ({ value }) => {
+  const t = useT();
+  const [revealed, setRevealed] = useState(false);
+
+  return (
+    <span className="flex items-center gap-1.5 min-w-0">
+      <span className={`truncate ${revealed ? 'font-mono' : 'tracking-[0.2em] text-ink-2'}`}>
+        {revealed ? value : '•'.repeat(Math.min(value.length, 12))}
+      </span>
+      <button type="button" onClick={() => setRevealed(v => !v)}
+        title={revealed ? t.access_hide : t.access_show}
+        className="w-6 h-6 shrink-0 rounded-md flex items-center justify-center text-ink-3 hover:text-ink transition">
+        {revealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+      </button>
+    </span>
+  );
+};
+
+const DetailSection = ({ icon: Icon, title, children }) => (
+  <section className="space-y-2">
+    <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-ink-3 px-1">
+      {Icon && <Icon className="w-3.5 h-3.5" />}{title}
+    </p>
+    <div className="rounded-xl border border-border bg-surface divide-y divide-border overflow-hidden">
+      {children}
+    </div>
+  </section>
+);
+
+const DetailRow = ({ label, copy, children }) => (
+  <div className="flex items-start gap-3 px-4 py-2.5">
+    <span className="text-[11px] text-ink-3 w-[40%] shrink-0 leading-relaxed pt-0.5 lg:w-[34%]">{label}</span>
+    <div className="min-w-0 flex-1 text-sm text-ink break-words">{children}</div>
+    {copy && <CopyButton value={copy} />}
+  </div>
+);
+
+const LinkValue = ({ href, children }) => (
+  <a href={href} target="_blank" rel="noopener noreferrer"
+    className="inline-flex items-center gap-1 text-ink hover:text-ink-2 transition underline underline-offset-2 break-all">
+    {children}
+    <ExternalLink className="w-3 h-3 shrink-0" />
+  </a>
+);
+
+// Ein gespeicherter Wert, dargestellt nach dem Typ seiner Felddefinition
+const DetailValue = ({ field, value, currency }) => {
+  const lang = useLang();
+  const t    = useT();
+
+  if (field.type === 'select') {
+    const option = (field.options || []).find(o => o.value === value);
+    return <span>{option ? optionLabel(option, lang) : value}</span>;
+  }
+
+  if (field.type === 'date') {
+    return <span>{fmtDateFromISO(value, lang, t.months_short) || value}</span>;
+  }
+
+  if (field.type === 'secret') return <SecretValue value={value} />;
+
+  if (field.type === 'url') {
+    const href = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+    return <LinkValue href={href}>{value}</LinkValue>;
+  }
+
+  if (field.type === 'tel') {
+    return (
+      <a href={`tel:${value.replace(/\s/g, '')}`}
+        className="text-ink hover:text-ink-2 transition underline underline-offset-2">
+        {value}
+      </a>
+    );
+  }
+
+  if (field.type === 'money') {
+    const amount = Number(value);
+    const text   = Number.isFinite(amount) ? fmtMoney(amount, currency, lang) : value;
+    return <span>{field.unit ? `${text} ${field.unit}` : text}</span>;
+  }
+
+  if (field.type === 'textarea') {
+    return <span className="whitespace-pre-line leading-relaxed">{value}</span>;
+  }
+
+  return <span>{field.unit ? `${value} ${field.unit}` : value}</span>;
+};
+
+// Kopierbar ist, was man sonst abtippen müsste — Nummern, Kennungen, Adressen
+const COPYABLE_TYPES = new Set(['text', 'number', 'tel', 'url', 'secret']);
+
+// Gefüllte Vorlagenfelder in sinnvoller Reihenfolge: erst die der Kategorie,
+// dann die allgemeinen, zuletzt Werte aus einer früheren Kategorie.
+const collectFilledFields = (entry) => {
+  const values = entry.fields || {};
+  const taken  = new Set();
+
+  const pick = (defs) => defs.reduce((rows, field) => {
+    const value = values[field.id];
+    if (!value || !String(value).trim() || taken.has(field.id)) return rows;
+    taken.add(field.id);
+    return [...rows, { field, value: String(value) }];
+  }, []);
+
+  const template = pick(templateFor(entry.category));
+  const common   = pick(COMMON_FIELDS);
+
+  const orphans = Object.entries(values)
+    .filter(([id, value]) => value && String(value).trim() && !taken.has(id))
+    .map(([id, value]) => ({
+      field: findFieldDef(id) || { id, label: { de: id, en: id }, type: 'text' },
+      value: String(value),
+    }));
+
+  return { template, common: [...common, ...orphans] };
+};
+
+const DetailDocuments = ({ entryId }) => {
+  const t    = useT();
+  const lang = useLang();
+  const [documents, setDocuments] = useState([]);
+
+  useEffect(() => {
+    if (!documentStore.isAvailable()) return;
+    let cancelled = false;
+    documentStore.listFor(entryId)
+      .then(rows => { if (!cancelled) setDocuments(rows); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [entryId]);
+
+  if (documents.length === 0) return null;
+
+  return (
+    <DetailSection icon={Paperclip} title={t.tab_docs}>
+      {documents.map(document => (
+        <div key={document.id} className="flex items-center gap-3 px-4 py-2.5">
+          <FileText className="w-4 h-4 text-ink-3 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm truncate">{document.name}</p>
+            <p className="text-[11px] text-ink-3">
+              {documentStore.formatSize(document.size)} · {fmtDateFromISO(document.addedAt, lang, t.months_short)}
+            </p>
+          </div>
+          <button type="button" title={t.docs_open}
+            onClick={() => documentStore.openDocument(document.id)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-3 transition">
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+          <button type="button" title={t.docs_download}
+            onClick={() => documentStore.openDocument(document.id, { download: true })}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-3 transition">
+            <Download className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ))}
+    </DetailSection>
+  );
+};
+
+const STATUS_TONE = { active: 'success', paused: 'error', trial: 'warning', canceled: 'muted' };
+const STATUS_LABEL = {
+  active:   'modal_status_active',
+  paused:   'modal_status_paused',
+  trial:    'modal_status_trial',
+  canceled: 'modal_status_canceled',
+};
+
+const EntryDetail = ({ open, entry, currency, fmt, fmtOriginal, monthly, vaultState, onEdit, onDelete, onClose }) => {
+  const t    = useT();
+  const lang = useLang();
+  const isDesktop = useIsDesktop();
+
+  const [secret, setSecret] = useState('');
+
+  // Gespeichertes Passwort entschlüsseln, sobald der Tresor offen ist
+  useEffect(() => {
+    if (!entry?.login_secret || !vaultState.unlocked) return;
+
+    let cancelled = false;
+    vaultState.decrypt(entry.login_secret)
+      .then(value => { if (!cancelled) setSecret(value); })
+      .catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [entry?.login_secret, vaultState]);
+
+  // Beim Schließen bleibt der Eintrag gesetzt, damit das Blatt ausgleiten kann
+  if (!entry) return null;
+
+  const cat        = entry.category ? getCat(entry.category) : null;
+  const kind       = getKind(kindOf(entry));
+  const status     = entry.status || 'active';
+  const cancelBy   = cancelByDate(entry);
+  const cancelDays = daysUntil(cancelBy);
+  const billing    = fmtBillingDate(entry.date, t, lang);
+
+  const { template, common } = collectFilledFields(entry);
+  const customFields = (entry.custom || []).filter(field => String(field.value || '').trim());
+
+  const hasContract = Boolean(entry.contract_start || entry.contract_end || entry.notice_period_months);
+  const hasAccess   = Boolean(entry.url || entry.login_username || entry.login_secret || entry.login_note);
+  const hasAnything = hasContract || hasAccess || template.length > 0 || common.length > 0
+    || customFields.length > 0 || Boolean(entry.notes);
+
+  // Der Umrechnungshinweis lohnt nur, wenn er etwas Neues sagt
+  const monthlyHint =
+    entry.period === 'yearly' || (entry.currency_code || DEFAULT_CURRENCY) !== currency
+      ? t.detail_per_month(fmt(monthly(entry)))
+      : null;
+
+  const catalogEntry = getCatalogEntry(entry.name);
+
+  return (
+    <Overlay open={open} onClose={onClose} sheet={!isDesktop} labelledBy="entry-detail-title"
+      panelClass={isDesktop
+        ? 'inset-0 m-auto h-fit w-[620px] max-h-[88vh] overflow-y-auto desktop-scroll bg-surface-2 rounded-2xl p-8 border border-border shadow-2xl'
+        : 'inset-x-3 bottom-3 top-14 overflow-y-auto bg-surface-2 rounded-2xl p-5 border border-border max-w-[450px] mx-auto shadow-2xl'}>
+
+      {/* ── Kopf ── */}
+      <div className="flex items-start gap-3">
+        <LogoIcon entry={entry} size="md" />
+        <div className="min-w-0 flex-1">
+          <h2 id="entry-detail-title" className="text-lg font-semibold tracking-tight leading-snug lg:text-xl">
+            {entry.name}
+          </h2>
+          {entry.provider && <p className="text-xs text-ink-3 truncate mt-0.5">{entry.provider}</p>}
+        </div>
+        <button type="button" onClick={onClose} title={t.detail_close}
+          className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-3 transition">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 mt-3">
+        {cat && <CategoryBadge cat={cat} />}
+        {kind && (
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-surface-3 text-ink-2">
+            <kind.icon className="w-3.5 h-3.5" />
+            <span className="text-xs font-medium">{t[kind.oneKey]}</span>
+          </span>
+        )}
+        {entry.location && (
+          <span className="inline-flex items-center gap-1.5 max-w-full px-2 py-0.5 rounded-md bg-surface-3 text-ink-2">
+            <MapPin className="w-3.5 h-3.5 shrink-0" />
+            <span className="text-xs font-medium truncate">{entry.location}</span>
+          </span>
+        )}
+        <StatusPill tone={STATUS_TONE[status] || 'muted'} label={t[STATUS_LABEL[status]] || status}
+          pulse={status === 'trial'} />
+        {cancelDays !== null && cancelDays <= 60 && <DeadlineBadge days={cancelDays} />}
+      </div>
+
+      {/* ── Betrag ── */}
+      <div className="mt-4 rounded-xl border border-border bg-surface px-4 py-3.5 flex items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-ink-3">
+            {entry.period === 'yearly' ? t.modal_yearly : t.modal_monthly}
+          </p>
+          <p className="text-2xl font-semibold tracking-tight mt-1">{fmtOriginal(entry)}</p>
+          {monthlyHint && <p className="text-[11px] text-ink-3 mt-0.5">{monthlyHint}</p>}
+        </div>
+        {(billing || (status === 'trial' && entry.trial_end)) && (
+          <div className="text-right shrink-0">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-ink-3">
+              {status === 'trial' && entry.trial_end ? t.detail_trial_ends : t.detail_billing}
+            </p>
+            <p className="text-sm font-medium mt-1">
+              {status === 'trial' && entry.trial_end
+                ? fmtDateFromISO(entry.trial_end, lang, t.months_short)
+                : billing}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-5 space-y-5">
+        {/* ── Laufzeit ── */}
+        {hasContract && (
+          <DetailSection icon={CalendarDays} title={t.contract_section}>
+            {entry.contract_start && (
+              <DetailRow label={t.contract_start}>
+                {fmtDateFromISOWithYear(entry.contract_start, lang, t.months_short)}
+              </DetailRow>
+            )}
+            {entry.contract_end && (
+              <DetailRow label={t.contract_end}>
+                {fmtDateFromISOWithYear(entry.contract_end, lang, t.months_short)}
+              </DetailRow>
+            )}
+            {entry.notice_period_months ? (
+              <DetailRow label={t.notice_period}>{t.notice_months(entry.notice_period_months)}</DetailRow>
+            ) : null}
+            <DetailRow label={t.auto_renew}>{entry.auto_renew ? t.detail_yes : t.detail_no}</DetailRow>
+            {cancelBy && (
+              <DetailRow label={t.deadline_until}>
+                <span className="flex flex-wrap items-center gap-2">
+                  {fmtDateFromISOWithYear(cancelBy, lang, t.months_short)}
+                  {cancelDays !== null && <DeadlineBadge days={cancelDays} />}
+                </span>
+              </DetailRow>
+            )}
+          </DetailSection>
+        )}
+
+        {/* ── Vertragsdaten der Kategorie ── */}
+        {template.length > 0 && (
+          <DetailSection icon={ClipboardList} title={t.details_template}>
+            {template.map(({ field, value }) => (
+              <DetailRow key={field.id} label={fieldLabel(field, lang)}
+                copy={COPYABLE_TYPES.has(field.type) ? value : null}>
+                <DetailValue field={field} value={value} currency={entry.currency_code || currency} />
+              </DetailRow>
+            ))}
+          </DetailSection>
+        )}
+
+        {/* ── Abrechnung & Kontakt ── */}
+        {common.length > 0 && (
+          <DetailSection icon={Wallet} title={t.details_common}>
+            {common.map(({ field, value }) => (
+              <DetailRow key={field.id} label={fieldLabel(field, lang)}
+                copy={COPYABLE_TYPES.has(field.type) ? value : null}>
+                <DetailValue field={field} value={value} currency={entry.currency_code || currency} />
+              </DetailRow>
+            ))}
+          </DetailSection>
+        )}
+
+        {/* ── Eigene Felder ── */}
+        {customFields.length > 0 && (
+          <DetailSection icon={Package} title={t.custom_fields}>
+            {customFields.map(field => (
+              <DetailRow key={field.id} label={field.label}
+                copy={COPYABLE_TYPES.has(field.type) ? field.value : null}>
+                <DetailValue field={{ type: field.type }} value={field.value}
+                  currency={entry.currency_code || currency} />
+              </DetailRow>
+            ))}
+          </DetailSection>
+        )}
+
+        {/* ── Zugang ── */}
+        {hasAccess && (
+          <DetailSection icon={KeyRound} title={t.tab_access}>
+            {entry.url && (
+              <DetailRow label={t.access_url} copy={entry.url}>
+                <LinkValue href={/^https?:\/\//i.test(entry.url) ? entry.url : `https://${entry.url}`}>
+                  {entry.url.replace(/^https?:\/\//i, '')}
+                </LinkValue>
+              </DetailRow>
+            )}
+            {entry.login_username && (
+              <DetailRow label={t.access_username} copy={entry.login_username}>
+                {entry.login_username}
+              </DetailRow>
+            )}
+            {entry.login_secret && (
+              <DetailRow label={t.access_password} copy={secret || null}>
+                {vaultState.unlocked
+                  ? (secret ? <SecretValue value={secret} /> : <span className="text-ink-3">···</span>)
+                  : <span className="inline-flex items-center gap-1.5 text-ink-3 text-xs">
+                      <Lock className="w-3.5 h-3.5" />{t.vault_locked}
+                    </span>}
+              </DetailRow>
+            )}
+            {entry.login_note && (
+              <DetailRow label={t.access_note}>
+                <span className="whitespace-pre-line leading-relaxed">{entry.login_note}</span>
+              </DetailRow>
+            )}
+          </DetailSection>
+        )}
+
+        {/* ── Dokumente ── */}
+        <DetailDocuments entryId={entry.id} />
+
+        {/* ── Notizen ── */}
+        {entry.notes && (
+          <DetailSection icon={FileText} title={t.detail_notes}>
+            <p className="px-4 py-3 text-sm leading-relaxed whitespace-pre-line">{entry.notes}</p>
+          </DetailSection>
+        )}
+
+        {/* Nichts außer der Basis erfasst — dann sagen wir das, statt Leere zu zeigen */}
+        {!hasAnything && (
+          <div className="rounded-xl border border-dashed border-border-strong px-4 py-6 text-center space-y-1">
+            <p className="text-sm text-ink-2">{t.detail_empty}</p>
+            <p className="text-[11px] text-ink-3 leading-relaxed">{t.detail_empty_hint}</p>
+          </div>
+        )}
+
+        {/* ── Kündigungshilfe aus dem Katalog ── */}
+        {catalogEntry?.cancelUrl && (
+          <div className="rounded-xl border border-border bg-surface overflow-hidden">
+            <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
+              <X className="w-4 h-4 text-ink-3 shrink-0" />
+              <span className="text-xs text-ink-2">
+                {t.cancel_how}
+                <a href={catalogEntry.cancelUrl} target="_blank" rel="noopener noreferrer"
+                  className="text-ink hover:text-ink-2 transition underline underline-offset-2">
+                  {t.cancel_link}
+                </a>
+              </span>
+            </div>
+            <div className="px-4 py-3 space-y-2">
+              {catalogEntry.cancelSteps.map((step, i) => (
+                <div key={i} className="flex items-start gap-2.5">
+                  <span className="text-[11px] font-medium text-ink-3 mt-px shrink-0 w-3">{i + 1}.</span>
+                  <span className="text-xs text-ink-2 leading-relaxed">{step}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2 mt-6 lg:flex-row-reverse lg:gap-3 lg:mt-7">
+        <button type="button" onClick={onEdit} className={btn('primary', 'md', 'w-full py-3 lg:flex-1')}>
+          <Pencil className="w-4 h-4" />{t.modal_edit}
+        </button>
+        <button type="button" onClick={onDelete}
+          className={btn('ghost', 'md', 'w-full py-3 lg:flex-1 hover:text-error')}>
+          <Trash2 className="w-4 h-4" />{t.sub_delete}
+        </button>
+      </div>
+    </Overlay>
+  );
+};
+
 // ─── Eintrag anlegen / bearbeiten ─────────────────────────────────────────────
 const MODAL_TABS = [
   { id: 'basics',  labelKey: 'tab_basics',  icon: Wallet },
@@ -3074,7 +3871,7 @@ const MODAL_TABS = [
 
 const NOTICE_OPTIONS = [1, 2, 3, 6, 12];
 
-const EntryModal = ({ open, initial, currency, vaultState, onSave, onClose, onDocsChange }) => {
+const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSave, onClose, onDocsChange }) => {
   const t    = useT();
   const lang = useLang();
   const isDesktop = useIsDesktop();
@@ -3094,6 +3891,11 @@ const EntryModal = ({ open, initial, currency, vaultState, onSave, onClose, onDo
   const [period,   setPeriod]   = useState(initial?.period   || 'monthly');
   const [category, setCategory] = useState(initial?.category || '');
   const [status,   setStatus]   = useState(initial?.status   || 'active');
+  const [location, setLocation] = useState(initial?.location || '');
+
+  // Die Art folgt der Kategorie, solange niemand widerspricht
+  const [kindChoice, setKindChoice] = useState(initial?.kind || null);
+  const kind = kindChoice || kindForCategory(category);
   const [trialEnd, setTrialEnd] = useState(initial?.trial_end || '');
   const [notes,    setNotes]    = useState(initial?.notes    || '');
   const [day,      setDay]      = useState(() => { const d = extractBillingDay(initial?.date); return d ? String(d) : ''; });
@@ -3206,6 +4008,8 @@ const EntryModal = ({ open, initial, currency, vaultState, onSave, onClose, onDo
       date:          day && month ? `${day} ${month}` : day || '—',
       period,
       category,
+      kind,
+      location:      location.trim(),
       logo:          initial?.logo || '',
       status,
       trial_end:     status === 'trial' && trialEnd ? trialEnd : null,
@@ -3317,13 +4121,14 @@ const EntryModal = ({ open, initial, currency, vaultState, onSave, onClose, onDo
             {/* Status */}
             <Segmented
               items={[
-                { id: 'active', label: t.modal_status_active, tone: 'success' },
-                { id: 'paused', label: t.modal_status_paused, tone: 'error' },
-                { id: 'trial',  label: t.modal_status_trial,  tone: 'warning' },
+                { id: 'active',   label: t.modal_status_active,   tone: 'success' },
+                { id: 'paused',   label: t.modal_status_paused,   tone: 'error' },
+                { id: 'trial',    label: t.modal_status_trial,    tone: 'warning' },
+                { id: 'canceled', label: t.modal_status_canceled, tone: 'muted' },
               ]}
               value={status} onChange={setStatus}
               className="w-full lg:col-span-2"
-              layout="grid grid-cols-3"
+              layout="grid grid-cols-2 lg:grid-cols-4"
               trackClass="bg-surface border border-border rounded-lg"
               itemClass="flex items-center justify-center gap-2 py-2 text-xs"
               renderItem={(item, active) => (
@@ -3374,6 +4179,53 @@ const EntryModal = ({ open, initial, currency, vaultState, onSave, onClose, onDo
                   </button>
                 );
               })}
+            </div>
+
+            {/* Art — Abo oder laufende Fixkosten */}
+            <div className="space-y-1.5 lg:col-span-2">
+              <p className="text-[11px] text-ink-3 px-1">{t.kind_label}</p>
+              <Segmented
+                items={KINDS.map(k => ({ id: k.id, label: t[k.labelKey], icon: k.icon }))}
+                value={kind} onChange={setKindChoice}
+                className="w-full"
+                layout="grid grid-cols-2"
+                trackClass="bg-surface border border-border rounded-lg"
+                itemClass="flex items-center justify-center gap-2 py-2 text-xs"
+                renderItem={(item) => (
+                  <>
+                    <item.icon className="w-3.5 h-3.5 shrink-0" />
+                    {item.label}
+                  </>
+                )} />
+              <p className="text-[11px] text-ink-3 px-1">{t.kind_hint}</p>
+            </div>
+
+            {/* Adresse — der Ort, an dem der Vertrag hängt */}
+            <div className="space-y-1.5 lg:col-span-2">
+              <FieldShell label={t.location_label} hint={t.location_hint}>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" />
+                  <input className={`${INPUT_CLASS} pl-10`} placeholder={t.location_placeholder}
+                    value={location} onChange={e => setLocation(e.target.value)} />
+                </div>
+              </FieldShell>
+              {locations.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {locations.map(known => {
+                    const active = location.trim() === known;
+                    return (
+                      <button key={known} type="button" onClick={() => setLocation(active ? '' : known)}
+                        className={`flex items-center gap-1.5 max-w-full px-2.5 py-1.5 rounded-lg text-xs font-medium border transition
+                          ${active
+                            ? 'bg-ink text-surface border-ink'
+                            : 'bg-surface border-border text-ink-2 hover:bg-surface-3 hover:text-ink'}`}>
+                        <MapPin className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{known}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="lg:col-span-2">
@@ -3638,9 +4490,8 @@ const DesktopSidebar = ({ activeTab, onSwitch, onAdd, lang, toggleLang, theme, t
           <p className="text-2xl font-semibold tracking-tight mt-1">{total}</p>
         </div>
         <div className="flex items-center gap-2">
-          <SupportMenu align="top" />
           <ThemeToggle theme={theme} onToggle={toggleTheme} label={t.theme_toggle} />
-          <LangToggle lang={lang} toggleLang={toggleLang} className="flex-1 justify-center" />
+          <LangToggle lang={lang} toggleLang={toggleLang} className="flex-1" />
         </div>
       </div>
     </aside>

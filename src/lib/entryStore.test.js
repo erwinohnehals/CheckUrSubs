@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createEntryStore } from './entryStore.js';
+import { createEntryStore, isBilled } from './entryStore.js';
 
 const createMemoryStorage = (initial = {}) => {
   const values = new Map(Object.entries(initial));
@@ -54,6 +54,19 @@ test('updates, removes, and restores through the storage interface', () => {
 
   store.restore(removed);
   assert.equal(store.list()[0].id, created.id);
+});
+
+test('keeps known statuses and falls back to active for anything else', () => {
+  const store = createStore();
+  const canceled = store.create({ name: 'Gym', price: 30, status: 'canceled' });
+
+  assert.equal(canceled.status, 'canceled');
+  assert.equal(isBilled(canceled), false);
+  assert.equal(store.list()[0].status, 'canceled');
+
+  assert.equal(store.create({ name: 'Water', status: 'cancelled' }).status, 'active');
+  assert.equal(store.create({ name: 'Power' }).status, 'active');
+  assert.equal(isBilled({ name: 'Power' }), true);
 });
 
 test('imports new rows while skipping duplicates', () => {
@@ -115,7 +128,43 @@ test('migrates subscriptions saved by the previous app version', () => {
 
   assert.equal(entry.id, 'old-1');
   assert.equal(entry.category, 'mobile');
-  assert.match(storage.getItem('goldgeld.entries'), /"version":2/);
+  assert.match(storage.getItem('goldgeld.entries'), /"version":3/);
+});
+
+test('derives the kind from the category and keeps an explicit override', () => {
+  const store = createStore();
+
+  assert.equal(store.create({ name: 'Strom', category: 'energy' }).kind, 'fixed');
+  assert.equal(store.create({ name: 'Netflix', category: 'entertainment' }).kind, 'abo');
+  assert.equal(store.create({ name: 'Handy', category: 'mobile', kind: 'abo' }).kind, 'abo');
+  assert.equal(store.create({ name: 'Sonstiges', kind: 'nonsense' }).kind, 'abo');
+});
+
+test('stores the address as a single trimmed line', () => {
+  const store = createStore();
+  const created = store.create({ name: 'Miete', location: '  Hauptstraße 5\n10115 Berlin ' });
+
+  assert.equal(created.location, 'Hauptstraße 5, 10115 Berlin');
+  assert.equal(store.create({ name: 'Netflix' }).location, '');
+});
+
+test('takes the address from contract fields when upgrading older data', () => {
+  const storage = createMemoryStorage({
+    'goldgeld.entries': JSON.stringify({
+      version: 2,
+      entries: [
+        { id: 'a', name: 'Stromvertrag', category: 'energy',
+          fields: { supply_address: 'Hauptstraße 5\n10115 Berlin' }, created_at: '2024-01-01T00:00:00.000Z' },
+        { id: 'b', name: 'Netflix', category: 'entertainment', created_at: '2024-01-02T00:00:00.000Z' },
+      ],
+    }),
+  });
+
+  const entries = createStore(storage).list();
+
+  assert.equal(entries[0].location, 'Hauptstraße 5, 10115 Berlin');
+  assert.equal(entries[1].location, '');
+  assert.match(storage.getItem('goldgeld.entries'), /"version":3/);
 });
 
 test('treats malformed persisted data as empty', () => {

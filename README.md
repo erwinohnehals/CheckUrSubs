@@ -102,7 +102,7 @@ Schaltern und Fokusringen.
   `cubic-bezier(0.625, 0.05, 0, 1)`, Austritte laufen schneller als Eintritte,
   Listen kaskadieren, und in Reitern gleitet eine einzelne Markierung.
   `prefers-reduced-motion` schaltet alles auf sofort.
-- **Schrift** ist Inter, lokal gebündelt — die PWA braucht dafür kein Netz.
+- **Schrift** ist DM Sans, lokal gebündelt — die PWA braucht dafür kein Netz.
 
 ## Stack
 
@@ -114,7 +114,7 @@ Schaltern und Fokusringen.
 | Build | Vite 7 |
 | PWA | eigener Service Worker |
 | Icons | Lucide React |
-| Schrift | Inter (@fontsource-variable) |
+| Schrift | DM Sans (@fontsource-variable) |
 
 ## Installation als App
 
