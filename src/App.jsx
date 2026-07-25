@@ -1585,7 +1585,6 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
         currency={currency} onCurrencyChange={changeCurrency}
         ratesLoading={ratesLoading} onRefreshRates={refreshRates}
         entries={entries} onImport={handleImport} vaultState={vaultState}
-        total={fmt(totalMonthlyUSD)}
       />
 
       <div className="w-full max-w-[450px] min-h-screen border-x border-border bg-surface flex flex-col relative overflow-hidden
@@ -5143,7 +5142,7 @@ const BrandMark = ({ className = '' }) => (
 // ─── Десктоп: боковая навигация ───────────────────────────────────────────────
 // Auch hier gleitet die Markierung — senkrecht statt waagerecht.
 const DesktopSidebar = ({
-  activeTab, onSwitch, onAdd, total,
+  activeTab, onSwitch, onAdd,
   lang, toggleLang,
   theme, themePreference, setThemePreference,
   currency, onCurrencyChange,
@@ -5158,7 +5157,7 @@ const DesktopSidebar = ({
   ];
 
   return (
-    <aside className="hidden lg:flex flex-col w-[264px] shrink-0 h-screen sticky top-0 bg-surface border-r border-border px-5 py-7">
+    <aside className="hidden lg:flex flex-col w-[264px] shrink-0 h-screen sticky top-0 z-40 bg-surface border-r border-border px-5 py-7">
       <div className="flex items-center gap-3 px-1">
         <BrandMark className="w-14 h-10 rounded-lg p-1" />
         <Wordmark className="text-[30px] leading-none min-w-0 block truncate" />
@@ -5184,9 +5183,6 @@ const DesktopSidebar = ({
         )} />
 
       <div className="mt-auto space-y-3">
-        <div className={`${CARD} px-4 py-3`}>
-          <p className="text-2xl font-semibold tracking-tight">{total}</p>
-        </div>
         <SettingsMenu
           align="top" buttonClass="w-full" triggerLabel={t.settings_title}
           entries={entries} onImport={onImport} vaultState={vaultState}
