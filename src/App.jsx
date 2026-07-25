@@ -761,6 +761,173 @@ const TrendBars = ({ totals, maxVal, months, labels, fmt, isDesktop, range }) =>
   </div>
 );
 
+// ─── Kosten als Ringdiagramm ──────────────────────────────────────────────────
+// Kleine Gruppen werden zusammengefasst, damit Segmente und Legende auch auf
+// dem Telefon lesbar bleiben. Die detaillierten Listen darunter bleiben vollständig.
+const CHART_COLORS = Array.from({ length: 6 }, (_, i) => `var(--chart-${i + 1})`);
+
+const pointOnCircle = (cx, cy, radius, angle) => {
+  const radians = (angle - 90) * Math.PI / 180;
+  return {
+    x: cx + radius * Math.cos(radians),
+    y: cy + radius * Math.sin(radians),
+  };
+};
+
+const donutSlicePath = (cx, cy, outerRadius, innerRadius, startAngle, endAngle) => {
+  const outerStart = pointOnCircle(cx, cy, outerRadius, startAngle);
+  const outerEnd   = pointOnCircle(cx, cy, outerRadius, endAngle);
+  const innerEnd   = pointOnCircle(cx, cy, innerRadius, endAngle);
+  const innerStart = pointOnCircle(cx, cy, innerRadius, startAngle);
+  const largeArc   = endAngle - startAngle > 180 ? 1 : 0;
+
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerEnd.x} ${innerEnd.y}`,
+    `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${innerStart.x} ${innerStart.y}`,
+    'Z',
+  ].join(' ');
+};
+
+const AnalyticsPieChart = ({ datasets, fmt, active }) => {
+  const t = useT();
+  const [hovered, setHovered] = useState(null);
+  const [view, setView] = useState('category');
+  const rows = datasets[view] || [];
+  const sorted = [...rows].filter(row => row.total > 0).sort((a, b) => b.total - a.total);
+
+  if (sorted.length === 0) return null;
+
+  const viewOptions = [
+    { id: 'category', label: t.chart_category },
+    { id: 'kind',     label: t.chart_kind },
+    { id: 'location', label: t.chart_location },
+    { id: 'entry',    label: t.chart_entries },
+  ];
+
+  const visibleRows = sorted.length > 6
+    ? [
+        ...sorted.slice(0, 5),
+        {
+          id: '__other',
+          label: t.chart_other,
+          total: sorted.slice(5).reduce((sum, row) => sum + row.total, 0),
+          entries: sorted.slice(5).flatMap(row => row.entries),
+        },
+      ]
+    : sorted;
+
+  const total = visibleRows.reduce((sum, row) => sum + row.total, 0);
+  const normalizedRows = visibleRows.map(row => ({ ...row, share: row.total / total }));
+  const slices = normalizedRows.map((row, index) => {
+    const angle = normalizedRows
+      .slice(0, index)
+      .reduce((sum, previous) => sum + previous.share * 360, 0);
+    const share = row.share;
+    const sweep = share * 360;
+    const gap   = Math.min(1.8, sweep * 0.18);
+    const start = angle + gap / 2;
+    const end   = angle + sweep - gap / 2;
+
+    return {
+      ...row,
+      index,
+      label: row.label || t[row.labelKey],
+      share,
+      path: donutSlicePath(120, 120, 92, 57, start, end),
+      color: CHART_COLORS[index],
+    };
+  });
+
+  const focus = hovered === null ? null : slices[hovered];
+
+  return (
+    <section data-group className={`${CARD} p-5 lg:col-span-2 lg:p-6`}>
+      <div className="flex flex-col items-start gap-3 mb-5 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">
+          {t.category_breakdown}
+        </p>
+        <Segmented
+          items={viewOptions}
+          value={view}
+          onChange={(nextView) => {
+            setHovered(null);
+            setView(nextView);
+          }}
+          trackClass="bg-surface border border-border rounded-lg"
+          itemClass="px-2.5 py-1 text-[11px]" />
+      </div>
+      <div className="grid items-center gap-6 sm:grid-cols-[minmax(210px,0.8fr)_minmax(0,1.2fr)] lg:gap-10">
+        <div className="relative mx-auto w-full max-w-[270px]">
+          <svg viewBox="0 0 240 240" role="img"
+            aria-label={`${t.category_breakdown}: ${viewOptions.find(option => option.id === view)?.label}`}
+            className="block w-full overflow-visible"
+            onPointerLeave={() => setHovered(null)}>
+            <circle cx="120" cy="120" r="74.5" fill="none"
+              stroke="rgb(var(--surface-3))" strokeWidth="35" />
+            {slices.map((slice, index) => {
+              const highlighted = hovered === index;
+              const dimmed = hovered !== null && !highlighted;
+              const percentage = `${(slice.share * 100).toFixed(1)}%`;
+              return (
+                <path key={`${view}-${slice.id}`} d={slice.path} fill={slice.color}
+                  className="pie-slice outline-none"
+                  tabIndex="0"
+                  aria-label={`${slice.label}: ${fmt(slice.total)}, ${percentage}`}
+                  onPointerEnter={() => setHovered(index)}
+                  onFocus={() => setHovered(index)}
+                  onBlur={() => setHovered(null)}
+                  style={{
+                    opacity: dimmed ? 0.42 : 1,
+                    transform: highlighted ? 'scale(1.045)' : 'scale(1)',
+                    animation: active
+                      ? `pie-slice-in 700ms ${EXPO_OUT} ${140 + index * 90}ms backwards`
+                      : 'none',
+                  }}>
+                  <title>{`${slice.label}: ${fmt(slice.total)} · ${percentage}`}</title>
+                </path>
+              );
+            })}
+            <circle cx="120" cy="120" r="53" fill="rgb(var(--surface-2))" />
+            <text x="120" y="112" textAnchor="middle"
+              fill="rgb(var(--ink-3))" fontSize="10" fontWeight="500">
+              {focus ? focus.label : t.per_month}
+            </text>
+            <text x="120" y="135" textAnchor="middle"
+              fill="rgb(var(--ink))" fontSize="16" fontWeight="650">
+              {fmt(focus ? focus.total : total)}
+            </text>
+          </svg>
+        </div>
+
+        <ul className="grid gap-1.5">
+          {slices.map((slice, index) => {
+            const highlighted = hovered === index;
+            return (
+              <li key={slice.id}
+                onPointerEnter={() => setHovered(index)}
+                onPointerLeave={() => setHovered(null)}
+                className={`flex items-center gap-3 rounded-lg px-2.5 py-2 transition
+                  ${highlighted ? 'bg-surface-3' : ''}`}>
+                <span className="size-2.5 rounded-full shrink-0" style={{ background: slice.color }} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{slice.label}</p>
+                  <p className="text-[11px] text-ink-3">{t.entries_count(slice.entries.length)}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-semibold">{fmt(slice.total)}</p>
+                  <p className="text-[11px] text-ink-3">{(slice.share * 100).toFixed(0)}%</p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </section>
+  );
+};
+
 // ─── Filter- und Gruppenleiste ────────────────────────────────────────────────
 // Zwei Achsen liegen quer zur Kategorie: die Art (Abo oder Fixkosten) und die
 // Adresse. Beide filtern, beide gruppieren — die Leiste hält sie beieinander.
@@ -790,8 +957,8 @@ const FilterBar = ({ kind, onKind, place, onPlace, group, onGroup, locations, ha
             ...KINDS.map(k => ({ id: k.id, label: t[k.labelKey], icon: k.icon })),
           ]}
           value={kind} onChange={onKind}
-          trackClass="bg-surface border border-border rounded-lg"
-          itemClass="flex items-center gap-1.5 px-3 py-1.5 text-xs"
+          trackClass="h-10 bg-surface border border-border rounded-lg"
+          itemClass="flex items-center gap-1.5 px-3 text-xs"
           renderItem={(item) => (
             <>
               {item.icon && <item.icon className="w-3.5 h-3.5 shrink-0" />}
@@ -809,7 +976,7 @@ const FilterBar = ({ kind, onKind, place, onPlace, group, onGroup, locations, ha
 
         {onReset && (
           <button type="button" onClick={onReset} title={t.filter_reset}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-ink-3
+            className="inline-flex h-10 items-center gap-1.5 px-2.5 rounded-lg text-xs text-ink-3
               hover:text-ink hover:bg-surface-3 transition">
             <X className="w-3.5 h-3.5" />
           </button>
@@ -830,7 +997,7 @@ const FilterSelect = ({ icon: Icon, label, active, value, options, onChange }) =
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => setOpen(o => !o)}
-        className={`inline-flex items-center gap-1.5 max-w-[190px] border rounded-lg px-3 py-1.5 text-xs font-medium transition
+        className={`inline-flex h-10 items-center gap-1.5 max-w-[190px] border rounded-lg px-3 text-xs font-medium transition
           ${active
             ? 'bg-ink text-surface border-ink'
             : 'bg-surface border-border text-ink-2 hover:bg-surface-3 hover:text-ink'}`}>
@@ -854,14 +1021,14 @@ const FilterSelect = ({ icon: Icon, label, active, value, options, onChange }) =
 
 // ─── Liste der Einträge ───────────────────────────────────────────────────────
 // Die Zeilen kaskadieren herein: 250ms, 50ms Versatz, 20px Aufstieg (§4.3)
-const EntryList = ({ groups, count, docCounts, searchQuery, fmt, fmtOriginal, monthly,
+const EntryList = ({ groups, count, docCounts, searchQuery, menuKey, fmt, fmtOriginal, monthly,
   grouped, filtered, hint, onOpen, onEdit, onDelete }) => {
   const t = useT();
   const listRef = useRef(null);
 
   useLayoutEffect(() => {
     if (listRef.current) staggerIn(listRef.current.querySelectorAll('[data-row]'));
-  }, [searchQuery, grouped]);
+  }, [searchQuery, grouped, menuKey]);
 
   return (
     <div ref={listRef} className={`${CARD} overflow-hidden`}>
@@ -957,6 +1124,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
   const [confirmEntry,   setConfirmEntry]   = useState(null);
   const [sortBy,       setSortBy]       = useState('name');
   const [searchQuery,  setSearchQuery]  = useState('');
+  const [searchOpen,   setSearchOpen]   = useState(false);
   const [kindFilter,   setKindFilter]   = useState('all');   // all | abo | fixed
   const [placeFilter,  setPlaceFilter]  = useState('all');   // all | '' (ohne) | Adresse
   const [groupBy,      setGroupBy]      = useState('none');  // none | location | kind | category
@@ -990,6 +1158,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
     setExitingTab(activeTab);
     setActiveTab(tab);
     setSearchQuery('');
+    setSearchOpen(false);
   }, [activeTab]);
 
   // Ansichtswechsel: alte Ansicht zieht nach links ab, neue kommt von rechts —
@@ -1031,6 +1200,8 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
 
   // ── Клавиатура (десктоп) ───────────────────────────────────────────────────
   const searchRef = useRef(null);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
+  const searchWrapRef = useDismiss(searchOpen, closeSearch);
   useEffect(() => {
     if (!isDesktop) return;
     const onKey = (e) => {
@@ -1044,7 +1215,12 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
       }
       if (isModalOpen || confirmEntry || detailOpen || typing || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === 'n' || e.key === 'т') { e.preventDefault(); setEditingEntry(null); setIsModalOpen(true); }
-      if (e.key === '/') { e.preventDefault(); switchTab('home'); setTimeout(() => searchRef.current?.focus(), 0); }
+      if (e.key === '/') {
+        e.preventDefault();
+        switchTab('home');
+        setSearchOpen(true);
+        setTimeout(() => searchRef.current?.focus(), 0);
+      }
       if (e.key === '1') switchTab('home');
       if (e.key === '2') switchTab('calendar');
       if (e.key === '3') switchTab('analytics');
@@ -1307,6 +1483,13 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
     .filter(row => row.entries.length > 0)
     .sort((a, b) => b.total - a.total);
 
+  const byEntryTotals = activeEntries.map(entry => ({
+    id: entry.id,
+    label: entry.name,
+    entries: [entry],
+    total: monthly(entry),
+  }));
+
   const handleImport = (rows) => {
     const imported = entryStore.importRows(rows);
     if (!imported.length) return;
@@ -1435,29 +1618,47 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                 <section data-group className="space-y-3 lg:col-span-2 lg:col-start-1 lg:row-start-2">
                   <div className="flex items-center justify-between px-1 gap-3">
                     <SectionTitle icon={List} label={t.all_subs} />
-                    <div className="relative hidden lg:block flex-1 max-w-[280px] ml-auto">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" />
-                      <input ref={searchRef} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={t.search_placeholder}
-                        className={`${INPUT_CLASS} bg-surface-2 pl-9 pr-9 py-2`} />
-                      {searchQuery && (
-                        <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink transition">
-                          <X className="w-4 h-4" />
-                        </button>
+                    <div ref={searchWrapRef} className="relative ml-auto">
+                      <button type="button"
+                        onClick={() => {
+                          const nextOpen = !searchOpen;
+                          setSearchOpen(nextOpen);
+                          if (nextOpen) setTimeout(() => searchRef.current?.focus(), 0);
+                        }}
+                        aria-label={t.search_placeholder}
+                        aria-expanded={searchOpen}
+                        title={t.search_placeholder}
+                        className={`inline-flex size-9 shrink-0 items-center justify-center rounded-lg border transition
+                          ${searchOpen || searchQuery
+                            ? 'bg-surface-sunken border-border-strong text-ink'
+                            : 'bg-surface-2 border-border text-ink-2 hover:bg-surface-3 hover:text-ink'}`}>
+                        <Search className="w-4 h-4" />
+                      </button>
+                      {searchOpen && (
+                        <div className={`absolute z-30 top-11 right-0 w-[280px] max-w-[calc(100vw-2.5rem)] p-2 ${PANEL}`}>
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" />
+                            <input ref={searchRef} value={searchQuery}
+                              onChange={e => setSearchQuery(e.target.value)}
+                              placeholder={t.search_placeholder}
+                              className={`${INPUT_CLASS} bg-surface-2 pl-9 pr-9 py-2`} />
+                            {searchQuery && (
+                              <button type="button" onClick={() => {
+                                setSearchQuery('');
+                                searchRef.current?.focus();
+                              }}
+                                aria-label={t.filter_reset}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink transition">
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                     <button onClick={cycleSortBy} className={btn('secondary', 'sm', 'shrink-0 lg:self-stretch text-xs')}>
                       <ArrowUpDown className="w-3.5 h-3.5" />{sortLabel}
                     </button>
-                  </div>
-                  <div className="relative px-1 lg:hidden">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" />
-                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={t.search_placeholder}
-                      className={`${INPUT_CLASS} bg-surface-2 pl-10 pr-10`} />
-                    {searchQuery && (
-                      <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink transition">
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
                   </div>
                   <FilterBar
                     kind={kindFilter} onKind={setKindFilter}
@@ -1470,7 +1671,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                     onReset={filtersActive ? () => { setKindFilter('all'); setPlaceFilter('all'); } : null} />
                   <EntryList
                     groups={groupedEntries} count={sortedEntries.length}
-                    docCounts={docCounts} searchQuery={searchQuery}
+                    docCounts={docCounts} searchQuery={searchQuery} menuKey={kindFilter}
                     fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
                     grouped={groupBy !== 'none'} filtered={filtersActive}
                     hint={!swipeHinted ? t.swipe_hint : null}
@@ -1596,6 +1797,15 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                   </div>
                 );
               })()}
+              <AnalyticsPieChart
+                datasets={{
+                  category: byCategory,
+                  kind: byKindTotals,
+                  location: byLocationTotals,
+                  entry: byEntryTotals,
+                }}
+                fmt={fmt}
+                active={activeTab === 'analytics'} />
               {byCategory.length > 0 && (
                 <div data-group className={`${CARD} p-5 space-y-4`}>
                   <p className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">{t.by_categories}</p>
@@ -3503,8 +3713,8 @@ const DetailSection = ({ icon: Icon, title, children }) => (
 );
 
 const DetailRow = ({ label, copy, children }) => (
-  <div className="flex items-start gap-3 px-4 py-2.5">
-    <span className="text-[11px] text-ink-3 w-[40%] shrink-0 leading-relaxed pt-0.5 lg:w-[34%]">{label}</span>
+  <div className="flex items-center gap-3 px-4 py-2.5">
+    <span className="text-[11px] text-ink-3 w-[40%] shrink-0 leading-relaxed lg:w-[34%]">{label}</span>
     <div className="min-w-0 flex-1 text-sm text-ink break-words">{children}</div>
     {copy && <CopyButton value={copy} />}
   </div>

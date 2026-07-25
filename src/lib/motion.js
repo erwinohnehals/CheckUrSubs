@@ -95,15 +95,16 @@ export const useSlidingPill = (activeKey) => {
   const pillRef  = useRef(null);
   const items    = useRef(new Map());
   const firstPaint = useRef(true);
+  const activeKeyRef = useRef(activeKey);
 
   const setItem = useCallback((key) => (el) => {
     if (el) items.current.set(key, el);
     else items.current.delete(key);
   }, []);
 
-  const move = useCallback((animate) => {
+  const move = useCallback((key, animate) => {
     const pill = pillRef.current;
-    const el   = items.current.get(activeKey);
+    const el   = items.current.get(key);
     if (!pill || !el) return;
 
     pill.style.transition = animate && !reducedMotion()
@@ -113,19 +114,22 @@ export const useSlidingPill = (activeKey) => {
     pill.style.width     = `${el.offsetWidth}px`;
     pill.style.height    = `${el.offsetHeight}px`;
     pill.style.opacity   = '1';
-  }, [activeKey]);
+  }, []);
 
   // Erster Anstrich schnappt, danach wird geglitten
   useLayoutEffect(() => {
-    move(!firstPaint.current);
+    activeKeyRef.current = activeKey;
+    move(activeKey, !firstPaint.current);
     firstPaint.current = false;
-  }, [move]);
+  }, [activeKey, move]);
 
-  // Layout-Änderungen (Schriftladen, Zähler, Resize) nachziehen
+  // Layout-Änderungen (Schriftladen, Zähler, Resize) nachziehen. Der Observer
+  // bleibt über Auswahlwechsel hinweg bestehen, damit sein initialer Aufruf
+  // eine gerade gestartete Gleitbewegung nicht mit einem Snap überschreibt.
   useEffect(() => {
     const track = trackRef.current;
     if (!track || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => move(false));
+    const observer = new ResizeObserver(() => move(activeKeyRef.current, false));
     observer.observe(track);
     return () => observer.disconnect();
   }, [move]);

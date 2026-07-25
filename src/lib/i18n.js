@@ -110,6 +110,12 @@ export const translations = {
 
     // Auswertung
     analytics_title:    'Auswertung',
+    category_breakdown: 'Kostenverteilung',
+    chart_other:        'Weitere',
+    chart_category:     'Kategorie',
+    chart_kind:         'Art',
+    chart_location:     'Adresse',
+    chart_entries:      'Einträge',
     by_categories:      'Nach Kategorie',
     by_subscriptions:   'Nach Eintrag',
     by_locations:       'Nach Adresse',
@@ -453,6 +459,12 @@ export const translations = {
 
     // Analytics
     analytics_title:    'Analytics',
+    category_breakdown: 'Cost breakdown',
+    chart_other:        'Other',
+    chart_category:     'Category',
+    chart_kind:         'Type',
+    chart_location:     'Address',
+    chart_entries:      'Entries',
     by_categories:      'By category',
     by_subscriptions:   'By entry',
     by_locations:       'By address',

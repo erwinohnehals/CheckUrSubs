@@ -23,6 +23,14 @@
   --ink-3:          168 162 158;  /* #A8A29E  gedämpft */
   --accent:         245 158  11;  /* #F59E0B  Bernstein */
   --accent-hover:   217 119   6;  /* #D97706 */
+
+  /* Gedämpfte Diagrammfarben — nur für Datenvisualisierungen */
+  --chart-1: #D97706;
+  --chart-2: #2563EB;
+  --chart-3: #7C3AED;
+  --chart-4: #059669;
+  --chart-5: #DB2777;
+  --chart-6: #0891B2;
 }
 
 .dark {
@@ -38,6 +46,13 @@
   --ink-3:          156 163 175;  /* #9CA3AF */
   --accent:         250 184 119;  /* #FAB877 */
   --accent-hover:   230 169 109;  /* #E6A96D */
+
+  --chart-1: #FBBF24;
+  --chart-2: #60A5FA;
+  --chart-3: #A78BFA;
+  --chart-4: #34D399;
+  --chart-5: #F472B6;
+  --chart-6: #22D3EE;
 }
 
 /* Semantische Marken für Tailwind. `inline` löst die Variablen erst am
@@ -207,6 +222,16 @@ html, body { overscroll-behavior: none; overscroll-behavior-x: none; }
 /* Balken in der Auswertung — wächst aus dem Boden */
 @keyframes bar-grow { from { transform: scaleY(0); } }
 @keyframes bar-fill { from { transform: scaleX(0); } }
+
+/* Diagrammsegmente kommen einzeln aus der Mitte */
+@keyframes pie-slice-in {
+  from { opacity: 0; transform: scale(0.72) rotate(-5deg); }
+}
+.pie-slice {
+  transform-box: view-box;
+  transform-origin: center;
+  transition: opacity 180ms ease, transform 240ms cubic-bezier(0.19, 1, 0.22, 1);
+}
 
 /* Druckfeedback — die Kurven stecken im Keyframe, angewandt mit `linear` */
 @keyframes btn-press {
