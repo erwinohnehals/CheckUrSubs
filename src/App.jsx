@@ -7,7 +7,7 @@ import {
   Wallet, Download, Upload, Smartphone, Droplets, Car, Radio, Dumbbell,
   Users, Lock, Eye, EyeOff, Copy, ExternalLink, Paperclip, FileText,
   AlertTriangle, KeyRound, Flame, Plug, Trash, HeartPulse, ClipboardList,
-  Sun, Moon, MapPin, Layers
+  Sun, Moon, MapPin, Layers, Archive
 } from 'lucide-react';
 import { createEntryStore, newId, kindForCategory, isBilled } from './lib/entryStore';
 import { LangContext, useLang, useT, APP_NAME } from './lib/i18n';
@@ -17,6 +17,13 @@ import {
 } from './lib/fieldTemplates';
 import * as vault from './lib/vault';
 import * as documentStore from './lib/documentStore';
+import * as backup from './lib/backup';
+import { toCSV, parseCSV } from './lib/csv';
+import {
+  MONTHS_SHORT, extractBillingDay, extractBillingMonth,
+  daysInMonth, clampDay, billingDateIn, startOfToday,
+  isDueWithinDays, wasActiveIn,
+} from './lib/billing';
 import { useTheme } from './lib/theme';
 import {
   STANDARD_EASE, POWER1_IN, POWER1_OUT, EXPO_OUT, DURATION,
@@ -110,9 +117,7 @@ const loadRates = () => {
 };
 
 // ─── Konstanten ───────────────────────────────────────────────────────────────
-// Kanonische Monatskürzel — so liegen jährliche Abbuchungsdaten gespeichert
-// ("8 Mar"). Angezeigt wird immer die übersetzte Variante aus t.months_short.
-const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// MONTHS_SHORT und alles rund um Abbuchungstermine stehen in lib/billing.js
 const TABS         = ['home', 'calendar', 'analytics'];
 const LOCALES      = { de: 'de-DE', en: 'en-US' };
 const localeOf     = (lang) => LOCALES[lang] || LOCALES.de;
@@ -332,28 +337,6 @@ const getLucideIcon = (entry) => {
 };
 
 // ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
-const extractBillingDay = (raw) => {
-  if (!raw) return null;
-  const m = String(raw).match(/\d+/);
-  if (!m) return null;
-  const d = parseInt(m[0], 10);
-  return (Number.isFinite(d) && d >= 1 && d <= 31) ? d : null;
-};
-
-// "8 Mar" → 2 (nullbasiert, wie Date.getMonth())
-const extractBillingMonth = (raw) => {
-  if (!raw) return null;
-  const parts = String(raw).trim().split(/\s+/);
-  if (parts.length < 2) return null;
-  const idx = MONTHS_SHORT.indexOf(parts[1]);
-  return idx >= 0 ? idx : null;
-};
-
-const startOfToday = () => {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-};
-
 const daysUntil = (isoDate) => {
   if (!isoDate) return null;
   const target = new Date(isoDate);
@@ -382,24 +365,6 @@ const cancelByDate = (entry) => {
   const rolled = new Date(deadline);
   while (rolled < today) rolled.setFullYear(rolled.getFullYear() + 1);
   return rolled.toISOString().split('T')[0];
-};
-
-const isDueWithinDays = (entry, days = 7) => {
-  const now        = new Date();
-  const billingDay = entry.billingDay ?? extractBillingDay(entry.date);
-  if (!billingDay) return false;
-
-  // Jährliche nur, wenn der Abbuchungsmonat der aktuelle ist
-  if (entry.period === 'yearly') {
-    const billingMonth = extractBillingMonth(entry.date);
-    if (billingMonth === null || billingMonth !== now.getMonth()) return false;
-  }
-
-  const today = startOfToday();
-  const thisMonth = new Date(today.getFullYear(), today.getMonth(), billingDay);
-  const target = thisMonth >= today ? thisMonth : new Date(today.getFullYear(), today.getMonth() + 1, billingDay);
-  const diff = Math.round((target - today) / 86400000);
-  return diff >= 0 && diff <= days;
 };
 
 // Preis in Originalwährung → USD als gemeinsame Rechengröße
@@ -1480,7 +1445,7 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                         </button>
                       )}
                     </div>
-                    <button onClick={cycleSortBy} className={btn('secondary', 'sm', 'shrink-0 text-xs')}>
+                    <button onClick={cycleSortBy} className={btn('secondary', 'sm', 'shrink-0 lg:self-stretch text-xs')}>
                       <ArrowUpDown className="w-3.5 h-3.5" />{sortLabel}
                     </button>
                   </div>
@@ -1574,12 +1539,12 @@ const App = ({ toggleLang, lang, theme, toggleTheme }) => {
                   return { year: d.getFullYear(), month: d.getMonth() };
                 });
 
-                // Для каждого месяца считаем реальные списания по датам биллинга
-                const monthlyTotals = months.map(({ month }) => {
+                // Für jeden Monat die tatsächlichen Abbuchungen — nur von Verträgen,
+                // die in diesem Monat schon (und noch) liefen.
+                const monthlyTotals = months.map(({ year, month }) => {
                   return entries.reduce((sum, s) => {
-                    if (s.status === 'paused') return sum;
-                    if (s.status === 'canceled') return sum; // отменённые больше не списываются
-                    if (s.status === 'trial') return sum; // пробные не списываются
+                    if (!isBilled(s)) return sum;
+                    if (!wasActiveIn(s, year, month)) return sum;
 
                     const billingDay   = extractBillingDay(s.date);
                     const billingMonth = extractBillingMonth(s.date); // null для месячных
@@ -2284,6 +2249,7 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
   const [open, setOpen] = useState(false);
   const [importStatus, setImportStatus] = useState(null); // null | 'ok' | 'err'
   const [importMsg, setImportMsg]       = useState('');
+  const [backupBusy, setBackupBusy]     = useState(false);
   const close    = useCallback(() => setOpen(false), []);
   const ref      = useDismiss(open, close);
   const fileRef  = useRef(null);
@@ -2295,14 +2261,8 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
     'date', 'trial_end', 'contract_start', 'contract_end', 'notice_period_months', 'url',
   ];
 
-  const csvCell = (value) => {
-    const text = String(value ?? '');
-    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-  };
-
   const exportCSV = () => {
-    const rows = entries.map(entry => CSV_HEADERS.map(h => csvCell(entry[h])).join(','));
-    download('gold-und-geld-export.csv', 'text/csv', [CSV_HEADERS.join(','), ...rows].join('\n'));
+    download('gold-und-geld-export.csv', 'text/csv', toCSV(CSV_HEADERS, entries));
   };
 
   // Verschlüsselte Passwörter kommen mit — zusammen mit den Tresor-Metadaten
@@ -2323,20 +2283,30 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
     a.href = URL.createObjectURL(new Blob([content], { type: mime }));
     a.download = filename;
     a.click();
-    URL.revokeObjectURL(a.href);
+    // Große Sicherungen brauchen einen Moment, bis der Browser sie geschrieben hat
+    setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+  };
+
+  // ── Sicherung ──────────────────────────────────────────────────────────────
+  // Der Unterschied zum Export: hier kommen Dokumente, Einstellungen und die
+  // Tresor-Metadaten mit. Das ist die Datei, aus der sich ein Gerät vollständig
+  // wiederherstellen lässt — ohne Kompression, dafür ohne fremde Bibliothek.
+  const exportBackup = async () => {
+    setBackupBusy(true);
+
+    try {
+      const payload = await backup.createBackup({ entries });
+      download(backup.backupFilename(), 'application/json', JSON.stringify(payload));
+    } catch {
+      setImportMsg(t.io_backup_err);
+      setImportStatus('err');
+      setTimeout(() => setImportStatus(null), 3500);
+    }
+
+    setBackupBusy(false);
   };
 
   // ── Import ─────────────────────────────────────────────────────────────────
-  const parseCSV = (text) => {
-    const lines = text.trim().split(/\r?\n/);
-    const headers = lines[0].split(',').map(h => h.trim());
-    return lines.slice(1).map(line => {
-      const values = line.split(',');
-      return Object.fromEntries(headers.map((h, i) =>
-        [h, (values[i] ?? '').trim().replace(/^"|"$/g, '')]));
-    });
-  };
-
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -2349,6 +2319,22 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
 
       if (file.name.endsWith('.json')) {
         const parsed = JSON.parse(text);
+
+        // Eine Sicherung wird nicht dazugemischt, sie tritt an die Stelle des
+        // bisherigen Stands — deshalb erst fragen, dann alles ersetzen.
+        if (backup.isBackup(parsed)) {
+          if (!window.confirm(t.io_restore_confirm)) return;
+
+          const result = await backup.restoreBackup(parsed, { entryStore });
+          setImportMsg(t.io_restore_ok(result.entries));
+          setImportStatus('ok');
+
+          // Sprache, Farbschema und Währung stecken in den Einstellungen —
+          // ein Neuladen ist der ehrlichste Weg, sie überall wirken zu lassen.
+          setTimeout(() => window.location.reload(), 900);
+          return;
+        }
+
         rows = Array.isArray(parsed) ? parsed : parsed?.entries ?? [];
 
         // Tresor übernehmen, solange lokal keiner existiert — sonst sind die
@@ -2399,6 +2385,19 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
           <p className="text-[11px] text-ink-3 mt-2">{t.io_docs_note}</p>
         </div>
 
+        {/* Полная резервная копия */}
+        <div data-menu-item className="px-3 py-2 border-t border-border mt-1 pt-3">
+          <div className="flex items-center gap-2 mb-2 text-ink">
+            <Archive className="w-4 h-4 text-ink-2" />
+            <span className="text-sm font-medium">{t.io_backup}</span>
+          </div>
+          <button onClick={exportBackup} disabled={backupBusy}
+            className={btn('secondary', 'sm', 'w-full text-xs disabled:opacity-60')}>
+            {backupBusy ? t.io_backup_busy : t.io_backup_btn}
+          </button>
+          <p className="text-[11px] text-ink-3 mt-2">{t.io_backup_note}</p>
+        </div>
+
         {/* Импорт */}
         <div data-menu-item className="px-3 py-2 border-t border-border mt-1 pt-3">
           <div className="flex items-center gap-2 mb-2 text-ink">
@@ -2410,6 +2409,7 @@ const ImportExportMenu = ({ entries, onImport, vaultState }) => {
             {t.io_import_btn}
           </button>
           <input ref={fileRef} type="file" accept=".csv,.json" className="hidden" onChange={handleFile} />
+          <p className="text-[11px] text-ink-3 mt-2">{t.io_restore_hint}</p>
           {importStatus && (
             <p className={`text-[11px] text-center mt-2 ${importStatus === 'ok' ? 'text-success' : 'text-error'}`}>
               {importMsg}
@@ -2427,7 +2427,7 @@ const CalendarSection = ({ entries, fmt, fmtReal, monthly, month, year, onPrev, 
   const isDesktop   = useIsDesktop();
   const today       = new Date();
   const isToday     = (d) => d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthLength = daysInMonth(year, month);
   const offset      = (new Date(year, month, 1).getDay() + 6) % 7;
 
   const visibleSubs = entries.filter(entry => {
@@ -2448,8 +2448,8 @@ const CalendarSection = ({ entries, fmt, fmtReal, monthly, month, year, onPrev, 
       return;
     }
 
-    const d = entry.billingDay ?? extractBillingDay(entry.date);
-    if (!d || d < 1 || d > daysInMonth) return;
+    const raw = entry.billingDay ?? extractBillingDay(entry.date);
+    if (!raw || raw < 1) return;
 
     // Годовые — только в тот месяц когда реально списывается
     if (entry.period === 'yearly') {
@@ -2457,11 +2457,15 @@ const CalendarSection = ({ entries, fmt, fmtReal, monthly, month, year, onPrev, 
       if (billingMonth === null || billingMonth !== month) return;
     }
 
+    // Der 31. wird im Februar zum 28. — sonst fiele der Eintrag aus dem Raster,
+    // obwohl die Monatssumme ihn weiter mitzählt.
+    const d = clampDay(year, month, raw);
+
     if (!subsByDay[d]) subsByDay[d] = [];
     subsByDay[d].push(entry);
   });
 
-  const cells = [...Array(offset).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+  const cells = [...Array(offset).fill(null), ...Array.from({ length: monthLength }, (_, i) => i + 1)];
 
   // Punktfarben: Testphase warnt, Jahreszahlung ist kräftiger, sonst Tinte
   const dotClass = (entry, onInk) => {
@@ -2659,6 +2663,14 @@ const DeadlinesSection = ({ deadlines, onOpen, className = '' }) => {
 };
 
 // ─── Komponenten ──────────────────────────────────────────────────────────────
+// Ein Symbol, das erst zur Laufzeit feststeht, wird als Prop gereicht statt im
+// Render zu einer Komponente erklärt: sonst sieht React bei jedem Durchlauf eine
+// neue Komponente und hängt sie samt Zustand neu ein — die Merkerkennung für
+// kaputte Favicons ginge dabei jedes Mal verloren.
+const Glyph = ({ icon: Icon, className, strokeWidth = 1.75 }) => (
+  <Icon className={className} strokeWidth={strokeWidth} />
+);
+
 const SectionTitle = ({ icon: Icon, label }) => (
   <div className="flex items-center gap-2 px-1">
     <Icon className="w-4 h-4 text-ink-3" strokeWidth={2} />
@@ -2670,12 +2682,12 @@ const LogoIcon = ({ entry, size = 'md' }) => {
   const [err, setErr] = useState(false);
   const wrap = size === 'sm' ? 'w-9 h-9' : 'w-10 h-10';
   const img  = size === 'sm' ? 'w-5 h-5' : 'w-6 h-6';
-  const LucideIcon = getLucideIcon(entry);
-  const url  = !err && !LucideIcon ? getLogoUrl(entry) : null;
+  const glyph = getLucideIcon(entry);
+  const url  = !err && !glyph ? getLogoUrl(entry) : null;
   return (
     <div className={`${wrap} bg-surface-3 rounded-lg flex items-center justify-center overflow-hidden shrink-0`}>
-      {LucideIcon
-        ? <LucideIcon className={`${img} text-ink-2`} strokeWidth={1.75} />
+      {glyph
+        ? <Glyph icon={glyph} className={`${img} text-ink-2`} />
         : url
           ? <img src={url} className={`${img} object-contain`} alt="" onError={() => setErr(true)} />
           : <CreditCard className="w-4 h-4 text-ink-2" strokeWidth={1.75} />}
@@ -2717,8 +2729,9 @@ const SoonCard = ({ entry, fmtOriginal }) => {
     } else {
       const day = entry.billingDay ?? extractBillingDay(entry.date);
       if (!day) return null;
-      target = new Date(today.getFullYear(), today.getMonth(), day);
-      if (target < today) target.setMonth(target.getMonth() + 1);
+      target = billingDateIn(today.getFullYear(), today.getMonth(), day);
+      // Im Folgemonat neu stauchen — der 31. liegt dort vielleicht gar nicht
+      if (target < today) target = billingDateIn(today.getFullYear(), today.getMonth() + 1, day);
     }
     return Math.round((target - today) / 86400000);
   })();
@@ -3040,8 +3053,9 @@ const FieldGroup = ({ label, hint, children, className = '' }) => (
   </div>
 );
 
-// Abschnittsüberschrift — der einzige Taktgeber in langen Formularen
-const SectionTitle = ({ children, className = '' }) => (
+// Abschnittsüberschrift im Formular — der einzige Taktgeber in langen Masken.
+// (SectionTitle weiter oben trägt Symbol und Rahmen und gehört den Seiten.)
+const GroupTitle = ({ children, className = '' }) => (
   <p className={`text-[11px] uppercase tracking-[0.16em] text-ink-3 px-1 ${className}`}>{children}</p>
 );
 
@@ -3909,7 +3923,9 @@ const CategoryPicker = ({ value, onChange }) => {
   const t = useT();
   const [open,  setOpen]  = useState(false);
   const [query, setQuery] = useState('');
-  const close = useCallback(() => setOpen(false), []);
+  // Die Suche wird beim Schließen geleert, nicht beim Öffnen — so steht das
+  // Feld schon leer da, wenn die Liste hereinkommt
+  const close = useCallback(() => { setOpen(false); setQuery(''); }, []);
   const ref = useDismiss(open, close);
   const searchRef = useRef(null);
 
@@ -3917,7 +3933,7 @@ const CategoryPicker = ({ value, onChange }) => {
   const Icon = cat?.icon || Layers;
 
   useEffect(() => {
-    if (!open) { setQuery(''); return; }
+    if (!open) return;
     const id = setTimeout(() => searchRef.current?.focus(), 40);
     return () => clearTimeout(id);
   }, [open]);
@@ -3925,11 +3941,11 @@ const CategoryPicker = ({ value, onChange }) => {
   const q = query.trim().toLowerCase();
   const matches = q ? CATEGORIES.filter(c => t[c.labelKey].toLowerCase().includes(q)) : CATEGORIES;
 
-  const pick = (id) => { onChange(id); setOpen(false); };
+  const pick = (id) => { onChange(id); close(); };
 
   return (
     <div ref={ref} className="relative">
-      <button type="button" onClick={() => setOpen(o => !o)} aria-haspopup="listbox" aria-expanded={open}
+      <button type="button" onClick={() => (open ? close() : setOpen(true))} aria-haspopup="listbox" aria-expanded={open}
         className={`${INPUT_CLASS} flex items-center gap-2.5 text-left hover:bg-surface-3`}>
         <Icon className={`w-4 h-4 shrink-0 ${cat ? 'text-ink-2' : 'text-ink-3'}`} />
         <span className={`flex-1 truncate ${cat ? 'text-ink' : 'text-ink-3'}`}>
@@ -4028,11 +4044,12 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
   const [secretTouched, setSecretTouched] = useState(false);
   const [secretError,   setSecretError]   = useState('');
 
-  const [suggestions,     setSuggestions]     = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  // Die Vorschläge werden aus dem Namen abgeleitet, nicht in einem Effekt
+  // nachgezogen — ein Effekt löste sonst pro Tastendruck einen zweiten Render aus.
+  // Gemerkt wird nur, ob die Liste weggeklickt wurde.
+  const [suggestionsDismissed, setSuggestionsDismissed] = useState(false);
   const [dayError, setDayError] = useState(false);
   const [saving,   setSaving]   = useState(false);
-  const justApplied = useRef(false);
   const priceRef    = useRef(null);
   const nameRef     = useRef(null);
 
@@ -4069,27 +4086,28 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
   }, [vaultState, initial?.login_secret, secretTouched, t.vault_decrypt_err]);
 
   // Autovervollständigung aus dem Anbieterkatalog
-  useEffect(() => {
-    if (justApplied.current) { justApplied.current = false; return; }
-    const q = name.trim().toLowerCase();
-    if (q.length < 1) { setSuggestions([]); setShowSuggestions(false); return; }
+  const query = name.trim().toLowerCase();
+  const suggestions = query
+    ? SERVICE_CATALOG.filter(s =>
+        s.name.toLowerCase().includes(query) ||
+        (s.aliases || []).some(a => a.toLowerCase().includes(query))
+      ).slice(0, 5)
+    : [];
 
-    const matches = SERVICE_CATALOG.filter(s =>
-      s.name.toLowerCase().includes(q) ||
-      (s.aliases || []).some(a => a.toLowerCase().includes(q))
-    ).slice(0, 5);
+  // Beim Bearbeiten schweigt der Katalog — der Name steht ja schon fest
+  const showSuggestions = !initial && !suggestionsDismissed && suggestions.length > 0;
 
-    setSuggestions(matches);
-    setShowSuggestions(matches.length > 0 && !initial);
-  }, [name, initial]);
+  // Tippen holt die Liste zurück, nachdem sie einmal weg war
+  const changeName = (value) => {
+    setName(value);
+    setSuggestionsDismissed(false);
+  };
 
   const applySuggestion = (service) => {
-    justApplied.current = true;
     setName(service.name);
     setCategory(service.category);
     if (!provider) setProvider(service.name);
-    setShowSuggestions(false);
-    setSuggestions([]);
+    setSuggestionsDismissed(true);
     setTimeout(() => priceRef.current?.focus(), 50);
   };
 
@@ -4205,177 +4223,211 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
   const hasFilingData = Boolean(url || username || secret || loginNote || initial?.login_secret);
 
   const tabMark = (id) => {
-    if (tabError === id)                 return <span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" />;
-    if (id === 'filing' && docCount > 0) return <span className="text-[10px] leading-none text-ink-3 tabular-nums shrink-0">{docCount}</span>;
-    if (id === 'contract' && hasContractData) return <span className="w-1.5 h-1.5 rounded-full bg-ink-3 shrink-0" />;
-    if (id === 'filing'   && hasFilingData)   return <span className="w-1.5 h-1.5 rounded-full bg-ink-3 shrink-0" />;
+    if (tabError === id)
+      return <span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" />;
+    if (id === 'filing' && docCount > 0)
+      return <span title={t.tab_filled} className="text-[10px] leading-none text-ink-3 tabular-nums shrink-0">{docCount}</span>;
+    if ((id === 'contract' && hasContractData) || (id === 'filing' && hasFilingData))
+      return <span title={t.tab_filled} className="w-1.5 h-1.5 rounded-full bg-ink-3 shrink-0" />;
     return null;
   };
 
   return (
     <Overlay open={open} onClose={onClose} sheet={!isDesktop} labelledBy="entry-modal-title"
       panelClass={isDesktop
-        ? 'inset-0 m-auto h-fit w-[680px] max-h-[88vh] overflow-y-auto desktop-scroll bg-surface-2 rounded-2xl p-8 border border-border shadow-2xl'
-        : 'inset-x-3 bottom-3 top-14 overflow-y-auto bg-surface-2 rounded-2xl p-5 border border-border max-w-[450px] mx-auto shadow-2xl'}>
+        ? 'inset-0 m-auto h-fit w-[680px] max-h-[88vh] flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border shadow-2xl'
+        : 'inset-x-3 bottom-3 top-14 flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border max-w-[450px] mx-auto shadow-2xl'}>
 
-        <h2 id="entry-modal-title" className="text-xl font-semibold tracking-tight mb-5 lg:text-2xl">
-          {initial ? t.modal_edit : t.modal_new}
-        </h2>
+        {/* ── Kopf: bleibt stehen, damit Titel und Reiter nie wegscrollen ── */}
+        <header className="shrink-0 border-b border-border px-5 pt-5 pb-3 lg:px-7 lg:pt-6">
+          <div className="flex items-start gap-3">
+            <span className="w-10 h-10 rounded-xl bg-surface border border-border flex items-center justify-center shrink-0">
+              <HeaderIcon className="w-5 h-5 text-ink-2" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 id="entry-modal-title" className="text-lg lg:text-xl font-semibold tracking-tight truncate">
+                {initial ? (name.trim() || t.modal_edit) : t.modal_new}
+              </h2>
+              {(subtitle || initial) && (
+                <p className="text-xs text-ink-3 truncate mt-0.5">{subtitle || t.modal_edit}</p>
+              )}
+            </div>
+            <button type="button" onClick={onClose} title={t.detail_close} aria-label={t.detail_close}
+              className="w-9 h-9 -mt-1 -mr-2 shrink-0 rounded-lg flex items-center justify-center
+                text-ink-3 hover:text-ink hover:bg-surface-3 transition">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
 
-        {/* Reiter — die Markierung gleitet mit */}
-        <Segmented
-          items={MODAL_TABS.map(({ id, labelKey, icon }) => ({ id, label: t[labelKey], icon }))}
-          value={tab} onChange={setTab}
-          className="w-full mb-5"
-          layout="grid grid-cols-4"
-          trackClass="bg-surface border border-border rounded-lg"
-          itemClass="flex items-center justify-center gap-1.5 py-2 text-xs"
-          renderItem={(item) => (
-            <>
-              <item.icon className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline">{item.label}</span>
-            </>
-          )} />
+          {/* Reiter — die Markierung gleitet mit, der Punkt verrät gefüllte Felder */}
+          <Segmented
+            items={MODAL_TABS.map(({ id, labelKey, icon }) => ({ id, label: t[labelKey], icon, mark: tabMark(id) }))}
+            value={tab} onChange={setTab}
+            className="w-full mt-4"
+            layout="grid grid-cols-3"
+            trackClass="bg-surface border border-border rounded-lg"
+            itemClass="flex items-center justify-center gap-1.5 py-2 text-xs"
+            renderItem={(item) => (
+              <>
+                <item.icon className="w-4 h-4 shrink-0" />
+                <span className="truncate">{item.label}</span>
+                {item.mark}
+              </>
+            )} />
+        </header>
+
+        {/* ── Rumpf: der einzige Bereich, der scrollt ── */}
+        <div className="flex-1 min-h-0 overflow-y-auto desktop-scroll px-5 py-5 lg:px-7 lg:py-6">
 
         {/* ── Basis ── */}
         {tab === 'basics' && (
-          <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
-            <div className="relative lg:col-span-2">
-              <input placeholder={t.modal_name_placeholder} className={INPUT_CLASS}
-                value={name} onChange={e => setName(e.target.value)}
-                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)} />
-              <PopMenu open={showSuggestions} className="top-full mt-1 left-0 right-0" width="">
-                {suggestions.map(service => {
-                  const cat = getCat(service.category);
-                  const ServiceIcon = service.lucideIcon || null;
-                  return (
-                    <MenuItem key={service.name}
-                      onMouseDown={e => { e.preventDefault(); applySuggestion(service); }}
-                      onTouchEnd={e => { e.preventDefault(); applySuggestion(service); }}>
-                      {ServiceIcon
-                        ? <ServiceIcon className="w-5 h-5 shrink-0" />
-                        : <img src={faviconUrl(service.domain, 32)} className="w-5 h-5 rounded object-contain shrink-0" alt=""
-                            onError={e => { e.target.style.display = 'none'; }} />}
-                      <span className="flex-1 text-ink">{service.name}</span>
-                      {cat && <CategoryBadge cat={cat} tiny />}
-                    </MenuItem>
-                  );
-                })}
-              </PopMenu>
-            </div>
+          <div className="space-y-6">
 
-            <input placeholder={t.modal_provider_placeholder} className={`${INPUT_CLASS} lg:col-span-2`}
-              value={provider} onChange={e => setProvider(e.target.value)} />
+            {/* Was & wie viel */}
+            <section className="space-y-3">
+              <GroupTitle>{t.sec_money}</GroupTitle>
 
-            {/* Betrag + Währung */}
-            <div className="flex gap-2 lg:col-span-1">
-              <div className="relative flex-1">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-2 text-sm pointer-events-none">{curr.symbol}</span>
-                <input ref={priceRef} type="number" inputMode="decimal" placeholder={t.modal_price_placeholder}
-                  className={`${INPUT_CLASS} pl-9`}
-                  value={price} onChange={e => setPrice(e.target.value)} />
+              <div className="relative">
+                <FieldShell label={t.field_name}>
+                  <input ref={nameRef} placeholder={t.modal_name_hint} className={INPUT_CLASS}
+                    value={name} onChange={e => changeName(e.target.value)}
+                    onFocus={() => setSuggestionsDismissed(false)} />
+                </FieldShell>
+                <PopMenu open={showSuggestions} className="top-full mt-1 left-0 right-0" width="">
+                  {suggestions.map(service => {
+                    const serviceCat  = getCat(service.category);
+                    const ServiceIcon = service.lucideIcon || null;
+                    return (
+                      <MenuItem key={service.name}
+                        onMouseDown={e => { e.preventDefault(); applySuggestion(service); }}
+                        onTouchEnd={e => { e.preventDefault(); applySuggestion(service); }}>
+                        {ServiceIcon
+                          ? <ServiceIcon className="w-5 h-5 shrink-0" />
+                          : <img src={faviconUrl(service.domain, 32)} className="w-5 h-5 rounded object-contain shrink-0" alt=""
+                              onError={e => { e.target.style.display = 'none'; }} />}
+                        <span className="flex-1 text-ink">{service.name}</span>
+                        {serviceCat && <CategoryBadge cat={serviceCat} tiny />}
+                      </MenuItem>
+                    );
+                  })}
+                </PopMenu>
               </div>
-              <ModalCurrencySelector value={modalCurrency} onChange={setModalCurrency} />
-            </div>
 
-            {/* Rhythmus */}
-            <Segmented
-              items={[
-                { id: 'monthly', label: t.modal_monthly },
-                { id: 'yearly',  label: t.modal_yearly },
-              ]}
-              value={period}
-              onChange={p => { setPeriod(p); if (p === 'monthly') setMonth(''); }}
-              className="w-full lg:col-span-1"
-              layout="grid grid-cols-2"
-              trackClass="bg-surface border border-border rounded-lg"
-              itemClass="py-2 text-sm" />
+              <FieldShell label={t.field_provider}>
+                <input placeholder={t.modal_provider_hint} className={INPUT_CLASS}
+                  value={provider} onChange={e => setProvider(e.target.value)} />
+              </FieldShell>
 
-            {/* Status */}
-            <Segmented
-              items={[
-                { id: 'active',   label: t.modal_status_active,   tone: 'success' },
-                { id: 'paused',   label: t.modal_status_paused,   tone: 'error' },
-                { id: 'trial',    label: t.modal_status_trial,    tone: 'warning' },
-                { id: 'canceled', label: t.modal_status_canceled, tone: 'muted' },
-              ]}
-              value={status} onChange={setStatus}
-              className="w-full lg:col-span-2"
-              layout="grid grid-cols-2 lg:grid-cols-4"
-              trackClass="bg-surface border border-border rounded-lg"
-              itemClass="flex items-center justify-center gap-2 py-2 text-xs"
-              renderItem={(item, active) => (
-                <>
-                  <span className={`w-1.5 h-1.5 rounded-full transition-opacity ${DOT[item.tone]} ${active ? 'opacity-100' : 'opacity-40'}`} />
-                  {item.label}
-                </>
-              )} />
+              <div className="grid gap-3 lg:grid-cols-2">
+                <FieldGroup label={t.field_amount}>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-2 text-sm pointer-events-none">{curr.symbol}</span>
+                      <input ref={priceRef} type="number" inputMode="decimal" placeholder={t.modal_price_placeholder}
+                        className={`${INPUT_CLASS} pl-9`}
+                        value={price} onChange={e => setPrice(e.target.value)} />
+                    </div>
+                    <ModalCurrencySelector value={modalCurrency} onChange={setModalCurrency} />
+                  </div>
+                </FieldGroup>
 
-            {status === 'trial' && (
-              <div className="lg:col-span-2">
-                <DatePicker value={trialEnd} onChange={setTrialEnd} label={t.modal_trial_end} />
+                <FieldGroup label={t.field_period}>
+                  <Segmented
+                    items={[
+                      { id: 'monthly', label: t.modal_monthly },
+                      { id: 'yearly',  label: t.modal_yearly },
+                    ]}
+                    value={period}
+                    onChange={p => { setPeriod(p); if (p === 'monthly') setMonth(''); }}
+                    className="w-full"
+                    layout="grid grid-cols-2"
+                    trackClass="bg-surface border border-border rounded-lg"
+                    itemClass="py-2 text-sm" />
+                </FieldGroup>
               </div>
-            )}
+            </section>
 
-            {/* Abbuchungsdatum — bei Testphasen liefert trial_end das Datum */}
-            {status !== 'trial' && (
-              <div className="space-y-1.5 lg:col-span-2">
-                <p className="text-[11px] text-ink-3 px-1">
-                  {period === 'yearly' ? t.modal_billing_date : t.modal_billing_day}
-                </p>
-                <div className="flex gap-2">
-                  <input type="number" inputMode="numeric" min="1" max="31"
-                    placeholder={period === 'yearly' ? t.modal_day_placeholder : t.modal_day_billing_placeholder}
-                    className={`${INPUT_CLASS} ${period === 'yearly' ? 'flex-1' : 'w-full'}
-                      ${dayError ? 'border-error shake' : ''}`}
-                    value={day}
-                    onChange={e => { const v = e.target.value; if (v === '' || (Number(v) >= 1 && Number(v) <= 31)) setDay(v); }} />
-                  {period === 'yearly' && (
-                    <div className="flex-1"><MonthPicker value={month} onChange={setMonth} /></div>
-                  )}
-                </div>
-              </div>
-            )}
+            {/* Status & Abbuchung */}
+            <section className="space-y-3">
+              <GroupTitle>{t.sec_status}</GroupTitle>
 
-            {/* Kategorie */}
-            <div className="flex flex-wrap gap-1.5 lg:col-span-2">
-              {CATEGORIES.map(cat => {
-                const Icon   = cat.icon;
-                const active = category === cat.id;
-                return (
-                  <button key={cat.id} type="button" onClick={() => setCategory(active ? '' : cat.id)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition
-                      ${active
-                        ? 'bg-ink text-surface border-ink'
-                        : 'bg-surface border-border text-ink-2 hover:bg-surface-3 hover:text-ink'}`}>
-                    <Icon className="w-3.5 h-3.5" />{t[cat.labelKey]}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Art — Abo oder laufende Fixkosten */}
-            <div className="space-y-1.5 lg:col-span-2">
-              <p className="text-[11px] text-ink-3 px-1">{t.kind_label}</p>
               <Segmented
-                items={KINDS.map(k => ({ id: k.id, label: t[k.labelKey], icon: k.icon }))}
-                value={kind} onChange={setKindChoice}
+                items={[
+                  { id: 'active',   label: t.modal_status_active,   tone: 'success' },
+                  { id: 'paused',   label: t.modal_status_paused,   tone: 'error' },
+                  { id: 'trial',    label: t.modal_status_trial,    tone: 'warning' },
+                  { id: 'canceled', label: t.modal_status_canceled, tone: 'muted' },
+                ]}
+                value={status} onChange={setStatus}
                 className="w-full"
-                layout="grid grid-cols-2"
+                layout="grid grid-cols-2 lg:grid-cols-4"
                 trackClass="bg-surface border border-border rounded-lg"
                 itemClass="flex items-center justify-center gap-2 py-2 text-xs"
-                renderItem={(item) => (
+                renderItem={(item, active) => (
                   <>
-                    <item.icon className="w-3.5 h-3.5 shrink-0" />
+                    <span className={`w-1.5 h-1.5 rounded-full transition-opacity ${DOT[item.tone]} ${active ? 'opacity-100' : 'opacity-40'}`} />
                     {item.label}
                   </>
                 )} />
-              <p className="text-[11px] text-ink-3 px-1">{t.kind_hint}</p>
-            </div>
 
-            {/* Adresse — der Ort, an dem der Vertrag hängt */}
-            <div className="space-y-1.5 lg:col-span-2">
-              <FieldShell label={t.location_label} hint={t.location_hint}>
+              {/* Bei Testphasen liefert das Ende der Testphase das Datum */}
+              {status === 'trial' ? (
+                <DatePicker value={trialEnd} onChange={setTrialEnd} label={t.modal_trial_end} />
+              ) : (
+                <FieldGroup label={period === 'yearly' ? t.modal_billing_date : t.modal_billing_day}>
+                  <div className="flex items-center gap-2">
+                    <input type="number" inputMode="numeric" min="1" max="31" placeholder="15"
+                      className={`${INPUT_CLASS} w-20 shrink-0 text-center ${dayError ? 'border-error shake' : ''}`}
+                      value={day}
+                      onChange={e => { const v = e.target.value; if (v === '' || (Number(v) >= 1 && Number(v) <= 31)) setDay(v); }} />
+                    {period === 'yearly'
+                      ? <div className="flex-1"><MonthPicker value={month} onChange={setMonth} /></div>
+                      : <span className="text-xs text-ink-3">{t.modal_billing_suffix}</span>}
+                  </div>
+                </FieldGroup>
+              )}
+            </section>
+
+            {/* Einordnung */}
+            <section className="space-y-3">
+              <GroupTitle>{t.sec_place}</GroupTitle>
+
+              <FieldGroup label={t.cat_label}>
+                <CategoryPicker value={category} onChange={setCategory} />
+              </FieldGroup>
+
+              {/* Die Art folgt der Kategorie — sie steht als Satz da, bis jemand widerspricht */}
+              {kindOpen ? (
+                <FieldGroup label={t.kind_label} hint={t.kind_hint}>
+                  <Segmented
+                    items={KINDS.map(k => ({ id: k.id, label: t[k.labelKey], icon: k.icon }))}
+                    value={kind} onChange={setKindChoice}
+                    className="w-full"
+                    layout="grid grid-cols-2"
+                    trackClass="bg-surface border border-border rounded-lg"
+                    itemClass="flex items-center justify-center gap-2 py-2 text-xs"
+                    renderItem={(item) => (
+                      <>
+                        <item.icon className="w-3.5 h-3.5 shrink-0" />
+                        {item.label}
+                      </>
+                    )} />
+                </FieldGroup>
+              ) : (
+                <div className="flex items-center gap-2 px-1">
+                  <KindIcon className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+                  <span className="text-xs text-ink-2">
+                    {t.kind_label}: <span className="text-ink">{t[activeKind.oneKey]}</span>
+                  </span>
+                  <button type="button" onClick={() => setKindOpen(true)}
+                    className="text-xs text-ink-3 hover:text-ink underline underline-offset-2 transition">
+                    {t.kind_change}
+                  </button>
+                </div>
+              )}
+
+              {/* Adresse — der Ort, an dem der Vertrag hängt */}
+              <FieldShell label={t.location_label} hint={locations.length ? '' : t.location_hint}>
                 <div className="relative">
                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" />
                   <input className={`${INPUT_CLASS} pl-10`} placeholder={t.location_placeholder}
@@ -4399,23 +4451,20 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
                   })}
                 </div>
               )}
-            </div>
 
-            <div className="lg:col-span-2">
               <FieldShell label={t.modal_notes}>
                 <textarea rows={2} className={`${INPUT_CLASS} resize-none`} placeholder={t.modal_notes_placeholder}
                   value={notes} onChange={e => setNotes(e.target.value)} />
               </FieldShell>
-            </div>
+            </section>
           </div>
         )}
 
-        {/* ── Details ── */}
-        {tab === 'details' && (
-          <div className="space-y-5">
-            {/* Laufzeit & Kündigungsfrist */}
+        {/* ── Vertrag: Laufzeit, Frist und die Felder der Kategorie ── */}
+        {tab === 'contract' && (
+          <div className="space-y-6">
             <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-ink-3">{t.contract_section}</p>
+              <GroupTitle className="px-0">{t.contract_section}</GroupTitle>
 
               <div className="grid grid-cols-2 gap-3">
                 <FieldShell label={t.contract_start}>
@@ -4440,9 +4489,33 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
               )}
             </div>
 
+            {/* Kündigungshilfe aus dem Katalog — sie gehört neben die Frist */}
+            {catalogEntry?.cancelUrl && (
+              <div className="rounded-xl border border-border bg-surface overflow-hidden">
+                <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
+                  <X className="w-4 h-4 text-ink-3 shrink-0" />
+                  <span className="text-xs text-ink-2">
+                    {t.cancel_how}
+                    <a href={catalogEntry.cancelUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-ink hover:text-ink-2 transition underline underline-offset-2">
+                      {t.cancel_link}
+                    </a>
+                  </span>
+                </div>
+                <div className="px-4 py-3 space-y-2">
+                  {catalogEntry.cancelSteps.map((step, i) => (
+                    <div key={i} className="flex items-start gap-2.5">
+                      <span className="text-[11px] font-medium text-ink-3 mt-px shrink-0 w-3">{i + 1}.</span>
+                      <span className="text-xs text-ink-2 leading-relaxed">{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Kategoriespezifische Felder */}
-            <div className="space-y-3">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-ink-3 px-1">{t.details_template}</p>
+            <section className="space-y-3">
+              <GroupTitle>{t.details_template}</GroupTitle>
               {!category && <p className="text-xs text-ink-3 px-1">{t.details_empty}</p>}
               <div className="grid gap-3 lg:grid-cols-2">
                 {templateFields.map(field => (
@@ -4450,99 +4523,84 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
                     value={fields[field.id] || ''} onChange={value => setField(field.id, value)} />
                 ))}
               </div>
-            </div>
+            </section>
 
             {/* Abrechnung & Kontakt */}
-            <div className="space-y-3">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-ink-3 px-1">{t.details_common}</p>
+            <section className="space-y-3">
+              <GroupTitle>{t.details_common}</GroupTitle>
               <div className="grid gap-3 lg:grid-cols-2">
                 {COMMON_FIELDS.map(field => (
                   <TemplateField key={field.id} field={field}
                     value={fields[field.id] || ''} onChange={value => setField(field.id, value)} />
                 ))}
               </div>
-            </div>
+            </section>
 
             <CustomFields custom={custom} onChange={setCustom} />
           </div>
         )}
 
-        {/* ── Zugang ── */}
-        {tab === 'access' && (
-          <div className="space-y-3">
-            <FieldShell label={t.access_url}>
-              <div className="flex gap-2">
-                <input type="url" className={INPUT_CLASS} placeholder="https://..."
-                  value={url} onChange={e => setUrl(e.target.value)} />
-                <a href={url || undefined} target="_blank" rel="noopener noreferrer" title={t.access_open}
-                  className={`w-11 shrink-0 rounded-lg border border-border flex items-center justify-center transition ${url ? 'text-ink-2 hover:text-ink hover:bg-surface-3' : 'text-ink-3 pointer-events-none opacity-50'}`}>
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              </div>
-            </FieldShell>
+        {/* ── Ablage: Zugangsdaten und Dokumente ── */}
+        {tab === 'filing' && (
+          <div className="space-y-6">
+            <section className="space-y-3">
+              <GroupTitle>{t.sec_access}</GroupTitle>
 
-            <FieldShell label={t.access_username}>
-              <input className={INPUT_CLASS} autoComplete="username"
-                value={username} onChange={e => setUsername(e.target.value)} />
-            </FieldShell>
-
-            <VaultPanel vaultState={vaultState} />
-
-            <FieldShell label={t.access_password}>
-              <SecretInput
-                value={secret}
-                disabled={!vaultState.unlocked}
-                placeholder={vaultState.unlocked ? '' : t.vault_locked}
-                onChange={value => { setSecret(value); setSecretTouched(true); setSecretError(''); }}
-              />
-            </FieldShell>
-
-            {secretError && <p className="text-[11px] text-error px-1">{secretError}</p>}
-
-            <FieldShell label={t.access_note}>
-              <textarea rows={2} className={`${INPUT_CLASS} resize-none`}
-                value={loginNote} onChange={e => setLoginNote(e.target.value)} />
-            </FieldShell>
-          </div>
-        )}
-
-        {/* ── Dokumente ── */}
-        {tab === 'docs' && (
-          <DocumentsPanel entryId={entryId} onChange={onDocsChange} />
-        )}
-
-        {/* Kündigungshilfe aus dem Katalog */}
-        {catalogEntry?.cancelUrl && tab === 'basics' && (
-          <div className="mt-5 rounded-xl border border-border bg-surface overflow-hidden">
-            <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
-              <X className="w-4 h-4 text-ink-3 shrink-0" />
-              <span className="text-xs text-ink-2">
-                {t.cancel_how}
-                <a href={catalogEntry.cancelUrl} target="_blank" rel="noopener noreferrer"
-                  className="text-ink hover:text-ink-2 transition underline underline-offset-2">
-                  {t.cancel_link}
-                </a>
-              </span>
-            </div>
-            <div className="px-4 py-3 space-y-2">
-              {catalogEntry.cancelSteps.map((step, i) => (
-                <div key={i} className="flex items-start gap-2.5">
-                  <span className="text-[11px] font-medium text-ink-3 mt-px shrink-0 w-3">{i + 1}.</span>
-                  <span className="text-xs text-ink-2 leading-relaxed">{step}</span>
+              <FieldShell label={t.access_url}>
+                <div className="flex gap-2">
+                  <input type="url" className={INPUT_CLASS} placeholder="https://..."
+                    value={url} onChange={e => setUrl(e.target.value)} />
+                  <a href={url || undefined} target="_blank" rel="noopener noreferrer" title={t.access_open}
+                    className={`w-11 shrink-0 rounded-lg border border-border flex items-center justify-center transition ${url ? 'text-ink-2 hover:text-ink hover:bg-surface-3' : 'text-ink-3 pointer-events-none opacity-50'}`}>
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
                 </div>
-              ))}
-            </div>
+              </FieldShell>
+
+              <FieldShell label={t.access_username}>
+                <input className={INPUT_CLASS} autoComplete="username"
+                  value={username} onChange={e => setUsername(e.target.value)} />
+              </FieldShell>
+
+              <VaultPanel vaultState={vaultState} />
+
+              <FieldShell label={t.access_password}>
+                <SecretInput
+                  value={secret}
+                  disabled={!vaultState.unlocked}
+                  placeholder={vaultState.unlocked ? '' : t.vault_locked}
+                  onChange={value => { setSecret(value); setSecretTouched(true); setSecretError(''); }}
+                />
+              </FieldShell>
+
+              {secretError && <p className="text-[11px] text-error px-1">{secretError}</p>}
+
+              <FieldShell label={t.access_note}>
+                <textarea rows={2} className={`${INPUT_CLASS} resize-none`}
+                  value={loginNote} onChange={e => setLoginNote(e.target.value)} />
+              </FieldShell>
+            </section>
+
+            <section className="space-y-3">
+              <GroupTitle>{t.tab_docs}</GroupTitle>
+              <DocumentsPanel entryId={entryId}
+                onChange={() => { refreshDocs(); onDocsChange?.(); }} />
+            </section>
           </div>
         )}
 
-        <div className="flex flex-col gap-2 mt-6 lg:flex-row-reverse lg:gap-3 lg:mt-7">
-          <button disabled={!canSave} onClick={handleSubmit} className={btn('primary', 'md', 'w-full py-3 lg:flex-1')}>
-            {initial ? t.modal_save : t.modal_add}
-          </button>
-          <button type="button" onClick={onClose} className={btn('ghost', 'md', 'w-full py-3 lg:flex-1')}>
+        </div>
+
+        {/* ── Fuß: bleibt stehen, Speichern trägt das Gewicht ── */}
+        <footer className="shrink-0 border-t border-border px-5 py-4 lg:px-7 flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className={btn('ghost', 'md', 'px-5 py-3')}>
             {t.modal_cancel}
           </button>
-        </div>
+          <button disabled={!canSave} onClick={handleSubmit}
+            className={btn('primary', 'md', 'flex-1 py-3 lg:flex-none lg:px-10')}>
+            {initial ? t.modal_save : t.modal_add}
+          </button>
+        </footer>
     </Overlay>
   );
 };
@@ -4560,7 +4618,7 @@ const ModalCurrencySelector = ({ value, onChange }) => {
           hover:bg-surface-3 transition text-ink-2 font-medium whitespace-nowrap">
         {curr.code} <ChevronDown className={`w-4 h-4 text-ink-3 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      <PopMenu open={open} className="bottom-14 right-0" origin="bottom right" width="w-[150px]">
+      <PopMenu open={open} className="top-full mt-1 right-0" origin="top right" width="w-[150px]">
         {CURRENCIES.map(c => (
           <MenuItem key={c.code} onClick={() => { onChange(c.code); setOpen(false); }}
             className={value === c.code ? 'text-ink' : ''}>
@@ -4590,7 +4648,7 @@ const MonthPicker = ({ value, onChange }) => {
         </span>
         <ChevronDown className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      <PopMenu open={open} className="bottom-14 left-0 right-0" origin="bottom left" width="">
+      <PopMenu open={open} className="top-full mt-1 left-0 right-0" origin="top left" width="">
         <div className="grid grid-cols-3">
           {MONTHS_SHORT.map((m, i) => (
             <button key={m} type="button" data-menu-item onClick={() => { onChange(m); setOpen(false); }}

@@ -23,7 +23,16 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // Ohne eslint-plugin-react zählt <Icon /> nicht als Verwendung von `Icon`.
+      // Großgeschriebenes ist in dieser Codebasis eine Komponente — als Variable
+      // (Import, const-Komponente) wie als Parameter (`{ icon: Icon }`).
+      // ignoreRestSiblings deckt das bewusste Weglassen per Rest ab:
+      // `({ billingDay, ...rest }) => rest`.
+      'no-unused-vars': ['error', {
+        varsIgnorePattern: '^[A-Z_]',
+        argsIgnorePattern: '^[A-Z_]',
+        ignoreRestSiblings: true,
+      }],
     },
   },
 ])

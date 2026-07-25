@@ -95,7 +95,18 @@ export const translations = {
     io_import_btn:     'Datei wählen',
     io_import_ok:      (n) => `Importiert: ${n}`,
     io_import_err:     'Dateiformat nicht lesbar',
-    io_docs_note:      'Dokumente werden nicht exportiert',
+    io_docs_note:      'Ohne Dokumente — für einzelne Einträge',
+
+    // Sicherung
+    io_backup:         'Sicherung',
+    io_backup_btn:     'Sicherung erstellen',
+    io_backup_busy:    'Wird erstellt …',
+    io_backup_note:    'Alles: Einträge, Dokumente, Einstellungen, Tresor',
+    io_backup_err:     'Sicherung fehlgeschlagen',
+    io_restore_hint:   'Eine Sicherung wird erkannt und ersetzt alles',
+    io_restore_confirm:
+      'Die Sicherung ersetzt alle Daten auf diesem Gerät — Einträge, Dokumente und Einstellungen. Fortfahren?',
+    io_restore_ok:     (n) => `Wiederhergestellt: ${n} — lädt neu …`,
 
     // Auswertung
     analytics_title:    'Auswertung',
@@ -427,7 +438,18 @@ export const translations = {
     io_import_btn:     'Choose file',
     io_import_ok:      (n) => `Imported: ${n}`,
     io_import_err:     'Invalid file format',
-    io_docs_note:      'Documents are not included in the export',
+    io_docs_note:      'Without documents — for single entries',
+
+    // Backup
+    io_backup:         'Backup',
+    io_backup_btn:     'Create backup',
+    io_backup_busy:    'Creating …',
+    io_backup_note:    'Everything: entries, documents, settings, vault',
+    io_backup_err:     'Backup failed',
+    io_restore_hint:   'A backup file is detected and replaces everything',
+    io_restore_confirm:
+      'Restoring replaces all data on this device — entries, documents and settings. Continue?',
+    io_restore_ok:     (n) => `Restored: ${n} — reloading …`,
 
     // Analytics
     analytics_title:    'Analytics',

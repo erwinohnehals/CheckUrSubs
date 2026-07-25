@@ -237,6 +237,11 @@ export const createEntryStore = (storage, createId = newId) => {
       return restored;
     },
 
+    // Wiederherstellung: der Stand der Sicherung gilt, nicht der des Geräts
+    replaceAll(rows) {
+      return write(Array.isArray(rows) ? rows : []);
+    },
+
     importRows(rows) {
       const entries = list();
       const existing = new Set(entries.map(duplicateKey));

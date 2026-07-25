@@ -104,6 +104,20 @@ export const countsByEntry = async () => {
 
 export const get = (id) => withStore('readonly', (store) => store.get(id));
 
+/** Alle Dokumente samt Blob — die Grundlage der Sicherung. */
+export const all = async () =>
+  (await withStore('readonly', (store) => store.getAll())) || [];
+
+/** Ersetzt die Ablage durch die Dokumente einer Sicherung. */
+export const replaceAll = async (records) => {
+  await withStore('readwrite', (store) => {
+    store.clear();
+    for (const record of records) store.put(record);
+  });
+
+  return records.length;
+};
+
 export const remove = (id) => withStore('readwrite', (store) => store.delete(id));
 
 export const removeAllFor = async (entryId) => {

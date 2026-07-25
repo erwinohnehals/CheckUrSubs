@@ -28,6 +28,7 @@ Ohne Konto, ohne Backend.
 - Mehrere Währungen mit zwischengespeicherten Wechselkursen
 - Deutsch und Englisch
 - CSV- und JSON-Export/-Import
+- **Vollständige Sicherung** als eine Datei — mit Dokumenten und Einstellungen
 - Installierbare PWA
 
 ## Wo die Daten liegen
@@ -40,8 +41,22 @@ Alles bleibt im Browser dieses Geräts — es gibt kein Konto und keine Synchron
 | Dokumente (Blobs, max. 20 MB je Datei) | IndexedDB | `goldgeld` / `documents` |
 | Tresor-Metadaten (Salt + Prüf-Token) | `localStorage` | `goldgeld.vault` |
 
-Wer die Browserdaten der Seite löscht, löscht auch die Einträge. Für Backups
-oder den Umzug auf ein anderes Gerät den JSON-Export in der Auswertung nutzen.
+Wer die Browserdaten der Seite löscht, löscht auch die Einträge.
+
+## Sichern und wiederherstellen
+
+Unter **Auswertung → Daten** stehen zwei Wege nebeneinander:
+
+| | Enthält | Beim Einlesen |
+|---|---|---|
+| **Export** (CSV / JSON) | Einträge, beim JSON zusätzlich die Tresor-Metadaten | wird zum vorhandenen Bestand **hinzugefügt**, Dubletten übersprungen |
+| **Sicherung** (JSON) | Einträge, Dokumente, Einstellungen (Sprache, Währung, Farbschema) und Tresor-Metadaten | **ersetzt** nach Rückfrage den gesamten Stand des Geräts |
+
+Die Sicherung ist die Datei für den Ernstfall und für den Umzug auf ein anderes
+Gerät. Beide Dateien liest derselbe Knopf (*Import → Datei wählen*) — eine
+Sicherung wird an ihrem Format erkannt. Dokumente stecken als Base64 darin, die
+Datei ist also etwa ein Drittel größer als die Dateien zusammen. Nach dem
+Wiederherstellen lädt die Seite neu, damit Sprache und Farbschema greifen.
 
 Daten aus der Vorgängerversion (`checkursubs.subscriptions`) werden beim ersten
 Start automatisch übernommen.
@@ -62,9 +77,13 @@ Daraus folgt:
   Auf einem anderen Gerät lassen sie sich mit demselben Master-Passwort öffnen.
 - Beim Import in ein Profil, das bereits einen eigenen Tresor hat, werden die
   mitgelieferten Passwörter verworfen — sie wären dort ohnehin nicht lesbar.
+- Beim Wiederherstellen einer Sicherung gilt das Gegenteil: sie bringt ihren
+  Tresor mit und setzt einen vorhandenen außer Kraft. Zum Aufsperren zählt
+  danach das Master-Passwort der Sicherung.
 - Verschlüsselung braucht einen sicheren Kontext: HTTPS oder `localhost`.
 
-Dokumente sind **nicht** verschlüsselt und **nicht** im Export enthalten.
+Dokumente sind **nicht** verschlüsselt. In der Sicherung liegen sie im Klartext
+(Base64) — sie gehört an einen Ort, dem man das zutraut.
 
 ## Loslegen
 
