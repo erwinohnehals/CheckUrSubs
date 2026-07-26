@@ -22,6 +22,7 @@ import {
   CurrencySelect, DocumentsPanel, useDirty, useCloseGuard,
 } from '../../ui';
 import { CategoryPicker } from './CategoryPicker';
+import { ContractPicker } from './ContractPicker';
 import { ItemsEditor } from './ReceiptItems';
 
 const MODAL_TABS = [
@@ -175,7 +176,6 @@ export const ExpenseModal = ({
   };
 
   const accountOptions = accounts.map((account) => ({ value: account.id, label: account.label }));
-  const entryOptions = entries.map((entry) => ({ value: entry.id, label: entry.name || entry.provider }));
 
   return (
     <Overlay open={open} onClose={requestClose} sheet={!isDesktop} labelledBy="expense-modal-title"
@@ -280,10 +280,10 @@ export const ExpenseModal = ({
                   placeholder={t.exp_account_none} options={accountOptions} />
               </Field>
 
-              {!income && entryOptions.length > 0 && (
+              {!income && entries.some((entry) => !entry.archived_at || entry.id === entryId) && (
                 <Field label={t.exp_field_entry}>
-                  <SelectInput value={entryId} onChange={setEntryId}
-                    placeholder={t.exp_entry_none} options={entryOptions} />
+                  <ContractPicker value={entryId} onChange={setEntryId}
+                    placeholder={t.exp_entry_none} entries={entries} />
                 </Field>
               )}
             </section>

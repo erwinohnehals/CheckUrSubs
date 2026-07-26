@@ -23,6 +23,7 @@ import { entryLinkKey } from '../../lib/bankRules';
 import { groupByMonth, importSummary } from '../../lib/bankImport';
 import { btn, Badge, INPUT_CLASS, Overlay, SelectInput } from '../../ui';
 import { CategoryPicker } from './CategoryPicker';
+import { ContractPicker } from './ContractPicker';
 
 const FILTERS = ['review', 'all', 'excluded'];
 
@@ -33,7 +34,7 @@ const Stat = ({ label, value, tone = '' }) => (
   </div>
 );
 
-const ItemRow = ({ item, months, lang, last, entryOptions, onToggle, onCategory, onEntryLink }) => {
+const ItemRow = ({ item, months, lang, last, contractEntries, onToggle, onCategory, onEntryLink }) => {
   const t = useT();
   const { row } = item;
   const income = row.direction === 'income';
@@ -80,10 +81,10 @@ const ItemRow = ({ item, months, lang, last, entryOptions, onToggle, onCategory,
             <CategoryPicker value={item.category} direction={row.direction} compact
               onChange={(category) => onCategory(category)} />
           </div>
-          {!income && entryOptions.length > 0 && (
+          {!income && contractEntries.length > 0 && (
             <div className="max-w-[220px]">
-              <SelectInput value={item.entry_id || ''} onChange={onEntryLink}
-                placeholder={t.exp_entry_none} options={entryOptions} compact />
+              <ContractPicker value={item.entry_id || ''} onChange={onEntryLink}
+                placeholder={t.exp_entry_none} entries={contractEntries} compact />
             </div>
           )}
         </div>
@@ -93,7 +94,7 @@ const ItemRow = ({ item, months, lang, last, entryOptions, onToggle, onCategory,
 };
 
 const MonthSection = ({
-  group, open, onOpen, lang, months, fmt, entryOptions, onToggle, onCategory, onEntryLink,
+  group, open, onOpen, lang, months, fmt, contractEntries, onToggle, onCategory, onEntryLink,
 }) => {
   const t = useT();
   const [year, month] = group.month.split('-');
@@ -125,7 +126,7 @@ const MonthSection = ({
         <div className="divide-y divide-border">
           {group.items.map((item, i) => (
             <ItemRow key={item.key} item={item} lang={lang} months={months}
-              last={i === group.items.length - 1} entryOptions={entryOptions}
+              last={i === group.items.length - 1} contractEntries={contractEntries}
               onToggle={() => onToggle(item.key)}
               onCategory={(category) => onCategory(item, category)}
               onEntryLink={(entryId) => onEntryLink(item, entryId)} />
@@ -142,9 +143,8 @@ export const ImportPanel = ({
   const t    = useT();
   const lang = useLang();
   const months = t.months_short;
-  const entryOptions = useMemo(
-    () => entries.filter((entry) => !entry.archived_at)
-      .map((entry) => ({ value: entry.id, label: entry.name || entry.provider })),
+  const contractEntries = useMemo(
+    () => entries.filter((entry) => !entry.archived_at),
     [entries]);
 
   const [filter, setFilter]   = useState('review');
@@ -344,7 +344,7 @@ export const ImportPanel = ({
               <div className="space-y-2">
                 {groups.map((group) => (
                   <MonthSection key={group.month} group={group} lang={lang} months={months} fmt={fmt}
-                    entryOptions={entryOptions}
+                    contractEntries={contractEntries}
                     open={currentOpenMonths.has(group.month)}
                     onOpen={() => toggleMonth(group.month)}
                     onToggle={toggle} onCategory={setCategory} onEntryLink={setEntryLink} />
