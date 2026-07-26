@@ -34,6 +34,11 @@ export const ExpenseRow = ({
   const income   = transaction.direction === 'income';
   const items    = transaction.items.length;
 
+  // Das Symbol bleibt das der Kategorie: der Doppelpfeil gehört schon den
+  // durchlaufenden Posten, und zwei Bedeutungen auf einem Zeichen wären eine zu
+  // viel. Dass diese Zeile nicht mitzählt, sagt das Abzeichen.
+  const internal = Boolean(transaction.internal);
+
   const title = transaction.title
     || transaction.merchant
     || (category ? t[category.labelKey] : t.exp_item_untitled);
@@ -54,6 +59,7 @@ export const ExpenseRow = ({
 
   const badges = (
     <>
+      {internal && <Badge title={t.exp_internal_hint}>{t.exp_badge_internal}</Badge>}
       {items > 0 && (
         <ItemChip count={items} open={expanded} onToggle={onToggle} label={t.exp_items_count(items)} />
       )}
@@ -65,11 +71,15 @@ export const ExpenseRow = ({
     ? <ReceiptItems transaction={transaction} fmtAmount={fmtAmount} />
     : null;
 
+  // Blass, nicht versteckt: die Zeile gehört in den Tag, an dem sie passiert ist,
+  // aber sie trägt nicht zu den Zahlen darüber bei.
+  const muted = internal ? 'opacity-60' : '';
+
   // ── Desktop ──
   if (isDesktop) return (
     <div data-row>
       <div onClick={onEdit} title={t.exp_modal_edit}
-        className="group flex items-center gap-4 px-5 py-3 bg-surface-2 hover:bg-surface-3 transition cursor-pointer">
+        className={`group flex items-center gap-4 px-5 py-3 bg-surface-2 hover:bg-surface-3 transition cursor-pointer ${muted}`}>
         <span className="w-9 h-9 rounded-lg bg-surface-3 flex items-center justify-center shrink-0">
           <Icon className="w-4 h-4 text-ink-2" strokeWidth={1.75} />
         </span>
@@ -104,13 +114,13 @@ export const ExpenseRow = ({
   );
 
   return <MobileExpenseRow
-    title={title} meta={meta} amount={amount} badges={badges}
+    title={title} meta={meta} amount={amount} badges={badges} muted={muted}
     Icon={Icon} details={details} onEdit={onEdit} onRepeat={onRepeat} onDelete={onDelete} />;
 };
 
 // Eigene Komponente, weil useSwipeRow ein Haken ist und am Desktop nicht laufen soll
 const MobileExpenseRow = ({
-  title, meta, amount, badges, Icon, details, onEdit, onRepeat, onDelete,
+  title, meta, amount, badges, muted = '', Icon, details, onEdit, onRepeat, onDelete,
 }) => {
   const t = useT();
   const { ref, handlers } = useSwipeRow({ onLeft: onDelete, onRight: onEdit, onTap: onEdit });
@@ -129,7 +139,7 @@ const MobileExpenseRow = ({
         </div>
 
         <div ref={ref} data-no-tab-swipe {...handlers}
-          className="relative flex items-center px-4 py-3 gap-3 bg-surface-2 touch-pan-y cursor-pointer">
+          className={`relative flex items-center px-4 py-3 gap-3 bg-surface-2 touch-pan-y cursor-pointer ${muted}`}>
           <span className="w-9 h-9 rounded-lg bg-surface-3 flex items-center justify-center shrink-0">
             <Icon className="w-4 h-4 text-ink-2" strokeWidth={1.75} />
           </span>

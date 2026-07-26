@@ -231,6 +231,17 @@ html, body { overscroll-behavior: none; overscroll-behavior-x: none; }
 @keyframes dd-item-in  { from { opacity: 0; transform: translateY(14px); } }
 @keyframes dd-item-out { to   { opacity: 0; } }
 
+/* Bereichswechsel in der Seitenleiste — die Einträge ziehen von der Seite nach,
+   aus der Richtung, in die der Bereichsschalter gesprungen ist. */
+@keyframes swap-in { from { opacity: 0; transform: translateX(var(--swap-x, 14px)); } }
+
+/* Die Reiterpille der Seitenleiste wird beim Bereichswechsel neu aufgebaut und
+   kann nicht gleiten — sie blendet mit ihren Einträgen auf, statt vor ihnen
+   leer dazustehen. Die Verschiebung besorgt die Pille selbst per Inline-Stil,
+   deshalb hier nur die Deckkraft. */
+@keyframes pill-fade-in { from { opacity: 0; } }
+.nav-pill { animation: pill-fade-in 320ms cubic-bezier(0.19, 1, 0.22, 1) backwards; }
+
 /* Ansichtswechsel */
 @keyframes view-in  { from { opacity: 0; transform: translateX(20px); } }
 @keyframes view-out { to   { opacity: 0; transform: translateX(-20px); } }

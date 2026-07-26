@@ -9,7 +9,7 @@ import {
   wasActiveIn,
 } from '../../lib/billing.js';
 import { isBilled } from '../../lib/entryStore.js';
-import { categoryBreakdown, isCounted } from '../../lib/expenseStore.js';
+import { categoryBreakdown, countsAsMoney } from '../../lib/expenseStore.js';
 
 const roundCents = (value) =>
   Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
@@ -66,7 +66,7 @@ export const buildYearReport = ({
   const purchases = [];
 
   for (const transaction of transactions) {
-    if (!isCounted(transaction)) continue;
+    if (!countsAsMoney(transaction)) continue;
 
     const match = String(transaction.date || '').match(/^(\d{4})-(\d{2})-/);
     if (!match || Number(match[1]) !== numericYear) continue;

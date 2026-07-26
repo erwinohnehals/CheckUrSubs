@@ -17,6 +17,7 @@
 import { parseRows } from './csv.js';
 import { parseAmount } from './expenseStore.js';
 import { isCamt052, readCamt052 } from './camt052.js';
+import { transferTextReason } from './internalTransfer.js';
 import { looksLikeZip, readZip } from './zip.js';
 
 export const BANK_FORMATS = ['camt-052', 'camt-v2', 'sparkasse-credit', 'paypal'];
@@ -162,16 +163,13 @@ const signedToRow = (signed) => ({
 
 // ─── CAMT V2 (Sparkasse Giro) ─────────────────────────────────────────────────
 
-// Buchungstexte, die kein Kauf sind, sondern eine Umbuchung zwischen eigenen
-// Töpfen. Die Kreditkartenabrechnung ist der wichtigste Fall: sie ist die Summe
-// der Zeilen, die in der Kreditkartendatei einzeln stehen.
-const CAMT_INTERNAL_TEXT = {
-  'EIGENE KREDITKARTENABRECHN.': 'credit_card_settlement',
-};
-
+// Was kein Kauf ist, sondern Geld zwischen eigenen Töpfen. Die Kreditkarten-
+// abrechnung und „Mein Geld" im Verwendungszweck erkennt lib/internalTransfer.js
+// — dieselbe Regel gilt für CAMT.052, und sie soll nicht zweimal dastehen.
 const camtInternal = (record, merchant) => {
-  const text = squash(record['Buchungstext']).toUpperCase();
-  if (CAMT_INTERNAL_TEXT[text]) return CAMT_INTERNAL_TEXT[text];
+  const reason = transferTextReason(
+    squash(record['Buchungstext']), squash(record['Verwendungszweck']));
+  if (reason) return reason;
 
   // PayPal zieht gesammelt ein, was in der PayPal-Datei einzeln steht
   if (/paypal/i.test(merchant)) return 'paypal_collection';

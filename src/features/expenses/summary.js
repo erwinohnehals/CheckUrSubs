@@ -8,14 +8,20 @@
 // der rohe Betrag genommen, was Tests einwährungsfrei macht.
 
 import { toISODate, monthKey } from '../../lib/dates.js';
-import { isCounted } from '../../lib/expenseStore.js';
+import { countsAsMoney, isCounted } from '../../lib/expenseStore.js';
 
 const roundCents = (value) =>
   Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
 
 const rawAmount = (transaction) => Number(transaction?.amount) || 0;
 
-/** Alles, was in diesem Monat gezählt wird — Archiviertes bleibt draußen. */
+/**
+ * Alles, was in diesem Monat steht — Archiviertes bleibt draußen.
+ *
+ * Umbuchungen bleiben drin, obwohl sie in keine Summe eingehen: sie gehören in
+ * die Liste, denn sie erklären einen Kontostand. Wer summiert, fragt hier nicht
+ * noch einmal nach, sondern lässt monthSummary und groupByDay rechnen.
+ */
 export const inMonth = (transactions = [], month) =>
   transactions.filter((transaction) =>
     isCounted(transaction) && monthKey(transaction.date) === month);
@@ -44,21 +50,28 @@ export const groupByDay = (transactions = [], amountOf = rawAmount) => {
       transactions: [...rows].sort((a, b) =>
         String(b.created_at || '').localeCompare(String(a.created_at || ''))),
       expense: roundCents(rows
-        .filter((row) => row.direction !== 'income')
+        .filter((row) => countsAsMoney(row) && row.direction !== 'income')
         .reduce((sum, row) => sum + amountOf(row), 0)),
       income: roundCents(rows
-        .filter((row) => row.direction === 'income')
+        .filter((row) => countsAsMoney(row) && row.direction === 'income')
         .reduce((sum, row) => sum + amountOf(row), 0)),
     }));
 };
 
-/** Kopfzahlen des Monats: hinaus, herein, und was davon übrig bleibt. */
+/**
+ * Kopfzahlen des Monats: hinaus, herein, und was davon übrig bleibt.
+ *
+ * Umbuchungen bleiben draußen — sonst stünde über einem Monat, in dem Erspartes
+ * aufs Girokonto kam, ein Einkommen, das niemand verdient hat.
+ */
 export const monthSummary = (transactions = [], amountOf = rawAmount) => {
   let expense = 0;
   let income  = 0;
 
   for (const transaction of transactions) {
-    if (transaction?.direction === 'income') income += amountOf(transaction);
+    if (!countsAsMoney(transaction)) continue;
+
+    if (transaction.direction === 'income') income += amountOf(transaction);
     else expense += amountOf(transaction);
   }
 

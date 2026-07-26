@@ -78,12 +78,21 @@ export const prepareImport = ({
   };
 });
 
-/** Ein geprüfter Posten → der Datensatz, den der Ausgabenspeicher erwartet. */
+/**
+ * Ein geprüfter Posten → der Datensatz, den der Ausgabenspeicher erwartet.
+ *
+ * Erkannte Umbuchungen sind vorab abgewählt und kommen normalerweise nicht in
+ * die Bücher. Wer eine trotzdem einschließt — die Überweisung vom Sparkonto will
+ * man sehen, die PayPal-Deckung nicht —, bekommt sie mit gesetzter Flagge:
+ * sichtbar in der Liste, in keiner Summe. Sie stumm zur Ausgabe zu machen wäre
+ * das Gegenteil dessen, was der Import gerade erkannt hat.
+ */
 export const toTransaction = (item) => {
   const { row } = item;
 
   return {
     direction: row.direction,
+    internal: Boolean(row.internal),
     date: row.date,
     title: item.title,
     merchant: row.merchant,

@@ -16,6 +16,7 @@ export const DURATION = {
   modalIn: 320, modalOut: 200, backdropIn: 240,
   toastIn: 400, toastOut: 300,
   viewIn: 250,  viewOut: 250, viewOverlap: 150,
+  navSwap: 320,
   pill: 400,
   listItem: 250,
 };
@@ -41,6 +42,17 @@ export const staggerIn = (elements, { duration = DURATION.listItem, step = 50, r
     if (!el) return;
     el.style.setProperty('--rise-y', `${rise}px`);
     restartAnimation(el, `rise-in ${duration}ms ${STANDARD_EASE} ${base + Math.min(i, max) * step}ms backwards`);
+  });
+};
+
+// Seitliche Kaskade für den Bereichswechsel: dieselbe Staffelung wie staggerIn,
+// nur waagerecht. Ein negatives `shift` lässt die Einträge von links einlaufen.
+export const staggerSwap = (elements, { shift = 14, duration = DURATION.navSwap, step = 45, base = 0, max = 12 } = {}) => {
+  if (reducedMotion()) return;
+  Array.from(elements).forEach((el, i) => {
+    if (!el) return;
+    el.style.setProperty('--swap-x', `${shift}px`);
+    restartAnimation(el, `swap-in ${duration}ms ${EXPO_OUT} ${base + Math.min(i, max) * step}ms backwards`);
   });
 };
 

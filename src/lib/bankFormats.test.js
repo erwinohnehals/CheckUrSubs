@@ -90,6 +90,26 @@ test('die Kreditkartenabrechnung ist eine Umbuchung, keine Ausgabe', () => {
   assert.equal(row.internal_reason, 'credit_card_settlement');
 });
 
+test('„Mein Geld" im Verwendungszweck ist eine Umbuchung, keine Einnahme', () => {
+  // Die Überweisung vom Arbeits- auf das private Konto. Die Namen beider Seiten
+  // helfen im CSV nicht weiter — nur der Verwendungszweck sagt, was das war.
+  const transfer = CAMT_V2
+    .replace('"RG-Nr.M26047179100"', '"Mein Geld"')
+    .replace('"-26,96"', '"800,00"');
+  const [row] = readBankFile(transfer).rows;
+
+  assert.equal(row.direction, 'income');
+  assert.equal(row.internal, true);
+  assert.equal(row.internal_reason, 'own_transfer');
+});
+
+test('ein gewöhnlicher Einkauf bleibt eine Ausgabe', () => {
+  const [, karte] = readBankFile(CAMT_V2).rows;
+
+  assert.equal(karte.internal, false);
+  assert.equal(karte.internal_reason, '');
+});
+
 // ─── Sparkasse Kreditkarte ────────────────────────────────────────────────────
 
 const CREDIT = [

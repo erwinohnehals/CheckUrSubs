@@ -15,6 +15,14 @@ export const EXPENSE_CATEGORIES = [
   { id: 'groceries', labelKey: 'xcat_groceries' },
   { id: 'dining',    labelKey: 'xcat_dining'    },
   { id: 'household', labelKey: 'xcat_household' },
+  // Wohnkosten sind das Dach über dem Kopf — Miete, Nebenkosten, Strom, Wasser,
+  // Grundsteuer. Getrennt vom Haushalt, weil das eine jeden Monat gleich hoch
+  // wiederkommt und das andere die Einkäufe für die Wohnung sind.
+  { id: 'housing',         labelKey: 'xcat_housing'         },
+  // Die Miete für Laden, Büro oder Werkstatt gehört nicht in denselben Topf wie
+  // die eigene Wohnung: sie ist betrieblich und in der Auswertung getrennt zu
+  // sehen.
+  { id: 'commercial_rent', labelKey: 'xcat_commercial_rent' },
   { id: 'garden',    labelKey: 'xcat_garden'    },
   { id: 'clothing',  labelKey: 'xcat_clothing'  },
   { id: 'health',    labelKey: 'xcat_health'    },
@@ -26,6 +34,11 @@ export const EXPENSE_CATEGORIES = [
   { id: 'pets',      labelKey: 'xcat_pets'      },
   { id: 'education', labelKey: 'xcat_education' },
   { id: 'fees',      labelKey: 'xcat_fees'      },
+  // Fremdes Geld, das nur durch das eigene Konto hindurchgeht: eine gezahlte
+  // Kaution, eine Auslage für jemand anderen. Es steht kurz vor dem Restposten,
+  // weil es keine Art von Ausgabe ist, sondern eine Aussage darüber, wem das
+  // Geld gehört. Die Gegenbuchung trägt `income_pass_through`.
+  { id: 'pass_through', labelKey: 'xcat_pass_through' },
   { id: 'other',     labelKey: 'xcat_other'     },
 ];
 
@@ -37,6 +50,10 @@ export const INCOME_CATEGORIES = [
   { id: 'income_refund', labelKey: 'xcat_income_refund' },
   { id: 'income_sale',   labelKey: 'xcat_income_sale'   },
   { id: 'income_gift',   labelKey: 'xcat_income_gift'   },
+  // Dieselbe Aussage von der anderen Seite: eine erhaltene Kaution, ein Vorschuss
+  // für eine Rechnung, die man für jemanden bezahlt. Der Betrag ist da, aber er
+  // ist nicht verdient — er wartet nur darauf, wieder hinauszugehen.
+  { id: 'income_pass_through', labelKey: 'xcat_income_pass_through' },
   { id: 'income_other',  labelKey: 'xcat_income_other'  },
 ];
 

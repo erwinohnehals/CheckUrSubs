@@ -140,6 +140,19 @@ test('counts what was spent per category and month, income excluded', () => {
   assert.deepEqual(spend.months(), ['2026-02', '2026-03']);
 });
 
+test('a transfer never eats a budget', () => {
+  const store = createExpenseStore(createMemoryStorage());
+  store.create({ title: 'REWE', date: '2026-02-04', category: 'groceries', amount: 40 });
+  // Vom Girokonto aufs Sparkonto — kein Einkauf, also auch kein Verbrauch
+  store.create({ title: 'Mein Geld', date: '2026-02-05', category: 'other',
+    amount: 500, internal: true });
+
+  const spend = spendIndex(store.list());
+
+  assert.equal(spend.at('groceries', '2026-02'), 40);
+  assert.equal(spend.at('other', '2026-02'), 0);
+});
+
 test('counts every currency in the same unit', () => {
   const store = createExpenseStore(createMemoryStorage());
   store.create({ title: 'REWE',  date: '2026-02-04', category: 'groceries',

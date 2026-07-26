@@ -313,6 +313,8 @@ export const translations = {
     xcat_groceries: 'Lebensmittel',
     xcat_dining:    'Restaurant & Café',
     xcat_household: 'Haushalt',
+    xcat_housing:         'Wohnkosten',
+    xcat_commercial_rent: 'Gewerbliche Miete',
     xcat_garden:    'Garten',
     xcat_clothing:  'Kleidung',
     xcat_health:    'Gesundheit',
@@ -324,6 +326,7 @@ export const translations = {
     xcat_pets:      'Haustiere',
     xcat_education: 'Bildung',
     xcat_fees:      'Gebühren & Steuern',
+    xcat_pass_through: 'Durchlaufender Posten',
     xcat_other:     'Sonstiges',
 
     // Kategorien der Einnahmen
@@ -332,6 +335,7 @@ export const translations = {
     xcat_income_refund: 'Erstattung',
     xcat_income_sale:   'Verkauf',
     xcat_income_gift:   'Geschenk',
+    xcat_income_pass_through: 'Durchlaufender Posten',
     xcat_income_other:  'Sonstiges',
 
     // Konten
@@ -375,7 +379,7 @@ export const translations = {
     imp_badge_unsure:    'ungeprüft',
 
     imp_note_duplicates: (n) => `${n} Zeilen stehen bereits in deinen Büchern und sind abgewählt.`,
-    imp_note_internal:   (n) => `${n} Zeilen sind Geld zwischen eigenen Konten (Kreditkarte, PayPal) und würden doppelt zählen.`,
+    imp_note_internal:   (n) => `${n} Zeilen sind Geld zwischen eigenen Konten (Kreditkarte, PayPal, „Mein Geld“) und würden doppelt zählen. Eingeschlossen kommen sie als Umbuchung mit — sichtbar, aber in keiner Summe.`,
     imp_count_selected:  (a, b) => `${a}/${b}`,
     imp_nothing_to_review: 'Alles zugeordnet — nichts mehr zu prüfen.',
     imp_include:      'Übernehmen',
@@ -443,6 +447,9 @@ export const translations = {
     exp_sec_what:    'Was war es',
     exp_sec_note:    'Notiz & Schlagwörter',
     exp_as_income:   'Als Einnahme erfassen',
+    exp_as_internal: 'Umbuchung — zählt nicht',
+    exp_internal_hint: 'Geld zwischen eigenen Konten oder aus Erspartem. Bleibt in der Liste, geht in keine Summe ein — nicht in Monat, Budget oder Jahr.',
+    exp_badge_internal: 'Umbuchung',
     exp_field_amount:   'Betrag',
     exp_field_date:     'Datum',
     exp_field_category: 'Kategorie',
@@ -900,6 +907,8 @@ export const translations = {
     xcat_groceries: 'Groceries',
     xcat_dining:    'Restaurants & cafés',
     xcat_household: 'Household',
+    xcat_housing:         'Housing costs',
+    xcat_commercial_rent: 'Commercial rent',
     xcat_garden:    'Garden',
     xcat_clothing:  'Clothing',
     xcat_health:    'Health',
@@ -911,6 +920,7 @@ export const translations = {
     xcat_pets:      'Pets',
     xcat_education: 'Education',
     xcat_fees:      'Fees & taxes',
+    xcat_pass_through: 'Pass-through item',
     xcat_other:     'Other',
 
     // Income categories
@@ -919,6 +929,7 @@ export const translations = {
     xcat_income_refund: 'Refund',
     xcat_income_sale:   'Sale',
     xcat_income_gift:   'Gift',
+    xcat_income_pass_through: 'Pass-through item',
     xcat_income_other:  'Other',
 
     // Accounts
@@ -962,7 +973,7 @@ export const translations = {
     imp_badge_unsure:    'unchecked',
 
     imp_note_duplicates: (n) => `${n} rows are already in your books and were deselected.`,
-    imp_note_internal:   (n) => `${n} rows move money between your own accounts (credit card, PayPal) and would count twice.`,
+    imp_note_internal:   (n) => `${n} rows move money between your own accounts (credit card, PayPal, “Mein Geld”) and would count twice. Include one and it arrives as a transfer — visible, but counting towards nothing.`,
     imp_count_selected:  (a, b) => `${a}/${b}`,
     imp_nothing_to_review: 'All assigned — nothing left to review.',
     imp_include:      'Include',
@@ -1030,6 +1041,9 @@ export const translations = {
     exp_sec_what:    'What it was',
     exp_sec_note:    'Note & tags',
     exp_as_income:   'Record as income',
+    exp_as_internal: 'Transfer — does not count',
+    exp_internal_hint: 'Money between your own accounts, or out of savings. Stays in the list, counts towards nothing — not the month, not a budget, not the year.',
+    exp_badge_internal: 'Transfer',
     exp_field_amount:   'Amount',
     exp_field_date:     'Date',
     exp_field_category: 'Category',

@@ -15,6 +15,7 @@
 //      liest, schreibt bei jeder Gutschrift den eigenen Namen als Händler.
 
 import { parseXML, at, child, textAt, findAll } from './xml.js';
+import { transferTextReason } from './internalTransfer.js';
 
 const squash = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 
@@ -110,6 +111,10 @@ const entryRows = (entry, { iban, owner }) => {
     // einer Gebühr steht dort nur eine Seite — die bleibt eine Ausgabe.
     const ownTransfer = Boolean(other) && sameParty(other, owner) && sameParty(own, owner);
     const collection  = /paypal/i.test(other);
+    // Was die Namen nicht verraten, verrät oft der Text: „Mein Geld" ist die
+    // Überweisung zwischen zwei eigenen Konten, auch wenn nur eine Seite
+    // namentlich dasteht.
+    const byText = ownTransfer || collection ? '' : transferTextReason(purpose, addition);
 
     return {
       ref: `c52:${entryRef || `${date}:${amount}`}${posts.length > 1 ? `:${index + 1}` : ''}`,
@@ -128,8 +133,8 @@ const entryRows = (entry, { iban, owner }) => {
       creditor_id: detail ? creditorId(detail) : '',
       mandate_ref: detail ? squash(textAt(at(detail, 'Refs'), 'MndtId')) : '',
       account_key: iban,
-      internal: ownTransfer || collection,
-      internal_reason: ownTransfer ? 'own_transfer' : (collection ? 'paypal_collection' : ''),
+      internal: ownTransfer || collection || Boolean(byText),
+      internal_reason: ownTransfer ? 'own_transfer' : (collection ? 'paypal_collection' : byText),
       note: '',
     };
   }).filter((row) => row.date);

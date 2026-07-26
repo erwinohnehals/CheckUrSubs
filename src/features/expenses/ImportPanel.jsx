@@ -32,14 +32,14 @@ const Stat = ({ label, value, tone = '' }) => (
   </div>
 );
 
-const ItemRow = ({ item, months, lang, onToggle, onCategory }) => {
+const ItemRow = ({ item, months, lang, last, onToggle, onCategory }) => {
   const t = useT();
   const { row } = item;
   const income = row.direction === 'income';
 
   return (
     <div className={`flex items-start gap-3 px-3 py-2.5 bg-surface transition
-      ${item.include ? '' : 'opacity-55'}`}>
+      ${last ? 'rounded-b-xl' : ''} ${item.include ? '' : 'opacity-55'}`}>
 
       <button type="button" onClick={onToggle} role="checkbox" aria-checked={item.include}
         aria-label={item.include ? t.imp_exclude : t.imp_include}
@@ -88,10 +88,14 @@ const MonthSection = ({ group, open, onOpen, lang, months, fmt, onToggle, onCate
   const [year, month] = group.month.split('-');
   const label = `${months?.[Number(month) - 1] ?? month} ${year}`;
 
+  // Kein overflow-hidden: das Kategoriemenü einer Zeile darf über den Rand des
+  // Monats hinausragen, sonst wird es abgeschnitten. Die Ecken runden deshalb
+  // Kopf und letzte Zeile selbst.
   return (
-    <section className="rounded-xl border border-border overflow-hidden">
+    <section className="rounded-xl border border-border">
       <button type="button" onClick={onOpen}
-        className="w-full flex items-center gap-3 px-3 py-2.5 bg-surface-2 hover:bg-surface-3 transition text-left">
+        className={`w-full flex items-center gap-3 px-3 py-2.5 bg-surface-2 hover:bg-surface-3 transition
+          text-left rounded-t-xl ${open ? '' : 'rounded-b-xl'}`}>
         <ChevronDown className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
         <span className="text-sm font-medium flex-1">{label}</span>
         <span className="text-[11px] text-ink-3">{t.imp_count_selected(group.included, group.items.length)}</span>
@@ -108,8 +112,9 @@ const MonthSection = ({ group, open, onOpen, lang, months, fmt, onToggle, onCate
 
       {open && (
         <div className="divide-y divide-border">
-          {group.items.map((item) => (
+          {group.items.map((item, i) => (
             <ItemRow key={item.key} item={item} lang={lang} months={months}
+              last={i === group.items.length - 1}
               onToggle={() => onToggle(item.key)}
               onCategory={(category) => onCategory(item, category)} />
           ))}

@@ -7,9 +7,9 @@
 // Vertragsseite. Farbe bleibt dem Status vorbehalten.
 
 import {
-  ShoppingCart, UtensilsCrossed, Home, Sprout, Shirt, HeartPulse, Car, Plane,
+  ShoppingCart, UtensilsCrossed, Home, HousePlug, Building2, Sprout, Shirt, HeartPulse, Car, Plane,
   Gamepad2, Gift, Laptop, PawPrint, BookOpen, Receipt, Package,
-  Banknote, TrendingUp, RotateCcw, Tag, Wallet,
+  Banknote, TrendingUp, RotateCcw, Tag, Wallet, ArrowLeftRight,
   Landmark, CreditCard, Globe, Coins,
 } from 'lucide-react';
 
@@ -20,6 +20,8 @@ export const CATEGORY_ICONS = {
   groceries: ShoppingCart,
   dining:    UtensilsCrossed,
   household: Home,
+  housing:         HousePlug,
+  commercial_rent: Building2,
   garden:    Sprout,
   clothing:  Shirt,
   health:    HeartPulse,
@@ -31,6 +33,9 @@ export const CATEGORY_ICONS = {
   pets:      PawPrint,
   education: BookOpen,
   fees:      Receipt,
+  // Beide Richtungen tragen dasselbe Symbol: es ist dieselbe Aussage, einmal
+  // hinaus und einmal herein.
+  pass_through: ArrowLeftRight,
   other:     Package,
 
   income_salary: Banknote,
@@ -38,6 +43,7 @@ export const CATEGORY_ICONS = {
   income_refund: RotateCcw,
   income_sale:   Tag,
   income_gift:   Gift,
+  income_pass_through: ArrowLeftRight,
   income_other:  Wallet,
 };
 

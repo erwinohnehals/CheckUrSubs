@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createExpenseStore, categoryBreakdown, parseAmount, isCounted, repeatTransactionDraft,
+  createExpenseStore, categoryBreakdown, countsAsMoney, parseAmount, isCounted,
+  repeatTransactionDraft,
 } from './expenseStore.js';
 
 const createMemoryStorage = (initial = {}) => {
@@ -224,6 +225,31 @@ test('archives without losing the transaction', () => {
   const archived = store.update(created.id, { archived_at: '2026-07-25T12:00:00.000Z' });
   assert.equal(isCounted(archived), false);
   assert.equal(isCounted(store.update(created.id, { archived_at: null })), true);
+});
+
+test('a transfer stays in the books but out of every sum', () => {
+  const store = createStore();
+  const created = store.create({ title: 'Mein Geld', amount: 800, internal: true });
+
+  assert.equal(created.internal, true);
+  assert.equal(isCounted(created), true);      // nicht archiviert
+  assert.equal(countsAsMoney(created), false); // aber kein eigenes Geld
+
+  const back = store.update(created.id, { internal: false });
+  assert.equal(countsAsMoney(back), true);
+});
+
+test('transactions stored before the flag existed keep counting', () => {
+  const storage = createMemoryStorage({
+    'goldgeld.expenses': JSON.stringify({
+      version: 1,
+      transactions: [{ id: 'alt', title: 'REWE', amount: 32.4, date: '2026-07-02' }],
+    }),
+  });
+
+  const [old] = createStore(storage).list();
+  assert.equal(old.internal, false);
+  assert.equal(countsAsMoney(old), true);
 });
 
 test('keeps tags trimmed, unique and free of blanks', () => {

@@ -64,6 +64,13 @@ const FAMILY_RULES = {
 // das Gelernte, nicht über Vollständigkeit.
 
 const KEYWORD_RULES = [
+  // Zuerst die Frage, wem das Geld gehört. Erst wenn sie mit „mir" beantwortet
+  // ist, lohnt die Frage, wofür es ausgegeben wurde: eine Mietkaution ist keine
+  // Miete, und eine Auslage für jemand anderen ist kein Einkauf.
+  { category: 'pass_through', keywords: [
+    'kaution', 'mietkaution', 'kautionsrückzahlung', 'kautionsrueckzahlung',
+    'auslage', 'auslagen', 'verauslagt', 'durchlaufend', 'treuhand',
+  ] },
   { category: 'groceries', keywords: [
     'lidl', 'aldi', 'rewe', 'edeka', 'penny', 'netto', 'kaufland', 'konsum', 'norma',
     'denns', 'alnatura', 'bio company', 'marktkauf', 'globus', 'tegut', 'nahkauf',
@@ -82,13 +89,29 @@ const KEYWORD_RULES = [
     'dm', 'rossmann', 'müller', 'ikea', 'obi', 'toom', 'bauhaus', 'hornbach', 'hagebau',
     'tedi', 'action', 'woolworth', 'kik', 'nanu', 'xxxlutz', 'poco', 'roller', 'möbel',
     'drogerie', 'baumarkt', 'reinigung', 'wäscherei',
-    // Wohnen und Versorgung: Strom, Wasser, Müll, Post, Miete. Die Ausgabenseite
-    // kennt dafür keinen eigenen Topf — auf der Vertragsseite schon, und dorthin
-    // gehören die Verträge auch. Was hier ankommt, ist die einzelne Zahlung.
+    // Versand bleibt Haushalt: ein Paket ist keine Wohnkost.
+    'deutsche post', 'dhl', 'hermes', 'dpd',
+  ] },
+  // Das Betriebliche steht vor dem Privaten. Die Wortgrenzen trennen ohnehin
+  // „gewerbemiete" von „miete", aber so ist die Absicht der Liste lesbar.
+  { category: 'commercial_rent', keywords: [
+    'gewerbemiete', 'gewerbliche miete', 'gewerberaum', 'ladenmiete', 'büromiete',
+    'bueromiete', 'praxismiete', 'werkstattmiete', 'lagermiete',
+    // „atelier" allein ist mehrdeutig — es gibt Friseure, die so heißen. Es steht
+    // trotzdem hier: ein Atelier ist ein Arbeitsraum, und wer eins mietet, zahlt
+    // die Miete jeden Monat. Ein Friseurbesuch im Jahr wiegt das nicht auf, und
+    // eine Korrektur wird ohnehin gelernt.
+    'atelier',
+  ] },
+  // Wohnen und Versorgung: Miete, Nebenkosten, Strom, Wasser, Müll, Grundsteuer.
+  // Auf der Vertragsseite stehen die Verträge, hier steht die einzelne Zahlung.
+  { category: 'housing', keywords: [
+    'miete', 'kaltmiete', 'warmmiete', 'nebenkosten', 'hausgeld', 'wohngeldabrechnung',
+    'vermieter', 'wohnungsgenossenschaft', 'wohnungsbaugenossenschaft',
     'octopus energy', 'stadtwerke', 'vattenfall', 'e.on', 'eon', 'enbw', 'rwe',
     'lichtblick', 'naturstrom', 'zweckverband', 'abwasser', 'wasserwerke',
     'stadtverwaltung', 'kreisstadt', 'grundsteuer', 'rundfunk', 'ard, zdf',
-    'deutsche post', 'dhl', 'hermes', 'dpd', 'mieterbund', 'hausverwaltung',
+    'mieterbund', 'hausverwaltung',
   ] },
   { category: 'garden', keywords: [
     'dehner', 'gartencenter', 'baumschule', 'blumen', 'pflanzen', 'floristik',
@@ -151,6 +174,11 @@ const KEYWORD_RULES = [
 // eine Erstattung oder eine Überweisung von jemandem, den man kennt.
 
 const INCOME_RULES = [
+  // Auch hier zuerst: fremdes Geld sieht auf dem Auszug aus wie eigenes. Eine
+  // erhaltene Kaution steht mit demselben Vorzeichen da wie ein Gehalt.
+  { category: 'income_pass_through', keywords: [
+    'kaution', 'mietkaution', 'auslage', 'auslagen', 'durchlaufend', 'treuhand',
+  ] },
   { category: 'income_salary', keywords: ['lohn', 'gehalt', 'bezüge', 'besoldung', 'honorar', 'salary'] },
   // Staatliche Leistungen sind weder Lohn noch Erstattung. Sie landen beim
   // Restposten — aber als erkannter Restposten, nicht als ungeprüfte Zeile.

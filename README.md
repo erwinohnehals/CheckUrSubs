@@ -48,7 +48,7 @@ Alles bleibt im Browser dieses Geräts — es gibt kein Konto und keine Synchron
 | Was | Wo | Schlüssel |
 |---|---|---|
 | Einträge, Vertragsdaten, eigene Felder | `localStorage` | `goldgeld.entries` |
-| Ausgaben und Einnahmen | `localStorage` | `goldgeld.expenses` |
+| Ausgaben und Einnahmen (inkl. Flagge `internal` für Umbuchungen) | `localStorage` | `goldgeld.expenses` |
 | Benannte Konten | `localStorage` | `goldgeld.accounts` |
 | Budgets und Übertragsbeginn | `localStorage` | `goldgeld.budgets` |
 | Gelernte Importregeln | `localStorage` | `goldgeld.bankrules` |
@@ -77,9 +77,11 @@ Drei Regeln tragen den Import:
   bekannte Buchungen wieder — überlappende Zeiträume sind der Normalfall. Zwei
   echte gleiche Zahlungen am selben Tag bleiben trotzdem zwei Vorgänge.
 - **Geld zwischen eigenen Konten zählt nicht als Ausgabe.** Kreditkarten-
-  abrechnung, PayPal-Einzug, Deckungsbuchungen und Autorisierungen sind
+  abrechnung, PayPal-Einzug, Deckungsbuchungen, Autorisierungen und Überweisungen
+  auf den eigenen Namen (etwa mit „Mein Geld“ im Verwendungszweck) sind
   abgewählt — wer Giro, Karte und PayPal einliest, zählt sonst dreifach.
-  Vorgemerktes aus CAMT.052 kommt gar nicht erst an.
+  Vorgemerktes aus CAMT.052 kommt gar nicht erst an. Wer eine solche Zeile
+  trotzdem einschließt, bekommt sie als **Umbuchung** in die Bücher.
 
 Was du beim Einlesen entscheidest, wird gemerkt: Händler → Kategorie und
 Dateikennung → Konto liegen unter `goldgeld.bankrules` und gelten beim nächsten

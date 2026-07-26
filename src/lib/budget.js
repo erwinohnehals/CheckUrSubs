@@ -11,7 +11,7 @@
 // ein Gehaltseingang macht die Lebensmittel des Monats nicht billiger.
 
 import { monthKey, shiftMonth, monthsBetween } from './dates.js';
-import { categoryBreakdown, isCounted } from './expenseStore.js';
+import { categoryBreakdown, countsAsMoney } from './expenseStore.js';
 
 const STORAGE_KEY     = 'goldgeld.budgets';
 const STORAGE_VERSION = 1;
@@ -155,7 +155,7 @@ export const spendIndex = (transactions = [], amountIn = (amount) => amount) => 
   const totals = new Map();
 
   for (const transaction of transactions) {
-    if (!isCounted(transaction) || transaction.direction !== 'expense') continue;
+    if (!countsAsMoney(transaction) || transaction.direction !== 'expense') continue;
 
     const month = monthKey(transaction.date);
     if (!month) continue;

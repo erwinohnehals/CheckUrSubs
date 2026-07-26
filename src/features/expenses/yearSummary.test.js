@@ -21,6 +21,7 @@ const transaction = (attributes = {}) => ({
   category: 'other',
   amount: 0,
   items: [],
+  internal: false,
   archived_at: null,
   ...attributes,
 });
@@ -80,6 +81,24 @@ test('buildYearReport reconciles its totals against the twelve displayed months'
     out: 205,
     left: 295,
   });
+});
+
+test('buildYearReport leaves transfers out of months, categories and purchases', () => {
+  const report = buildYearReport({
+    year: 2026,
+    transactions: [
+      transaction({ id: 'food', amount: 25, category: 'groceries' }),
+      // Erspartes auf das Girokonto und wieder zurück: bewegt, nie verdient
+      transaction({ id: 'from-savings', direction: 'income', amount: 4200, internal: true }),
+      transaction({ id: 'to-savings', amount: 4200, category: 'other', internal: true }),
+    ],
+  });
+
+  assert.deepEqual(report.totals, {
+    fixed: 0, oneOff: 25, income: 0, out: 25, left: -25,
+  });
+  assert.deepEqual(report.categories, [{ category: 'groceries', amount: 25 }]);
+  assert.deepEqual(report.purchases.map(({ transaction: row }) => row.id), ['food']);
 });
 
 test('buildYearReport uses item category overrides and converted amounts', () => {

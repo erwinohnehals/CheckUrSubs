@@ -38,6 +38,28 @@ test('inMonth drops archived transactions', () => {
   assert.deepEqual(inMonth(rows, '2026-07').map(({ id }) => id), ['a']);
 });
 
+test('inMonth keeps transfers — they belong in the list, not in the sums', () => {
+  const rows = [
+    transaction({ id: 'a' }),
+    transaction({ id: 'b', internal: true }),
+  ];
+
+  assert.deepEqual(inMonth(rows, '2026-07').map(({ id }) => id), ['a', 'b']);
+});
+
+test('groupByDay leaves transfers out of the day totals', () => {
+  const rows = [
+    transaction({ id: 'a', amount: 20 }),
+    transaction({ id: 'b', amount: 800, direction: 'income', internal: true }),
+  ];
+
+  const [day] = groupByDay(rows);
+  assert.equal(day.expense, 20);
+  assert.equal(day.income, 0);
+  // Die Zeile bleibt sichtbar, obwohl sie zu keiner Zahl beiträgt
+  assert.deepEqual(day.transactions.map(({ id }) => id), ['a', 'b']);
+});
+
 test('groupByDay orders days newest first and entries newest within a day', () => {
   const rows = [
     transaction({ id: 'a', date: '2026-07-02', created_at: '2026-07-02T08:00:00.000Z' }),
@@ -86,6 +108,19 @@ test('monthSummary reports out, in and what is left', () => {
 
   // Ohne Rundung stünde hier 999.6999999999999
   assert.deepEqual(monthSummary(rows), { expense: 0.3, income: 1000, net: 999.7 });
+});
+
+test('monthSummary counts neither transfers nor archived rows', () => {
+  const rows = [
+    transaction({ amount: 40 }),
+    transaction({ amount: 500, internal: true }),
+    transaction({ direction: 'income', amount: 3000 }),
+    // Erspartes aufs Girokonto: bewegt, aber nicht verdient
+    transaction({ direction: 'income', amount: 800, internal: true }),
+    transaction({ amount: 99, archived_at: '2026-07-05T00:00:00.000Z' }),
+  ];
+
+  assert.deepEqual(monthSummary(rows), { expense: 40, income: 3000, net: 2960 });
 });
 
 test('knownTags ranks by use, then alphabetically', () => {

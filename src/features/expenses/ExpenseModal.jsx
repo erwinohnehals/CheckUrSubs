@@ -71,6 +71,7 @@ export const ExpenseModal = ({
   const [category,  setCategory]  = useState(initial?.category || '');
   const [accountId, setAccountId] = useState(initial?.account_id || '');
   const [note,      setNote]      = useState(initial?.note     || '');
+  const [internal,  setInternal]  = useState(Boolean(initial?.internal));
   const [tags,      setTags]      = useState(() => (initial?.tags || []).join(', '));
   const [items,     setItems]     = useState(() => toFormItems(initial));
 
@@ -132,6 +133,7 @@ export const ExpenseModal = ({
       })),
       tags: tags.split(',').map((tag) => tag.trim()).filter(Boolean),
       note,
+      internal,
       // Ein bearbeiteter Vorgang behält seinen Verweis auf die ausgeglichene Ausgabe
       refund_for: initial?.refund_for || null,
     });
@@ -218,8 +220,18 @@ export const ExpenseModal = ({
             <section className="space-y-3">
               <GroupTitle>{t.exp_sec_amount}</GroupTitle>
 
-              <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
-                <Switch checked={income} onChange={flipDirection} label={t.exp_as_income} />
+              {/* Beide Schalter beantworten dieselbe Frage — in welche Summe der
+                  Betrag geht — und stehen deshalb beieinander. */}
+              <div className="rounded-xl border border-border bg-surface divide-y divide-border">
+                <div className="px-3 py-2.5">
+                  <Switch checked={income} onChange={flipDirection} label={t.exp_as_income} />
+                </div>
+                <div className="px-3 py-2.5 space-y-2">
+                  <Switch checked={internal} onChange={setInternal} label={t.exp_as_internal} />
+                  {internal && (
+                    <p className="text-[11px] text-ink-3 leading-relaxed">{t.exp_internal_hint}</p>
+                  )}
+                </div>
               </div>
 
               <Field label={t.exp_field_amount}>

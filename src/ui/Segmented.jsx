@@ -3,12 +3,14 @@ import { useSlidingPill } from '../lib/motion';
 // ─── Segmented Control mit gleitender Markierung (§4.4) ───────────────────────
 // Eine einzige Pille wandert zwischen den Einträgen — keine Hintergründe, die
 // an- und ausgehen. Die Beschriftungen blenden nur ihre Farbe über.
+// `itemAttrs` hängt jedem Eintrag dieselben Attribute an — so findet ein
+// Elternteil seine Schaltflächen wieder, ohne den Aufbau zu kennen.
 export const Segmented = ({
   items, value, onChange,
   className = '', trackClass = '', itemClass = '', pillClass = '',
   activeItemClass = 'text-ink', inactiveItemClass = 'text-ink-2 hover:text-ink',
   vertical = false,
-  layout, renderItem,
+  layout, renderItem, itemAttrs,
 }) => {
   const { trackRef, pillRef, setItem } = useSlidingPill(value);
 
@@ -20,6 +22,7 @@ export const Segmented = ({
         const active = item.id === value;
         return (
           <button key={item.id} type="button" ref={setItem(item.id)} data-no-press
+            {...itemAttrs}
             onClick={() => onChange(item.id)}
             aria-current={active ? 'page' : undefined}
             className={`relative z-10 rounded-lg font-medium

@@ -35,6 +35,39 @@ test('bekannte Ketten werden erkannt', () => {
   assert.equal(suggestCategory(bankRow({ merchant: 'nextbike GmbH' })).category, 'transport');
 });
 
+test('Wohnkosten und gewerbliche Miete bleiben getrennt', () => {
+  const row = (attributes) => bankRow({ merchant: 'Anna Vogel', title: '', ...attributes });
+
+  assert.equal(suggestCategory(row({ purpose: 'Miete Maerz' })).category, 'housing');
+  assert.equal(suggestCategory(bankRow({ merchant: 'Stadtwerke Leipzig' })).category, 'housing');
+  assert.equal(suggestCategory(row({ purpose: 'Gewerbemiete Q1' })).category, 'commercial_rent');
+  // Der Arbeitsraum schlägt die Wohnung, obwohl „Miete" in beiden Zeilen steht
+  assert.equal(suggestCategory(row({ purpose: 'Miete Atelier Maerz' })).category, 'commercial_rent');
+  // Ein Paket ist keine Wohnkost
+  assert.equal(suggestCategory(bankRow({ merchant: 'DHL Paket' })).category, 'household');
+});
+
+test('durchlaufende Posten gehen beiden Richtungen vor', () => {
+  const out = suggestCategory(bankRow({ merchant: 'Anna Vogel', title: '', purpose: 'Mietkaution Atelier' }));
+  assert.equal(out.category, 'pass_through');
+
+  const back = suggestCategory(bankRow({
+    direction: 'income', merchant: 'Anna Vogel', title: '', purpose: 'Kaution zurueck',
+  }));
+  assert.equal(back.category, 'income_pass_through');
+});
+
+test('„Miete" auf der Einnahmenseite wird keine Wohnkost', () => {
+  // Was zur Miete hereinkommt, ist nicht die Miete. Die Stichwortliste der
+  // Ausgaben darf hier gar nicht erst greifen — sonst hinge eine Überweisung
+  // unter „Wohnkosten" und ginge als Ausgabe in die Auswertung.
+  const result = suggestCategory(bankRow({
+    direction: 'income', merchant: 'Anna Vogel', title: '', purpose: 'Miete Maerz',
+  }));
+
+  assert.equal(result.category, 'income_other');
+});
+
 test('ein angehängtes s bricht die Erkennung nicht', () => {
   assert.equal(suggestCategory(bankRow({ merchant: 'McDonalds 01597' })).category, 'dining');
 });
@@ -165,6 +198,28 @@ test('ein Posten wird zu einem Vorgang mit Herkunft', () => {
   assert.equal(transaction.account_id, 'konto-1');
   assert.equal(transaction.source.ref, 'r1');
   assert.equal(transaction.source.creditor_id, 'DE43ZZZ');
+});
+
+test('eine eingeschlossene Umbuchung kommt als Umbuchung in die Bücher', () => {
+  // Vorab abgewählt ist sie — wer sie trotzdem einschließt, will die Bewegung
+  // sehen, nicht eine Ausgabe erfinden.
+  const [item] = prepareImport({ rows: [bankRow({
+    merchant: 'Joao Carvalho', purpose: 'Mein Geld', amount: 800,
+    direction: 'income', internal: true, internal_reason: 'own_transfer',
+  })] });
+
+  assert.equal(item.include, false);
+
+  const store = createExpenseStore(memoryStorage());
+  const [saved] = store.importRows([toTransaction({ ...item, include: true })]);
+
+  assert.equal(saved.internal, true);
+  assert.equal(saved.amount, 800);
+});
+
+test('eine gewöhnliche Zeile bleibt gezählt', () => {
+  const [item] = prepareImport({ rows: [bankRow()] });
+  assert.equal(toTransaction(item).internal, false);
 });
 
 test('derselbe Auszug zweimal eingelesen legt nichts doppelt an', () => {

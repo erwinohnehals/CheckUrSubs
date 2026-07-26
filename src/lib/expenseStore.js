@@ -3,7 +3,7 @@
 // Wahlweise als ein Betrag oder in Positionen aufgeteilt — der Kassenbon vom
 // Baumarkt ist eine Zeile in der Liste, aber drei Kategorien in der Auswertung.
 //
-// Drei Regeln tragen den ganzen Entwurf:
+// Vier Regeln tragen den ganzen Entwurf:
 //
 //   1. Gibt es Positionen, ist `amount` ihre Summe — bei jedem Schreiben neu
 //      gerechnet, nie aus der Eingabe übernommen.
@@ -12,6 +12,9 @@
 //      abweichen“.
 //   3. Jede Aufschlüsselung — Kategoriesummen, Budgets, Jahresbericht — läuft
 //      über categoryBreakdown(). Ein Fehler dort wäre überall und lautlos.
+//   4. Ob ein Vorgang überhaupt in eine Summe eingeht, sagt countsAsMoney() —
+//      und nur diese Funktion. Sonst zählt eine Umbuchung im Monat nicht mit,
+//      im Jahresbericht aber doch.
 //
 // Anders als Verträge speichern Ausgaben ein echtes ISO-Datum: ein Vertrag wird
 // am 14. jedes Monats abgebucht, ein Einkauf ist an einem bestimmten Tag
@@ -159,6 +162,10 @@ const normalize = (input, createId = newId) => {
     // Ausgabe hätte der Verweis keine Bedeutung.
     refund_for: direction === 'income' ? (asString(input?.refund_for) || null) : null,
 
+    // Umbuchung zwischen eigenen Konten. Alter Bestand kennt das Feld nicht und
+    // ist damit gezählt — was für jeden schon erfassten Vorgang richtig ist.
+    internal: Boolean(input?.internal),
+
     created_at:  createdAt,
     archived_at: asString(input?.archived_at) || null,
   };
@@ -193,6 +200,18 @@ export const categoryBreakdown = (transaction) => {
 /** Archiviertes zählt in keiner Summe mit — wie isBilled auf der Vertragsseite. */
 export const isCounted = (transaction) =>
   Boolean(transaction) && !transaction.archived_at;
+
+/**
+ * Was als eigenes Geld in eine Summe eingeht.
+ *
+ * Eine Umbuchung ist weder Verdienst noch Verbrauch, sondern dasselbe Geld an
+ * einem anderen Ort. Anders als Archiviertes bleibt sie in der Liste stehen —
+ * dort ist sie die Erklärung für einen Kontostand — und fällt aus jeder Summe
+ * heraus: Tag, Monat, Budget, Jahr. Deshalb steht die Frage hier und nicht
+ * viermal.
+ */
+export const countsAsMoney = (transaction) =>
+  isCounted(transaction) && !transaction.internal;
 
 // Dieselbe ID bezeichnet genau einen Vorgang; die letzte Fassung gewinnt
 const uniqueById = (rows) =>

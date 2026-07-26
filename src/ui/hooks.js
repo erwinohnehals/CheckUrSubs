@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { STANDARD_EASE, reducedMotion } from '../lib/motion';
 
 // Schließt Menüs bei Klick daneben und mit Escape
@@ -18,6 +18,40 @@ export const useDismiss = (open, onClose) => {
     };
   }, [open, onClose]);
   return ref;
+};
+
+// ─── Öffnungsrichtung eines Menüs ─────────────────────────────────────────────
+// Ein Menü in einer scrollenden Liste weiß nicht, wie viel Platz unter ihm liegt.
+// Gemessen wird gegen den nächsten scrollenden Vorfahren, denn der schneidet
+// enger ab als das Fenster. Reicht es unten nicht und oben mehr, klappt es hoch.
+//
+// Gemessen wird beim Öffnen, nicht beim Rendern — der Auslöser steht dann schon,
+// und die Richtung bleibt nach dem Schließen stehen: das Menü ist noch montiert
+// und soll dort ausblenden, wo es stand.
+const scrollParent = (el) => {
+  for (let node = el?.parentElement; node; node = node.parentElement) {
+    const { overflowY } = window.getComputedStyle(node);
+    if (overflowY === 'auto' || overflowY === 'scroll') return node;
+  }
+  return null;
+};
+
+export const useDropUp = (height = 300) => {
+  const [up, setUp] = useState(false);
+
+  const measure = useCallback((el) => {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const box  = scrollParent(el)?.getBoundingClientRect();
+    const top    = box ? Math.max(box.top, 0) : 0;
+    const bottom = box ? Math.min(box.bottom, window.innerHeight) : window.innerHeight;
+
+    const below = bottom - rect.bottom;
+    const above = rect.top - top;
+    setUp(below < height && above > below);
+  }, [height]);
+
+  return [up, measure];
 };
 
 // ─── Wischen am Telefon ───────────────────────────────────────────────────────

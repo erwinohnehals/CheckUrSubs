@@ -33,7 +33,7 @@ import {
 } from './lib/money';
 import {
   STANDARD_EASE, POWER1_IN, POWER1_OUT, EXPO_OUT, DURATION,
-  reducedMotion, restartAnimation, staggerIn, useButtonPress,
+  reducedMotion, restartAnimation, staggerIn, staggerSwap, useButtonPress,
 } from './lib/motion';
 import {
   CARD, PANEL, INPUT_CLASS, DOT, btn, Segmented, PopMenu, MenuHeader, MenuItem,
@@ -4628,9 +4628,26 @@ const DesktopSidebar = ({
 }) => {
   const t = useT();
   const items = navItems(t, tabs);
+  const navRef = useRef(null);
+  const shownSection = useRef(section);
+
+  // Der Bereichswechsel tauscht Knopfbeschriftung und Reiter auf einen Schlag.
+  // Damit das nicht springt, laufen beide gestaffelt aus der Richtung ein, in
+  // die der Schalter oben gesprungen ist: nach rechts für Verträge, nach links
+  // zurück für Ausgaben.
+  useLayoutEffect(() => {
+    if (shownSection.current === section) return;
+    const index = (id) => SECTION_ITEMS.findIndex(item => item.id === id);
+    const forward = index(section) > index(shownSection.current);
+    shownSection.current = section;
+    if (!navRef.current) return;
+    staggerSwap(navRef.current.querySelectorAll('[data-nav-swap]'),
+      { shift: forward ? 18 : -18 });
+  }, [section]);
 
   return (
-    <aside className="hidden lg:flex flex-col w-[264px] shrink-0 h-screen sticky top-0 z-40 bg-surface border-r border-border px-5 py-7">
+    <aside ref={navRef}
+      className="hidden lg:flex flex-col w-[264px] shrink-0 h-screen sticky top-0 z-40 bg-surface border-r border-border px-5 py-7">
       <div className="flex items-center gap-3 px-1">
         <BrandMark className="w-14 h-10 rounded-lg p-1" />
         <Wordmark className="text-[30px] leading-none min-w-0 block truncate" />
@@ -4653,7 +4670,7 @@ const DesktopSidebar = ({
           </>
         )} />
 
-      <button onClick={onAdd} className={btn('primary', 'md', 'mt-4 w-full py-3')}>
+      <button onClick={onAdd} data-nav-swap className={btn('primary', 'md', 'mt-4 w-full py-3')}>
         <Plus className="w-4 h-4" />
         {addLabel}
       </button>
@@ -4661,8 +4678,9 @@ const DesktopSidebar = ({
       <Segmented
         key={section}
         items={items} value={activeTab} onChange={onSwitch}
+        itemAttrs={{ 'data-nav-swap': '' }}
         vertical className="mt-7 -mx-1"
-        trackClass="gap-1"
+        trackClass="gap-1" pillClass="nav-pill"
         itemClass="flex items-center gap-3 px-3.5 py-2.5 text-sm w-full"
         renderItem={(item, active) => (
           <>
