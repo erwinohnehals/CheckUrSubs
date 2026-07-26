@@ -217,7 +217,7 @@ export const ExpensesSection = ({
       <ExpenseModal key={expenses.modalKey}
         open={expenses.modalOpen} initial={expenses.modalInitial}
         isEditing={Boolean(expenses.editing)} isRepeat={expenses.repeating}
-        accounts={modalAccounts} knownTags={tags} currency={currency}
+        accounts={modalAccounts} entries={contractEntries} knownTags={tags} currency={currency}
         onSave={expenses.save} onClose={expenses.closeModal} onDocsChange={onDocsChange}
         isDesktop={isDesktop} />
 
@@ -226,7 +226,7 @@ export const ExpensesSection = ({
         onChange={onFileChosen} />
 
       <ImportPanel open={expenses.importOpen} onClose={expenses.closeImport}
-        state={expenses.importBatch} accounts={expenses.activeAccounts}
+        state={expenses.importBatch} accounts={expenses.activeAccounts} entries={contractEntries}
         onPick={pickFile} onConfirm={expenses.confirmImport} error={expenses.importError}
         fmt={fmt} isDesktop={isDesktop} />
 

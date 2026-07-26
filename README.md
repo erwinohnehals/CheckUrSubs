@@ -52,10 +52,10 @@ Alles bleibt im Browser dieses Geräts — es gibt kein Konto und keine Synchron
 | Was | Wo | Schlüssel |
 |---|---|---|
 | Einträge, Vertragsdaten, eigene Felder | `localStorage` | `goldgeld.entries` |
-| Ausgaben und Einnahmen (inkl. Flagge `internal` für Umbuchungen) | `localStorage` | `goldgeld.expenses` |
+| Ausgaben und Einnahmen (inkl. Flagge `internal` für Umbuchungen und `entry_id` für den verknüpften Vertrag) | `localStorage` | `goldgeld.expenses` |
 | Benannte Konten | `localStorage` | `goldgeld.accounts` |
 | Budgets und Übertragsbeginn | `localStorage` | `goldgeld.budgets` |
-| Gelernte Importregeln | `localStorage` | `goldgeld.bankrules` |
+| Gelernte Importregeln (Kategorie, Konto und Vertrag je Zahlungskennung) | `localStorage` | `goldgeld.bankrules` |
 | Dokumente (Blobs, max. 20 MB je Datei) | IndexedDB | `goldgeld` / `documents` |
 | Tresor-Metadaten (Salt + Prüf-Token) | `localStorage` | `goldgeld.vault` |
 

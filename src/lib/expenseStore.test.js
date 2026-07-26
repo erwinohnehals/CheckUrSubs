@@ -70,6 +70,16 @@ test('creates and reloads a normalized transaction', () => {
   assert.deepEqual(createStore(storage).list(), [created]);
 });
 
+test('a transaction can be linked to a contract, and old data stays unlinked', () => {
+  const store = createStore();
+
+  const linked = store.create({ title: 'freenet', amount: 37.99, entry_id: 'vertrag-1' });
+  assert.equal(linked.entry_id, 'vertrag-1');
+
+  const unlinked = store.create({ title: 'OBI', amount: 10 });
+  assert.equal(unlinked.entry_id, null);
+});
+
 test('reads amounts the way they are typed on either side of the channel', () => {
   assert.equal(parseAmount('12,50'), 12.5);
   assert.equal(parseAmount('12.50'), 12.5);

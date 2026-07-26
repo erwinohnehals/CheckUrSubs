@@ -19,6 +19,7 @@ import { useLang, useT } from '../../lib/i18n';
 import { fmtDateFromISO } from '../../lib/dates';
 import { fmtMoney } from '../../lib/money';
 import { merchantKey } from '../../lib/autoCategorize';
+import { entryLinkKey } from '../../lib/bankRules';
 import { groupByMonth, importSummary } from '../../lib/bankImport';
 import { btn, Badge, INPUT_CLASS, Overlay, SelectInput } from '../../ui';
 import { CategoryPicker } from './CategoryPicker';
@@ -32,7 +33,7 @@ const Stat = ({ label, value, tone = '' }) => (
   </div>
 );
 
-const ItemRow = ({ item, months, lang, last, onToggle, onCategory }) => {
+const ItemRow = ({ item, months, lang, last, entryOptions, onToggle, onCategory, onEntryLink }) => {
   const t = useT();
   const { row } = item;
   const income = row.direction === 'income';
@@ -74,16 +75,26 @@ const ItemRow = ({ item, months, lang, last, onToggle, onCategory }) => {
           )}
         </div>
 
-        <div className="mt-2 max-w-[280px]">
-          <CategoryPicker value={item.category} direction={row.direction} compact
-            onChange={(category) => onCategory(category)} />
+        <div className="mt-2 flex flex-wrap gap-2">
+          <div className="max-w-[280px]">
+            <CategoryPicker value={item.category} direction={row.direction} compact
+              onChange={(category) => onCategory(category)} />
+          </div>
+          {!income && entryOptions.length > 0 && (
+            <div className="max-w-[220px]">
+              <SelectInput value={item.entry_id || ''} onChange={onEntryLink}
+                placeholder={t.exp_entry_none} options={entryOptions} compact />
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-const MonthSection = ({ group, open, onOpen, lang, months, fmt, onToggle, onCategory }) => {
+const MonthSection = ({
+  group, open, onOpen, lang, months, fmt, entryOptions, onToggle, onCategory, onEntryLink,
+}) => {
   const t = useT();
   const [year, month] = group.month.split('-');
   const label = `${months?.[Number(month) - 1] ?? month} ${year}`;
@@ -114,9 +125,10 @@ const MonthSection = ({ group, open, onOpen, lang, months, fmt, onToggle, onCate
         <div className="divide-y divide-border">
           {group.items.map((item, i) => (
             <ItemRow key={item.key} item={item} lang={lang} months={months}
-              last={i === group.items.length - 1}
+              last={i === group.items.length - 1} entryOptions={entryOptions}
               onToggle={() => onToggle(item.key)}
-              onCategory={(category) => onCategory(item, category)} />
+              onCategory={(category) => onCategory(item, category)}
+              onEntryLink={(entryId) => onEntryLink(item, entryId)} />
           ))}
         </div>
       )}
@@ -125,11 +137,15 @@ const MonthSection = ({ group, open, onOpen, lang, months, fmt, onToggle, onCate
 };
 
 export const ImportPanel = ({
-  open, onClose, state, accounts = [], onPick, onConfirm, isDesktop, fmt, error = '',
+  open, onClose, state, accounts = [], entries = [], onPick, onConfirm, isDesktop, fmt, error = '',
 }) => {
   const t    = useT();
   const lang = useLang();
   const months = t.months_short;
+  const entryOptions = useMemo(
+    () => entries.filter((entry) => !entry.archived_at)
+      .map((entry) => ({ value: entry.id, label: entry.name || entry.provider })),
+    [entries]);
 
   const [filter, setFilter]   = useState('review');
   const [openMonths, setOpenMonths] = useState(null);
@@ -193,6 +209,20 @@ export const ImportPanel = ({
 
       if (!same || item.row.direction !== target.row.direction) return item;
       return { ...item, category, overridden: true };
+    }));
+  };
+
+  // Derselbe Bezug wie beim Konto: die Zahlungskennung, nicht die einzelne Zeile
+  const setEntryLink = (target, entryId) => {
+    const key = entryLinkKey(target.row);
+
+    setItems((rows) => rows.map((item) => {
+      const same = key
+        ? entryLinkKey(item.row) === key
+        : item.key === target.key;
+
+      if (!same || item.row.direction !== target.row.direction) return item;
+      return { ...item, entry_id: entryId || null, entryOverridden: true };
     }));
   };
 
@@ -314,9 +344,10 @@ export const ImportPanel = ({
               <div className="space-y-2">
                 {groups.map((group) => (
                   <MonthSection key={group.month} group={group} lang={lang} months={months} fmt={fmt}
+                    entryOptions={entryOptions}
                     open={currentOpenMonths.has(group.month)}
                     onOpen={() => toggleMonth(group.month)}
-                    onToggle={toggle} onCategory={setCategory} />
+                    onToggle={toggle} onCategory={setCategory} onEntryLink={setEntryLink} />
                 ))}
               </div>
             )}

@@ -55,7 +55,7 @@ const toFormItems = (transaction) =>
 
 export const ExpenseModal = ({
   open, initial, isEditing = false, isRepeat = false,
-  accounts = [], knownTags = [], currency, onSave, onClose, onDocsChange, isDesktop,
+  accounts = [], entries = [], knownTags = [], currency, onSave, onClose, onDocsChange, isDesktop,
 }) => {
   const t    = useT();
   const lang = useLang();
@@ -70,6 +70,7 @@ export const ExpenseModal = ({
   const [date,      setDate]      = useState(initial?.date     || todayISO());
   const [category,  setCategory]  = useState(initial?.category || '');
   const [accountId, setAccountId] = useState(initial?.account_id || '');
+  const [entryId,   setEntryId]   = useState(initial?.entry_id || '');
   const [note,      setNote]      = useState(initial?.note     || '');
   const [internal,  setInternal]  = useState(Boolean(initial?.internal));
   const [tags,      setTags]      = useState(() => (initial?.tags || []).join(', '));
@@ -115,7 +116,7 @@ export const ExpenseModal = ({
   // Belege liegen schon in der Ablage, sobald sie angehängt wurden — was hier
   // verglichen wird, ist allein das, was ein Verwerfen tatsächlich wegwürfe.
   const dirty = useDirty(JSON.stringify([
-    direction, title, merchant, date, category, accountId, note, internal,
+    direction, title, merchant, date, category, accountId, entryId, note, internal,
     tags, items, amount, currencyCode,
   ]));
   const { asking, requestClose, confirmClose, cancelClose } = useCloseGuard(dirty, onClose);
@@ -131,6 +132,7 @@ export const ExpenseModal = ({
       date,
       category,
       account_id:    accountId || null,
+      entry_id:      entryId || null,
       currency_code: currencyCode,
       amount:        total,
       items: items.map((item) => ({
@@ -173,6 +175,7 @@ export const ExpenseModal = ({
   };
 
   const accountOptions = accounts.map((account) => ({ value: account.id, label: account.label }));
+  const entryOptions = entries.map((entry) => ({ value: entry.id, label: entry.name || entry.provider }));
 
   return (
     <Overlay open={open} onClose={requestClose} sheet={!isDesktop} labelledBy="expense-modal-title"
@@ -276,6 +279,13 @@ export const ExpenseModal = ({
                 <SelectInput value={accountId} onChange={setAccountId}
                   placeholder={t.exp_account_none} options={accountOptions} />
               </Field>
+
+              {!income && entryOptions.length > 0 && (
+                <Field label={t.exp_field_entry}>
+                  <SelectInput value={entryId} onChange={setEntryId}
+                    placeholder={t.exp_entry_none} options={entryOptions} />
+                </Field>
+              )}
             </section>
 
             <section className="space-y-3">

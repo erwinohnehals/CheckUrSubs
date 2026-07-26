@@ -21,16 +21,18 @@ export const Switch = ({ checked, onChange, label }) => (
   </button>
 );
 
-export const SelectInput = ({ value, onChange, placeholder, options }) => (
+export const SelectInput = ({ value, onChange, placeholder, options, compact = false }) => (
   <div className="relative">
     <select value={value} onChange={e => onChange(e.target.value)}
-      className={`${INPUT_CLASS} appearance-none pr-10 ${value ? 'text-ink' : 'text-ink-3'}`}>
+      className={`${INPUT_CLASS} appearance-none ${value ? 'text-ink' : 'text-ink-3'}
+        ${compact ? 'px-3 py-2 text-xs pr-8' : 'pr-10'}`}>
       <option value="">{placeholder}</option>
       {options.map(option => (
         <option key={option.value} value={option.value} className="text-ink">{option.label}</option>
       ))}
     </select>
-    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" />
+    <ChevronDown className={`absolute top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none
+      ${compact ? 'right-2.5 w-3.5 h-3.5' : 'right-4 w-4 h-4'}`} />
   </div>
 );
 

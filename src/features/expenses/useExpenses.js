@@ -11,7 +11,7 @@ import { monthKey, shiftMonth } from '../../lib/dates';
 import { createExpenseStore, repeatTransactionDraft } from '../../lib/expenseStore';
 import { createAccountStore } from '../../lib/accountStore';
 import { createBudgetStore } from '../../lib/budget';
-import { createBankRuleStore } from '../../lib/bankRules';
+import { createBankRuleStore, entryLinkKey } from '../../lib/bankRules';
 import { readBankUpload } from '../../lib/bankFormats';
 import { existingRefsOf, prepareImport, toTransaction } from '../../lib/bankImport';
 import * as documentStore from '../../lib/documentStore';
@@ -24,7 +24,7 @@ export const bankRuleStore = createBankRuleStore(window.localStorage);
 // So lange bleibt ein gelöschter Vorgang zurückholbar — wie auf der Vertragsseite
 const UNDO_MS = 5000;
 
-export const useExpenses = ({ onDocsChange } = {}) => {
+export const useExpenses = ({ onDocsChange, entries = [] } = {}) => {
   const t = useT();
 
   const [transactions, setTransactions] = useState(() => expenseStore.list());
@@ -185,6 +185,8 @@ export const useExpenses = ({ onDocsChange } = {}) => {
         learned: rules.categories,
         accountMap: rules.accounts,
         existingRefs: existingRefsOf(expenseStore.list()),
+        entries,
+        learnedEntries: rules.entries,
       });
 
       // Die Datei sagt, zu welchem Konto sie gehört; gemerkt wurde es vielleicht
@@ -203,7 +205,7 @@ export const useExpenses = ({ onDocsChange } = {}) => {
       setImportBatch(null);
       setImportError(t.imp_failed);
     }
-  }, [t]);
+  }, [t, entries]);
 
   const confirmImport = useCallback(({ items = [], accountId = null }) => {
     const chosen = items.filter((item) => item.include);
@@ -222,6 +224,14 @@ export const useExpenses = ({ onDocsChange } = {}) => {
     if (accountId) {
       const keys = new Set(chosen.map((item) => item.row.account_key).filter(Boolean));
       for (const key of keys) bankRuleStore.rememberAccount(key, accountId);
+    }
+
+    // Ebenso beim Vertrag: gelernt wird nur, was der Nutzer selbst gesetzt hat —
+    // sonst hielte die App einen zweideutigen oder falschen Vorschlag für bestätigt.
+    for (const item of chosen) {
+      if (!item.entryOverridden || !item.entry_id) continue;
+      const key = entryLinkKey(item.row);
+      if (key) bankRuleStore.rememberEntry(key, item.entry_id);
     }
 
     if (imported.length) {

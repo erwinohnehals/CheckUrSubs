@@ -262,11 +262,20 @@ test('der Regelspeicher merkt sich Korrekturen und Konten', () => {
   assert.equal(store.accountFor('de6685050300'), 'konto-1');
 });
 
+test('der Regelspeicher merkt sich Vertragsverknüpfungen', () => {
+  const store = createBankRuleStore(memoryStorage());
+
+  store.rememberEntry('cid:de43zzz001', 'vertrag-1');
+
+  assert.equal(store.entryFor('cid:de43zzz001'), 'vertrag-1');
+  assert.equal(store.entryFor('cid:unbekannt'), null);
+});
+
 test('ein kaputter Regelspeicher wirft nicht, er ist einfach leer', () => {
   const storage = memoryStorage();
   storage.setItem('goldgeld.bankrules', '{kaputt');
 
-  assert.deepEqual(createBankRuleStore(storage).all(), { categories: {}, accounts: {} });
+  assert.deepEqual(createBankRuleStore(storage).all(), { categories: {}, accounts: {}, entries: {} });
 });
 
 // ─── ZIP ──────────────────────────────────────────────────────────────────────

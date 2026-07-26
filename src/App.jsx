@@ -8,9 +8,10 @@ import {
   Users, Lock, Eye, EyeOff, Copy, ExternalLink, Paperclip, FileText,
   AlertTriangle, KeyRound, Flame, Plug, Trash, HeartPulse, ClipboardList,
   Sun, Moon, MapPin, Layers, Archive, Settings, Languages,
-  ShoppingCart, PiggyBank, CalendarRange
+  ShoppingCart, PiggyBank, CalendarRange, Link2
 } from 'lucide-react';
 import { createEntryStore, newId, kindForCategory, isBilled } from './lib/entryStore';
+import { chargeDrift, lastLinkedCharge } from './lib/contractLink';
 import { LangContext, useLang, useT, APP_NAME } from './lib/i18n';
 import {
   templateFor, COMMON_FIELDS, label as fieldLabel, optionLabel, CUSTOM_FIELD_TYPES,
@@ -1027,7 +1028,7 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
   // ── Die Ausgabenseite ──────────────────────────────────────────────────────
   // Ihr Zustand liegt in ihrem eigenen Haken; App ruft ihn hier auf, damit der
   // `+`-Knopf der Seitenleiste ihr Formular öffnen kann.
-  const expenses = useExpenses({ onDocsChange: refreshDocCounts });
+  const expenses = useExpenses({ onDocsChange: refreshDocCounts, entries });
 
   const swipeRef = useTabSwipe(sectionTabs, activeTab, switchTab,
     !isModalOpen && !detailOpen && !expenses.modalOpen && !expenses.accountsOpen && !isDesktop);
@@ -1944,7 +1945,7 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
           open={detailOpen && Boolean(detailEntry) && !isModalOpen && !confirmEntry}
           entry={detailEntry} currency={currency}
           fmt={fmt} fmtOriginal={fmtOriginal} monthly={monthly}
-          vaultState={vaultState}
+          vaultState={vaultState} transactions={expenses.transactions}
           onEdit={() => detailEntry && openEdit(detailEntry)}
           onArchive={() => detailEntry && archiveEntry(detailEntry)}
           onRestore={() => detailEntry && restoreEntry(detailEntry)}
@@ -3574,7 +3575,7 @@ const STATUS_LABEL = {
 };
 
 const EntryDetail = ({
-  open, entry, currency, fmt, fmtOriginal, monthly, vaultState,
+  open, entry, currency, fmt, fmtOriginal, monthly, vaultState, transactions = [],
   onEdit, onArchive, onRestore, onDelete, onClose,
 }) => {
   const t    = useT();
@@ -3620,6 +3621,11 @@ const EntryDetail = ({
       : null;
 
   const catalogEntry = getCatalogEntry(entry.name);
+
+  // Zeigt, ob zuletzt tatsächlich abgebucht wurde, was hier steht — eine
+  // stille Preiserhöhung fällt hier auf, nicht erst beim nächsten Kontoauszug.
+  const lastCharge = lastLinkedCharge(entry.id, transactions);
+  const drift = lastCharge ? chargeDrift(entry, lastCharge) : null;
 
   return (
     <Overlay open={open} onClose={onClose} sheet={!isDesktop} labelledBy="entry-detail-title"
@@ -3686,6 +3692,25 @@ const EntryDetail = ({
       </div>
 
       <div className="mt-5 space-y-5">
+        {/* ── Verknüpfte Ausgaben ── */}
+        {lastCharge && (
+          <DetailSection icon={Link2} title={t.detail_linked_expenses}>
+            <DetailRow label={t.detail_last_charge}>
+              <span className="flex flex-wrap items-center gap-2">
+                {fmtMoney(lastCharge.amount, lastCharge.currency_code, lang)}
+                {' · '}{fmtDateFromISOWithYear(lastCharge.date, lang, t.months_short)}
+                {drift !== null && (
+                  <span className="text-warning">
+                    {t.detail_price_drift(
+                      `${drift > 0 ? '+' : '−'}${fmtMoney(Math.abs(drift), lastCharge.currency_code, lang)}`,
+                    )}
+                  </span>
+                )}
+              </span>
+            </DetailRow>
+          </DetailSection>
+        )}
+
         {/* ── Laufzeit ── */}
         {hasContract && (
           <DetailSection icon={CalendarDays} title={t.contract_section}>

@@ -215,6 +215,11 @@ export const translations = {
     detail_yes:        'Ja',
     detail_no:         'Nein',
 
+    // Verknüpfte Ausgaben
+    detail_linked_expenses: 'Verknüpfte Ausgaben',
+    detail_last_charge:     'Letzte Abbuchung',
+    detail_price_drift:     (amount) => `${amount} anders als hinterlegt`,
+
     // Vertragsdaten
     contract_section:  'Vertragslaufzeit',
     contract_start:    'Vertragsbeginn',
@@ -479,6 +484,8 @@ export const translations = {
     exp_field_category: 'Kategorie',
     exp_field_account:  'Konto',
     exp_account_none:   'Ohne Konto',
+    exp_field_entry:    'Vertrag',
+    exp_entry_none:     'Kein Vertrag',
     exp_cat_choose:     'Kategorie wählen',
     exp_field_title:    'Bezeichnung',
     exp_title_hint:        'z. B. Wocheneinkauf',
@@ -828,6 +835,11 @@ export const translations = {
     detail_yes:        'Yes',
     detail_no:         'No',
 
+    // Linked expenses
+    detail_linked_expenses: 'Linked expenses',
+    detail_last_charge:     'Last charge',
+    detail_price_drift:     (amount) => `${amount} different from the stored price`,
+
     // Contract data
     contract_section:  'Contract term',
     contract_start:    'Start date',
@@ -1092,6 +1104,8 @@ export const translations = {
     exp_field_category: 'Category',
     exp_field_account:  'Account',
     exp_account_none:   'No account',
+    exp_field_entry:    'Contract',
+    exp_entry_none:     'No contract',
     exp_cat_choose:     'Choose a category',
     exp_field_title:    'Label',
     exp_title_hint:        'e.g. Weekly shop',

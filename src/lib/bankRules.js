@@ -1,5 +1,5 @@
 // ─── Gedächtnis des Imports ───────────────────────────────────────────────────
-// Was der Nutzer beim Einlesen entscheidet, soll er nur einmal entscheiden. Zwei
+// Was der Nutzer beim Einlesen entscheidet, soll er nur einmal entscheiden. Drei
 // Zuordnungen werden gemerkt:
 //
 //   • Händler → Kategorie. „Loesch-Depot" ist beim ersten Mal eine Vermutung und
@@ -7,6 +7,9 @@
 //   • Kontokennung → Konto. Die IBAN aus CAMT, die maskierte Kartennummer der
 //     Kreditkarte, die Mailadresse bei PayPal — jede Datei sagt, zu welchem Topf
 //     sie gehört, aber nur der Nutzer weiß, wie der Topf heißt.
+//   • Zahlungskennung → Vertrag. „freenet DLS GmbH" ist ein Händlername auf dem
+//     Auszug und zugleich der Internet-Vertrag auf der anderen Seite der App —
+//     bekannt ist das erst, wenn der Nutzer es einmal bestätigt.
 //
 // Gelernt wird ausschließlich aus Widerspruch, nie aus dem eigenen Vorschlag.
 // Sonst hielte die App ihre erste Vermutung nach einem Durchlauf für bestätigt
@@ -36,19 +39,37 @@ const normalizeMap = (input) => {
 export const accountKey = (value) =>
   asString(value).toLowerCase().replace(/\s+/g, '');
 
+/**
+ * Der Schlüssel, unter dem ein Vertrag gemerkt wird. Die Gläubiger-ID einer
+ * Lastschrift ist der stabilste Bezug zwischen Abbuchung und Vertrag, den es
+ * gibt — anders als der Händlername ändert sie sich nicht mit der Filiale oder
+ * der Schreibweise. Fehlt sie, bleibt der Händlername der einzige Anhalt.
+ *
+ * Ein Präfix trennt beide Räume: eine Gläubiger-ID, die zufällig wie ein
+ * Händlerschlüssel aussieht, darf nicht denselben Eintrag treffen.
+ */
+export const entryLinkKey = (row) => {
+  const creditorId = asString(row?.creditor_id).trim();
+  if (creditorId) return `cid:${creditorId.toLowerCase().replace(/\s+/g, '')}`;
+
+  const key = merchantKey(row?.merchant);
+  return key ? `mk:${key}` : '';
+};
+
 export const createBankRuleStore = (storage) => {
   const read = () => {
     try {
       const raw = storage.getItem(STORAGE_KEY);
-      if (!raw) return { categories: {}, accounts: {} };
+      if (!raw) return { categories: {}, accounts: {}, entries: {} };
 
       const parsed = JSON.parse(raw);
       return {
         categories: normalizeMap(parsed?.categories),
         accounts:   normalizeMap(parsed?.accounts),
+        entries:    normalizeMap(parsed?.entries),
       };
     } catch {
-      return { categories: {}, accounts: {} };
+      return { categories: {}, accounts: {}, entries: {} };
     }
   };
 
@@ -57,6 +78,7 @@ export const createBankRuleStore = (storage) => {
       version: STORAGE_VERSION,
       categories: state.categories,
       accounts:   state.accounts,
+      entries:    state.entries,
     }));
     return state;
   };
@@ -66,10 +88,16 @@ export const createBankRuleStore = (storage) => {
 
     categories: () => read().categories,
     accounts:   () => read().accounts,
+    entries:    () => read().entries,
 
     /** Das Konto, das zu dieser Dateikennung gehört — oder null. */
     accountFor(key) {
       return read().accounts[accountKey(key)] || null;
+    },
+
+    /** Der Vertrag, der zu dieser Zahlungskennung gehört — oder null. */
+    entryFor(key) {
+      return read().entries[key] || null;
     },
 
     rememberAccount(key, accountId) {
@@ -78,6 +106,13 @@ export const createBankRuleStore = (storage) => {
 
       const state = read();
       write({ ...state, accounts: { ...state.accounts, [clean]: accountId } });
+    },
+
+    rememberEntry(key, entryId) {
+      if (!key || !entryId) return;
+
+      const state = read();
+      write({ ...state, entries: { ...state.entries, [key]: entryId } });
     },
 
     /**
@@ -112,6 +147,7 @@ export const createBankRuleStore = (storage) => {
       return write({
         categories: normalizeMap(input?.categories),
         accounts:   normalizeMap(input?.accounts),
+        entries:    normalizeMap(input?.entries),
       });
     },
   });

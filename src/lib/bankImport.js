@@ -11,6 +11,7 @@
 
 import { suggestCategory } from './autoCategorize.js';
 import { accountKey } from './bankRules.js';
+import { suggestEntryLink } from './contractLink.js';
 import { monthKey } from './dates.js';
 
 /** Nullbeträge sind Mitteilungen der Bank („Abrechnung siehe Anlage"), kein Geld. */
@@ -54,9 +55,12 @@ export const prepareImport = ({
   accountMap = {},
   existingRefs = new Set(),
   defaultAccountId = null,
+  entries = [],
+  learnedEntries = {},
 } = {}) => rows.map((row) => {
-  const suggestion = suggestCategory(row, learned);
-  const known      = existingRefs.has(row.ref);
+  const suggestion   = suggestCategory(row, learned);
+  const entrySuggestion = suggestEntryLink(row, entries, learnedEntries);
+  const known        = existingRefs.has(row.ref);
 
   const exclusion = known ? 'already_imported'
     : row.internal ? 'internal'
@@ -73,6 +77,9 @@ export const prepareImport = ({
     reason: suggestion.reason,
     // Der Nutzer hat noch nichts geändert — was hier steht, ist der Vorschlag
     overridden: false,
+    entry_id: entrySuggestion?.entryId || null,
+    entryConfidence: entrySuggestion?.confidence || null,
+    entryOverridden: false,
     title: titleFor(row),
     account_id: accountMap[accountKey(row.account_key)] || defaultAccountId || null,
   };
@@ -100,6 +107,7 @@ export const toTransaction = (item) => {
     currency_code: row.currency_code,
     category: item.category,
     account_id: item.account_id || null,
+    entry_id: item.entry_id || null,
     note: [row.purpose && row.purpose !== item.title ? row.purpose : '', row.note]
       .filter(Boolean).join('\n'),
     source: {

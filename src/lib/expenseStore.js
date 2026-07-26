@@ -150,6 +150,11 @@ const normalize = (input, createId = newId) => {
     account_id:    asString(input?.account_id) || null,
     currency_code: asString(input?.currency_code, 'EUR') || 'EUR',
 
+    // Der Vertrag, zu dem dieser Vorgang gehört — „Vodafone GmbH" ist ein
+    // Händlername, kein Vertrag. Alter Bestand kennt das Feld nicht und bleibt
+    // unverknüpft, was für jeden schon erfassten Vorgang richtig ist.
+    entry_id: asString(input?.entry_id) || null,
+
     // Regel 1 — mit Positionen zählt die Summe, nicht die Eingabe
     amount: items.length ? sumAmounts(items.map((item) => item.amount)) : parseAmount(input?.amount),
     items,
