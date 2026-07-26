@@ -11,11 +11,15 @@ import { monthKey, shiftMonth } from '../../lib/dates';
 import { createExpenseStore, repeatTransactionDraft } from '../../lib/expenseStore';
 import { createAccountStore } from '../../lib/accountStore';
 import { createBudgetStore } from '../../lib/budget';
+import { createBankRuleStore } from '../../lib/bankRules';
+import { readBankUpload } from '../../lib/bankFormats';
+import { existingRefsOf, prepareImport, toTransaction } from '../../lib/bankImport';
 import * as documentStore from '../../lib/documentStore';
 
 export const expenseStore = createExpenseStore(window.localStorage);
 export const accountStore = createAccountStore(window.localStorage);
 export const budgetStore  = createBudgetStore(window.localStorage);
+export const bankRuleStore = createBankRuleStore(window.localStorage);
 
 // So lange bleibt ein gelöschter Vorgang zurückholbar — wie auf der Vertragsseite
 const UNDO_MS = 5000;
@@ -141,6 +145,97 @@ export const useExpenses = ({ onDocsChange } = {}) => {
     setToast(null);
   }, [toast]);
 
+  // ── Kontoauszug einlesen ───────────────────────────────────────────────────
+  // Der Stapel lebt im Zustand, bis er bestätigt wird. Nichts davon berührt die
+  // Bücher: erst `confirmImport` schreibt, und zwar genau das, was in der
+  // Prüfansicht steht.
+  const [importOpen,  setImportOpen]  = useState(false);
+  const [importBatch, setImportBatch] = useState(null);
+  const [importError, setImportError] = useState('');
+
+  const openImport = useCallback(() => {
+    ensureAccounts();
+    setImportError('');
+    setImportOpen(true);
+  }, [ensureAccounts]);
+
+  const closeImport = useCallback(() => {
+    setImportOpen(false);
+    setImportBatch(null);
+    setImportError('');
+  }, []);
+
+  const loadImportFile = useCallback(async (file) => {
+    setImportError('');
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const { format, rows, parts } = await readBankUpload(buffer, file.name);
+
+      if (!format || !rows.length) {
+        setImportBatch(null);
+        setImportError(t.imp_unknown);
+        return;
+      }
+
+      const rules = bankRuleStore.all();
+      const list  = accountStore.active();
+      const items = prepareImport({
+        rows,
+        learned: rules.categories,
+        accountMap: rules.accounts,
+        existingRefs: existingRefsOf(expenseStore.list()),
+      });
+
+      // Die Datei sagt, zu welchem Konto sie gehört; gemerkt wurde es vielleicht
+      // schon einmal. Sonst steht das erste Konto da, und der Nutzer korrigiert.
+      const known = rows.map((row) => bankRuleStore.accountFor(row.account_key)).find(Boolean);
+
+      setImportBatch({
+        key: `${file.name}:${Date.now()}`,
+        name: file.name,
+        format,
+        parts,
+        items,
+        accountId: known || list[0]?.id || null,
+      });
+    } catch {
+      setImportBatch(null);
+      setImportError(t.imp_failed);
+    }
+  }, [t]);
+
+  const confirmImport = useCallback(({ items = [], accountId = null }) => {
+    const chosen = items.filter((item) => item.include);
+
+    const imported = expenseStore.importRows(
+      chosen.map((item) => ({ ...toTransaction(item), account_id: accountId })));
+
+    // Gelernt wird aus Widerspruch: was der Nutzer selbst gesetzt hat, gilt beim
+    // nächsten Auszug als bekannt.
+    bankRuleStore.learn(chosen.map((item) => ({
+      merchant: item.row.merchant,
+      category: item.category,
+      overridden: item.overridden,
+    })));
+
+    if (accountId) {
+      const keys = new Set(chosen.map((item) => item.row.account_key).filter(Boolean));
+      for (const key of keys) bankRuleStore.rememberAccount(key, accountId);
+    }
+
+    if (imported.length) {
+      setTransactions(expenseStore.list());
+      // Dorthin springen, wo der Auszug endet — sonst steht die App im leeren
+      // aktuellen Monat, während die Vorgänge zwei Monate zurück liegen.
+      const latest = imported.map((row) => row.date).sort().pop();
+      if (latest) setMonth(monthKey(latest));
+    }
+
+    closeImport();
+    return imported.length;
+  }, [closeImport]);
+
   const createAccount = useCallback((attributes) => {
     const created = accountStore.create(attributes);
     if (created) setAccounts(accountStore.list());
@@ -207,6 +302,14 @@ export const useExpenses = ({ onDocsChange } = {}) => {
     openRepeat,
     closeModal,
     save,
+
+    importOpen,
+    importBatch,
+    importError,
+    openImport,
+    closeImport,
+    loadImportFile,
+    confirmImport,
 
     accountsOpen,
     openAccounts,

@@ -65,17 +65,19 @@ test('names the file after the day it was made', () => {
   );
 });
 
-test('version 2 backups contain every local data domain', async () => {
+test('version 3 backups contain every local data domain', async () => {
   const payload = await createBackup({
     entries: [{ id: 'contract-1', name: 'Internet', billingDay: 4 }],
     expenses: [{ id: 'expense-1', amount: 12 }],
     accounts: [{ id: 'cash', label: 'Cash' }],
     budgets: { groceries: { amount: 300, currency: 'EUR', since: '2026-07' } },
+    bankRules: { categories: { lidl: 'groceries' }, accounts: { de66: 'cash' } },
     storage: createMemoryStorage({ lang: 'en' }),
   });
 
   assert.equal(payload.version, BACKUP_VERSION);
-  assert.equal(payload.version, 2);
+  assert.equal(payload.version, 3);
+  assert.equal(payload.bankRules.categories.lidl, 'groceries');
   assert.equal(payload.entries[0].billingDay, undefined);
   assert.deepEqual(payload.expenses, [{ id: 'expense-1', amount: 12 }]);
   assert.deepEqual(payload.accounts, [{ id: 'cash', label: 'Cash' }]);
@@ -167,8 +169,10 @@ test('restores expenses, accounts and budgets onto a clean profile', async () =>
     documents: [],
   }, { entryStore, expenseStore, accountStore, budgetStore, storage: dataStorage });
 
+  // Eine Sicherung der Version 2 kennt noch keine Importregeln — sie kommt ohne
+  // an, und das ist kein Fehler, sondern der Stand von damals.
   assert.deepEqual(result, {
-    entries: 1, expenses: 1, accounts: 1, budgets: 1, documents: 0, settings: 0,
+    entries: 1, expenses: 1, accounts: 1, budgets: 1, bankRules: 0, documents: 0, settings: 0,
   });
   assert.equal(expenseStore.list()[0].title, 'Market');
   assert.equal(accountStore.list()[0].label, 'Cash');

@@ -8,8 +8,8 @@
 // Budgetzeilen des Monats. Beide Reiter zeigen dieselben Zahlen, und zweimal
 // gefaltet wären es zwei Gelegenheiten, sie auseinanderlaufen zu lassen.
 //
-import { useCallback, useMemo, useState } from 'react';
-import { CalendarRange, PiggyBank, Wallet, Settings2 } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { CalendarRange, PiggyBank, Wallet, Settings2, FileUp } from 'lucide-react';
 import { useLang, useT } from '../../lib/i18n';
 import { fmtMoney, toUSD, DEFAULT_RATES } from '../../lib/money';
 import { createCarryover, spendIndex } from '../../lib/budget';
@@ -19,6 +19,7 @@ import { BudgetTab } from './BudgetTab';
 import { YearTab } from './YearTab';
 import { ExpenseModal } from './ExpenseModal';
 import { AccountsPanel } from './AccountsPanel';
+import { ImportPanel } from './ImportPanel';
 import { knownTags } from './summary';
 import { budgetRows, convertBudgets } from './budgetRows';
 import { buildYearReport } from './yearSummary';
@@ -105,10 +106,29 @@ export const ExpensesSection = ({
     return archived ? [...active, archived] : active;
   }, [expenses.activeAccounts, expenses.accounts, expenses.modalInitial]);
 
+  // Der Dateidialog gehört dem Bereich, nicht dem Panel: er wird von zwei
+  // Stellen ausgelöst (leerer Zustand und Fußzeile) und darf beim Neuaufbau des
+  // Panels nicht verschwinden.
+  const fileRef = useRef(null);
+
+  const pickFile = useCallback(() => fileRef.current?.click(), []);
+
+  const onFileChosen = useCallback((event) => {
+    const [file] = event.target.files || [];
+    // Zurücksetzen, damit dieselbe Datei ein zweites Mal ausgewählt werden kann
+    event.target.value = '';
+    if (file) expenses.loadImportFile(file);
+  }, [expenses]);
+
   const manageAccounts = (
-    <button type="button" onClick={expenses.openAccounts} className={btn('secondary', 'sm')}>
-      <Settings2 className="w-3.5 h-3.5" />{t.accounts_title}
-    </button>
+    <>
+      <button type="button" onClick={expenses.openImport} className={btn('secondary', 'sm')}>
+        <FileUp className="w-3.5 h-3.5" />{t.imp_open}
+      </button>
+      <button type="button" onClick={expenses.openAccounts} className={btn('secondary', 'sm')}>
+        <Settings2 className="w-3.5 h-3.5" />{t.accounts_title}
+      </button>
+    </>
   );
 
   return (
@@ -170,6 +190,15 @@ export const ExpensesSection = ({
         accounts={modalAccounts} knownTags={tags} currency={currency}
         onSave={expenses.save} onClose={expenses.closeModal} onDocsChange={onDocsChange}
         isDesktop={isDesktop} />
+
+      {/* ── Kontoauszug einlesen ── */}
+      <input ref={fileRef} type="file" hidden accept=".csv,.CSV,.xml,.XML,.zip,.ZIP,text/csv,text/xml,application/zip"
+        onChange={onFileChosen} />
+
+      <ImportPanel open={expenses.importOpen} onClose={expenses.closeImport}
+        state={expenses.importBatch} accounts={expenses.activeAccounts}
+        onPick={pickFile} onConfirm={expenses.confirmImport} error={expenses.importError}
+        fmt={fmt} isDesktop={isDesktop} />
 
       {/* ── Konten ── */}
       <AccountsPanel open={expenses.accountsOpen} accounts={expenses.accounts}

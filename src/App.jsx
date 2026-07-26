@@ -43,7 +43,7 @@ import {
 } from './ui';
 import { ExpensesSection } from './features/expenses/ExpensesSection';
 import {
-  useExpenses, expenseStore, accountStore, budgetStore,
+  useExpenses, expenseStore, accountStore, budgetStore, bankRuleStore,
 } from './features/expenses/useExpenses';
 import { SpendSplitCard } from './features/expenses/SpendSplitCard';
 import { inMonth, monthSummary } from './features/expenses/summary';
@@ -2396,6 +2396,7 @@ const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = 
         expenses: expenses.transactions,
         accounts: expenses.accounts,
         budgets: expenses.budgets,
+        bankRules: bankRuleStore.all(),
       });
       download(backup.backupFilename(), 'application/json', JSON.stringify(payload));
       setImportMsg(t.io_backup_ok);
@@ -2429,7 +2430,7 @@ const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = 
           if (!window.confirm(t.io_restore_confirm)) return;
 
           const result = await backup.restoreBackup(parsed, {
-            entryStore, expenseStore, accountStore, budgetStore,
+            entryStore, expenseStore, accountStore, budgetStore, bankRuleStore,
           });
           setImportMsg(t.io_restore_ok(result.entries + result.expenses));
           setImportStatus('ok');

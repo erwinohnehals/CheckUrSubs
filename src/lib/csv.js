@@ -72,8 +72,12 @@ export const expensesToCSV = (transactions = []) =>
 /**
  * Zerlegt CSV in Zeilen aus Feldern. Versteht Anführungszeichen, verdoppelte
  * Anführungszeichen als Escape und Umbrüche innerhalb eines Feldes.
+ *
+ * Das Trennzeichen ist wählbar: der eigene Export schreibt Komma (RFC 4180),
+ * deutsche Bankauszüge schreiben Semikolon, weil dort das Komma schon das
+ * Dezimaltrennzeichen ist.
  */
-export const parseRows = (text) => {
+export const parseRows = (text, delimiter = ',') => {
   // Byte Order Mark: Excel schreibt ihn voran, sonst trüge die erste Spalte ihn im Namen
   const input = String(text ?? '').charCodeAt(0) === 0xfeff
     ? String(text).slice(1)
@@ -101,7 +105,7 @@ export const parseRows = (text) => {
 
     // Anführungszeichen zählen nur am Feldanfang
     if (char === QUOTE && field === '') { quoted = true; i += 1; continue; }
-    if (char === ',')  { endField(); i += 1; continue; }
+    if (char === delimiter) { endField(); i += 1; continue; }
     if (char === '\r') { i += 1; continue; }        // CRLF wie LF behandeln
     if (char === '\n') { endRow();   i += 1; continue; }
 
@@ -119,8 +123,8 @@ export const parseRows = (text) => {
  * CSV mit Kopfzeile → Objekte. Leerzeilen fallen weg, fehlende Spalten werden
  * zu leeren Zeichenketten — der Eintragsspeicher normalisiert den Rest.
  */
-export const parseCSV = (text) => {
-  const rows = parseRows(text).filter(row => row.some(cell => cell.trim() !== ''));
+export const parseCSV = (text, delimiter = ',') => {
+  const rows = parseRows(text, delimiter).filter(row => row.some(cell => cell.trim() !== ''));
   if (rows.length === 0) return [];
 
   const headers = rows[0].map(header => header.trim());

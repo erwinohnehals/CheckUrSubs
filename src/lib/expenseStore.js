@@ -77,6 +77,31 @@ export const repeatTransactionDraft = (transaction, now = new Date()) => ({
   archived_at: null,
 });
 
+/**
+ * Herkunft aus einem Kontoauszug. Nur `ref` trägt eine Aufgabe: sie erkennt
+ * dieselbe Buchung beim zweiten Import wieder. Der Rest steht dabei, weil er
+ * ohne die Datei nicht mehr zu beschaffen wäre — die Gläubiger-ID einer
+ * Lastschrift ist der stabilste Bezug zwischen Abbuchung und Vertrag, den es
+ * gibt, und sie steht in keinem Formular, das ein Mensch ausfüllt.
+ */
+const normalizeSource = (input) => {
+  if (!input || typeof input !== 'object') return null;
+
+  const ref = asString(input.ref).trim();
+  if (!ref) return null;
+
+  return {
+    ref,
+    format:       asString(input.format),
+    account_key:  asString(input.account_key),
+    counterparty: asString(input.counterparty),
+    creditor_id:  asString(input.creditor_id),
+    mandate_ref:  asString(input.mandate_ref),
+    booking_text: asString(input.booking_text),
+    imported_at:  asString(input.imported_at) || new Date().toISOString(),
+  };
+};
+
 const normalizeTags = (input) => {
   if (!Array.isArray(input)) return [];
   const seen = new Set();
@@ -128,6 +153,7 @@ const normalize = (input, createId = newId) => {
 
     tags: normalizeTags(input?.tags),
     note: asString(input?.note),
+    source: normalizeSource(input?.source),
 
     // Eine Erstattung zeigt auf die Ausgabe, die sie ausgleicht. Auf einer
     // Ausgabe hätte der Verweis keine Bedeutung.
@@ -174,8 +200,14 @@ const uniqueById = (rows) =>
 
 // Zwei Einkäufe am selben Tag beim selben Händler über denselben Betrag sind
 // beim Import fast immer dieselbe Zeile zweimal.
+//
+// Für Zeilen aus einem Kontoauszug gilt das ausdrücklich nicht: zweimal 2,50 €
+// beim selben Bäcker an einem Tag sind zwei Brötchen, keine Dublette. Dort
+// zählt allein die Referenz der Bank — deshalb geht sie dem Inhalt vor.
 const duplicateKey = (row) =>
-  `${row.direction}|${row.date}|${row.title}|${row.merchant}|${row.amount}`;
+  (row.source?.ref
+    ? `ref|${row.source.ref}`
+    : `${row.direction}|${row.date}|${row.title}|${row.merchant}|${row.amount}`);
 
 const byDate = (a, b) =>
   a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at);

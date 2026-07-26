@@ -13,7 +13,9 @@ import * as vault from './vault.js';
 import { newId } from './entryStore.js';
 
 export const BACKUP_FORMAT  = 'goldgeld-backup';
-export const BACKUP_VERSION = 2;
+// 3 nimmt die gelernten Importregeln mit auf. Ältere Sicherungen bleiben lesbar;
+// sie bringen keine Regeln mit, und dann gibt es eben keine.
+export const BACKUP_VERSION = 3;
 
 const APP = 'Gold&Geld';
 
@@ -135,6 +137,7 @@ export const createBackup = async ({
   expenses = [],
   accounts = [],
   budgets = {},
+  bankRules = { categories: {}, accounts: {} },
   storage = globalThis.localStorage,
 } = {}) => {
   const records = documentStore.isAvailable() ? await documentStore.all() : [];
@@ -156,6 +159,9 @@ export const createBackup = async ({
     expenses,
     accounts,
     budgets,
+    // Was der Nutzer beim Einlesen von Kontoauszügen entschieden hat. Ohne diese
+    // Zeile wäre nach einem Umzug jede Zuordnung wieder eine Vermutung.
+    bankRules,
     documents,
   };
 };
@@ -170,6 +176,7 @@ export const restoreBackup = async (parsed, {
   expenseStore,
   accountStore,
   budgetStore,
+  bankRuleStore,
   storage = globalThis.localStorage,
 }) => {
   if (!isBackup(parsed)) throw new Error('not-a-backup');
@@ -197,6 +204,7 @@ export const restoreBackup = async (parsed, {
   const restoredExpenses = expenseStore?.replaceAll(expenses) || [];
   const restoredAccounts = accountStore?.replaceAll(accounts) || [];
   const restoredBudgets  = budgetStore?.replaceAll(budgets) || {};
+  const restoredRules    = bankRuleStore?.replaceAll(asRecord(parsed.bankRules) || {});
   const settings = applySettings(storage, parsed.settings);
 
   let restoredDocuments = 0;
@@ -209,6 +217,7 @@ export const restoreBackup = async (parsed, {
     expenses: restoredExpenses.length,
     accounts: restoredAccounts.length,
     budgets: Object.keys(restoredBudgets).length,
+    bankRules: Object.keys(restoredRules?.categories || {}).length,
     documents: restoredDocuments,
     settings,
   };

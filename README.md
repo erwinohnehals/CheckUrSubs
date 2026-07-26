@@ -31,6 +31,8 @@ Benutzerkonto, ohne Backend.
 - **Dokumente**: Policen, Verträge und Rechnungen als Datei anhängen
 - **Zugangsdaten**: Portal-Link, Benutzername und ein Passwort im
   verschlüsselten Tresor
+- **Kontoauszug einlesen**: Sparkasse-CSV, Kreditkarten-CSV, CAMT.052 (auch als
+  ZIP) und PayPal — mit Kategorievorschlag, den du bestätigst oder überschreibst
 - Auswertung nach Kategorie und Eintrag, Kostenverlauf über 3/6/12 Monate
 - Mehrere Währungen mit zwischengespeicherten Wechselkursen
 - Deutsch und Englisch
@@ -49,10 +51,39 @@ Alles bleibt im Browser dieses Geräts — es gibt kein Konto und keine Synchron
 | Ausgaben und Einnahmen | `localStorage` | `goldgeld.expenses` |
 | Benannte Konten | `localStorage` | `goldgeld.accounts` |
 | Budgets und Übertragsbeginn | `localStorage` | `goldgeld.budgets` |
+| Gelernte Importregeln | `localStorage` | `goldgeld.bankrules` |
 | Dokumente (Blobs, max. 20 MB je Datei) | IndexedDB | `goldgeld` / `documents` |
 | Tresor-Metadaten (Salt + Prüf-Token) | `localStorage` | `goldgeld.vault` |
 
 Wer die Browserdaten der Seite löscht, löscht auch die Einträge.
+
+## Kontoauszug einlesen
+
+Unter **Monat → Auszug einlesen**. Erkannt werden am Inhalt, nicht am Dateinamen:
+
+| Format | Woher | Eindeutige Referenz |
+|---|---|---|
+| **CAMT.052** (XML, auch als ZIP) | Triodos u. a. | `AcctSvcrRef` der Bank |
+| **CSV-CAMT V2** | Sparkasse Giro | aus dem Zeileninhalt gebildet |
+| **Kreditkarten-CSV** | Sparkasse Kreditkarte | `Buchungsreferenz` |
+| **PayPal-CSV** | PayPal-Aktivitäten | `Transaktionscode` |
+
+Drei Regeln tragen den Import:
+
+- **Nichts wird stillschweigend übernommen.** Jede Zeile bekommt einen
+  Kategorievorschlag; die Prüfansicht zeigt zuerst die unsicheren. Eine
+  Korrektur gilt dem ganzen Händler, nicht der einzelnen Zeile.
+- **Dieselbe Datei zweimal einzulesen ist folgenlos.** Die Referenz erkennt
+  bekannte Buchungen wieder — überlappende Zeiträume sind der Normalfall. Zwei
+  echte gleiche Zahlungen am selben Tag bleiben trotzdem zwei Vorgänge.
+- **Geld zwischen eigenen Konten zählt nicht als Ausgabe.** Kreditkarten-
+  abrechnung, PayPal-Einzug, Deckungsbuchungen und Autorisierungen sind
+  abgewählt — wer Giro, Karte und PayPal einliest, zählt sonst dreifach.
+  Vorgemerktes aus CAMT.052 kommt gar nicht erst an.
+
+Was du beim Einlesen entscheidest, wird gemerkt: Händler → Kategorie und
+Dateikennung → Konto liegen unter `goldgeld.bankrules` und gelten beim nächsten
+Auszug. Gelernt wird nur aus Widerspruch, nie aus dem eigenen Vorschlag.
 
 ## Sichern und wiederherstellen
 

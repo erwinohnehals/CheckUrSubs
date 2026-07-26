@@ -342,6 +342,51 @@ export const translations = {
     account_kind_card:   'Karte',
     account_kind_online: 'Online',
 
+    // Kontoauszug einlesen
+    imp_title:        'Kontoauszug einlesen',
+    imp_hint:         'CSV oder CAMT-Datei der Bank — auch als ZIP',
+    imp_empty:        'Wähle die Umsatzdatei deiner Bank. Nichts wird übernommen, bevor du es geprüft hast.',
+    imp_choose_file:  'Datei wählen',
+    imp_other_file:   'Andere Datei',
+    imp_formats:      'Sparkasse (CSV & Kreditkarte) · CAMT.052 · PayPal',
+    imp_parts:        (n) => `${n} Teile`,
+    imp_open:         'Auszug einlesen',
+
+    imp_format_camt_052:         'CAMT.052',
+    imp_format_camt_v2:          'CSV-CAMT V2',
+    imp_format_sparkasse_credit: 'Kreditkarte',
+    imp_format_paypal:           'PayPal',
+
+    imp_account:      'Konto',
+    imp_account_pick: 'Konto wählen',
+    imp_account_hint: 'Alle übernommenen Vorgänge werden diesem Konto zugeordnet.',
+
+    imp_stat_selected: 'Ausgewählt',
+    imp_stat_unsure:   'Unsicher',
+    imp_stat_expense:  'Ausgaben',
+    imp_stat_income:   'Einnahmen',
+
+    imp_filter_review:   'Zu prüfen',
+    imp_filter_all:      'Alle',
+    imp_filter_excluded: 'Ausgeschlossen',
+
+    imp_badge_duplicate: 'Schon vorhanden',
+    imp_badge_internal:  'Umbuchung',
+    imp_badge_unsure:    'ungeprüft',
+
+    imp_note_duplicates: (n) => `${n} Zeilen stehen bereits in deinen Büchern und sind abgewählt.`,
+    imp_note_internal:   (n) => `${n} Zeilen sind Geld zwischen eigenen Konten (Kreditkarte, PayPal) und würden doppelt zählen.`,
+    imp_count_selected:  (a, b) => `${a}/${b}`,
+    imp_nothing_to_review: 'Alles zugeordnet — nichts mehr zu prüfen.',
+    imp_include:      'Übernehmen',
+    imp_exclude:      'Auslassen',
+    imp_include_all:  'Alle übernehmen',
+    imp_exclude_all:  'Alle abwählen',
+    imp_confirm:      (n) => `${n} Vorgänge übernehmen`,
+    imp_done:         (n) => `${n} Vorgänge übernommen`,
+    imp_unknown:      'Format nicht erkannt — ist das eine Umsatzdatei?',
+    imp_failed:       'Datei konnte nicht gelesen werden',
+
     accounts_title:   'Konten',
     accounts_manage:  'Konten verwalten',
     accounts_hint:    'Wohin das Geld gegangen ist. Ohne Saldo — nur die Beschriftung.',
@@ -883,6 +928,51 @@ export const translations = {
     account_kind_bank:   'Bank',
     account_kind_card:   'Card',
     account_kind_online: 'Online',
+
+    // Bank statement import
+    imp_title:        'Import statement',
+    imp_hint:         'CSV or CAMT file from your bank — ZIP works too',
+    imp_empty:        'Choose your bank’s transaction file. Nothing is added until you have reviewed it.',
+    imp_choose_file:  'Choose file',
+    imp_other_file:   'Other file',
+    imp_formats:      'Sparkasse (CSV & credit card) · CAMT.052 · PayPal',
+    imp_parts:        (n) => `${n} parts`,
+    imp_open:         'Import statement',
+
+    imp_format_camt_052:         'CAMT.052',
+    imp_format_camt_v2:          'CSV-CAMT V2',
+    imp_format_sparkasse_credit: 'Credit card',
+    imp_format_paypal:           'PayPal',
+
+    imp_account:      'Account',
+    imp_account_pick: 'Choose account',
+    imp_account_hint: 'Every imported entry is filed under this account.',
+
+    imp_stat_selected: 'Selected',
+    imp_stat_unsure:   'Unsure',
+    imp_stat_expense:  'Expenses',
+    imp_stat_income:   'Income',
+
+    imp_filter_review:   'To review',
+    imp_filter_all:      'All',
+    imp_filter_excluded: 'Excluded',
+
+    imp_badge_duplicate: 'Already there',
+    imp_badge_internal:  'Transfer',
+    imp_badge_unsure:    'unchecked',
+
+    imp_note_duplicates: (n) => `${n} rows are already in your books and were deselected.`,
+    imp_note_internal:   (n) => `${n} rows move money between your own accounts (credit card, PayPal) and would count twice.`,
+    imp_count_selected:  (a, b) => `${a}/${b}`,
+    imp_nothing_to_review: 'All assigned — nothing left to review.',
+    imp_include:      'Include',
+    imp_exclude:      'Exclude',
+    imp_include_all:  'Include all',
+    imp_exclude_all:  'Deselect all',
+    imp_confirm:      (n) => `Import ${n} entries`,
+    imp_done:         (n) => `${n} entries imported`,
+    imp_unknown:      'Format not recognised — is this a transaction file?',
+    imp_failed:       'Could not read the file',
 
     accounts_title:   'Accounts',
     accounts_manage:  'Manage accounts',
