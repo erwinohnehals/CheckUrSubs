@@ -8,45 +8,40 @@
 // Budgetzeilen des Monats. Beide Reiter zeigen dieselben Zahlen, und zweimal
 // gefaltet wären es zwei Gelegenheiten, sie auseinanderlaufen zu lassen.
 //
-// Jahr ist noch ein Platzhalter — was darin entsteht, steht in
-// docs/expenses-plan.md unter Phase 4.
-
-import { useCallback, useMemo } from 'react';
-import { BarChart3, CalendarRange, PiggyBank, Wallet, Settings2 } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+import { CalendarRange, PiggyBank, Wallet, Settings2 } from 'lucide-react';
 import { useLang, useT } from '../../lib/i18n';
 import { fmtMoney, toUSD, DEFAULT_RATES } from '../../lib/money';
 import { createCarryover, spendIndex } from '../../lib/budget';
-import { CARD, btn, PageHeader, MobilePageHeader, Toast } from '../../ui';
+import { btn, PageHeader, MobilePageHeader, Toast } from '../../ui';
 import { MonthTab } from './MonthTab';
 import { BudgetTab } from './BudgetTab';
+import { YearTab } from './YearTab';
 import { ExpenseModal } from './ExpenseModal';
 import { AccountsPanel } from './AccountsPanel';
 import { knownTags } from './summary';
 import { budgetRows, convertBudgets } from './budgetRows';
-
-const ComingSoon = ({ icon: Icon, title, text }) => (
-  <div data-group className={`${CARD} flex flex-col items-center text-center px-6 py-14 space-y-4`}>
-    <div className="w-16 h-16 rounded-2xl bg-surface border border-border flex items-center justify-center">
-      <Icon className="w-7 h-7 text-ink-3" strokeWidth={1.5} />
-    </div>
-    <p className="text-base font-semibold tracking-tight">{title}</p>
-    <p className="text-sm text-ink-3 leading-relaxed max-w-[320px]">{text}</p>
-  </div>
-);
+import { buildYearReport } from './yearSummary';
 
 const PANE_BODY = 'p-4 pt-6 space-y-5 lg:p-8 lg:pt-7 lg:space-y-7 lg:max-w-[1180px]';
 
 export const ExpensesSection = ({
   expenses, paneProps, settings, sectionSwitch, onOpenBudget,
   fmt, rates, currency, docCounts, onDocsChange, isDesktop,
+  contractEntries, recurringMonthly, currentOneOff,
 }) => {
   const t    = useT();
   const lang = useLang();
+  const currentYear = new Date().getFullYear();
+  const [year, setYear] = useState(currentYear);
 
   // Ein Einkauf in Franken und einer in Euro dürfen nicht stumpf addiert werden.
   // Gerechnet wird über die gemeinsame Größe, angezeigt in der Anzeigewährung.
   const amountUSD = useCallback(
     (transaction) => toUSD(transaction.amount, transaction.currency_code, rates),
+    [rates]);
+  const transactionAmountUSD = useCallback(
+    (amount, transaction) => toUSD(amount, transaction.currency_code, rates),
     [rates]);
 
   // In der Zeile steht dagegen der Betrag, wie er erfasst wurde
@@ -79,6 +74,15 @@ export const ExpensesSection = ({
   const rows = useMemo(
     () => budgetRows({ budgets: expenses.budgets, carryover, spentAt, month: expenses.month }),
     [expenses.budgets, carryover, spentAt, expenses.month]);
+
+  const yearReport = useMemo(() => buildYearReport({
+    transactions: expenses.transactions,
+    entries: contractEntries,
+    year,
+    transactionAmount: transactionAmountUSD,
+    recurringAmount: (entry) =>
+      toUSD(entry.price, entry.currency_code || 'EUR', rates),
+  }), [expenses.transactions, contractEntries, year, transactionAmountUSD, rates]);
 
   // Eingetippt wird in der Anzeigewährung, gerechnet wird in der Rechengröße —
   // das Feld braucht den Rückweg
@@ -151,7 +155,10 @@ export const ExpensesSection = ({
           <PageHeader title={t.nav_year} subtitle={t.year_subtitle} />
           <MobilePageHeader icon={CalendarRange} title={t.nav_year}>{settings}</MobilePageHeader>
           {sectionSwitch}
-          <ComingSoon icon={BarChart3} title={t.exp_soon_title} text={t.exp_soon_year} />
+          <YearTab report={yearReport} year={year}
+            onStep={(delta) => setYear((value) => value + delta)}
+            onToday={() => setYear(currentYear)} atCurrent={year === currentYear}
+            fmt={fmt} currentFixed={recurringMonthly} currentOneOff={currentOneOff} />
         </div>
       </div>
 

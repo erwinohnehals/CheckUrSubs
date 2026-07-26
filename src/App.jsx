@@ -23,10 +23,10 @@ import { toCSV, parseCSV } from './lib/csv';
 import {
   MONTHS_SHORT, extractBillingDay, extractBillingMonth,
   daysInMonth, clampDay, billingDateIn, startOfToday,
-  isDueWithinDays, wasActiveIn,
+  isDueWithinDays,
 } from './lib/billing';
 import { useTheme } from './lib/theme';
-import { fmtDateFromISO, fmtDateFromISOWithYear } from './lib/dates';
+import { fmtDateFromISO, fmtDateFromISOWithYear, monthKey } from './lib/dates';
 import {
   CURRENCIES, DEFAULT_CURRENCY, DEFAULT_RATES, getCurrency,
   fetchRates, loadRates, fmtMoney, toUSD, monthlyUSD, recurringMonthlyUSD,
@@ -43,6 +43,9 @@ import {
 } from './ui';
 import { ExpensesSection } from './features/expenses/ExpensesSection';
 import { useExpenses } from './features/expenses/useExpenses';
+import { SpendSplitCard } from './features/expenses/SpendSplitCard';
+import { inMonth, monthSummary } from './features/expenses/summary';
+import { recurringInMonth } from './features/expenses/yearSummary';
 
 const entryStore = createEntryStore(window.localStorage);
 
@@ -1124,6 +1127,10 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
   const activeEntries  = currentEntries.filter(isBilled);
   const totalMonthlyUSD = recurringMonthlyUSD(currentEntries, rates);
   const totalYearlyUSD  = totalMonthlyUSD * 12;
+  const currentOneOffUSD = monthSummary(
+    inMonth(expenses.transactions, monthKey(new Date())),
+    (transaction) => toUSD(transaction.amount, transaction.currency_code, rates),
+  ).expense;
 
   // Die Detailansicht hängt an der ID, nicht am Objekt — nach dem Speichern
   // zeigt sie damit sofort die neuen Werte.
@@ -1668,32 +1675,9 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
 
                 // Für jeden Monat die tatsächlichen Abbuchungen — nur von Verträgen,
                 // die in diesem Monat schon (und noch) liefen.
-                const monthlyTotals = months.map(({ year, month }) => {
-                  return entries.reduce((sum, s) => {
-                    if (!isBilled(s)) return sum;
-                    if (!wasActiveIn(s, year, month)) return sum;
-
-                    const billingDay   = extractBillingDay(s.date);
-                    const billingMonth = extractBillingMonth(s.date); // null для месячных
-
-                    if (!billingDay) return sum;
-
-                    if (s.period === 'monthly') {
-                      // Месячная — списывается каждый месяц
-                      return sum + toUSD(s.price ?? 0, s.currency_code || 'USD', rates);
-                    }
-
-                    if (s.period === 'yearly') {
-                      // Годовая — только в тот месяц когда реально списывается
-                      if (billingMonth !== null && billingMonth === month) {
-                        return sum + toUSD(s.price ?? 0, s.currency_code || 'USD', rates);
-                      }
-                      return sum;
-                    }
-
-                    return sum;
-                  }, 0);
-                });
+                const monthlyTotals = months.map(({ year, month }) =>
+                  recurringInMonth(entries, year, month,
+                    (entry) => toUSD(entry.price ?? 0, entry.currency_code || 'USD', rates)));
 
                 const maxVal     = Math.max(...monthlyTotals, 0.01);
                 const totalRange = monthlyTotals.reduce((a, v) => a + v, 0);
@@ -1723,6 +1707,8 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
                   </div>
                 );
               })()}
+              <SpendSplitCard fixed={totalMonthlyUSD} oneOff={currentOneOffUSD}
+                fmt={fmt} perspective="contracts" className="lg:col-span-2" />
               <AnalyticsPieChart
                 datasets={{
                   category: byCategory,
@@ -1886,7 +1872,9 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
             onOpenBudget={() => switchTab('budget')}
             fmt={fmt} rates={rates} currency={currency}
             docCounts={docCounts} onDocsChange={refreshDocCounts}
-            isDesktop={isDesktop} />
+            isDesktop={isDesktop}
+            contractEntries={entries} recurringMonthly={totalMonthlyUSD}
+            currentOneOff={currentOneOffUSD} />
         </div>
 
         {/* ── Навбар (мобильный; на десктопе — боковая панель) ── */}

@@ -452,9 +452,27 @@ export const translations = {
     budget_empty_subtitle: 'Setze für eine Kategorie eine Obergrenze. Was ein Monat übrig lässt, steht im nächsten zusätzlich zur Verfügung.',
     budget_strip_open:     'Zum Budget',
 
-    // ── Noch nicht da ──
-    exp_soon_title:  'Kommt als Nächstes',
-    exp_soon_year:   'Zwölf Monate als Balken, Fixkosten gegen einmalige Ausgaben, und was übrig geblieben ist.',
+    // ── Jahr & Vergleich ──
+    year_previous:   'Vorheriges Jahr',
+    year_next:       'Nächstes Jahr',
+    year_current:    'Dieses Jahr',
+    year_total_in:   'Einnahmen gesamt',
+    year_total_out:  'Ausgaben gesamt',
+    year_total_left: 'Übrig geblieben',
+    year_chart_title:'Monat für Monat',
+    year_chart_hint: 'Balken: Ausgaben · Linie: Einnahmen',
+    year_income:     'Einnahmen',
+    year_empty:      'In diesem Jahr noch keine Werte',
+    year_categories: 'Einmalausgaben nach Kategorie',
+    year_biggest:    'Größte Einzelkäufe',
+    year_no_expenses:'In diesem Jahr keine Einmalausgaben',
+
+    split_contracts_title: 'Fixkosten & Einmalausgaben',
+    split_expenses_title:  'Einmalausgaben & Fixkosten',
+    split_current_month:   'Aktueller Monat',
+    split_total:           'Zusammen',
+    split_fixed:           'Fixkosten',
+    split_one_off:         'Einmalig',
 
     // Datum
     months_full:  ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'],
@@ -968,9 +986,27 @@ export const translations = {
     budget_empty_subtitle: 'Set a cap for a category. Whatever a month leaves unspent is available on top of the next one.',
     budget_strip_open:     'Go to Budget',
 
-    // ── Not there yet ──
-    exp_soon_title:  'Coming next',
-    exp_soon_year:   'Twelve months as bars, fixed costs against one-off spending, and what was left over.',
+    // ── Year & comparison ──
+    year_previous:   'Previous year',
+    year_next:       'Next year',
+    year_current:    'This year',
+    year_total_in:   'Total in',
+    year_total_out:  'Total out',
+    year_total_left: 'Left over',
+    year_chart_title:'Month by month',
+    year_chart_hint: 'Bars: spending · line: income',
+    year_income:     'Income',
+    year_empty:      'No values in this year yet',
+    year_categories: 'One-off spending by category',
+    year_biggest:    'Biggest single purchases',
+    year_no_expenses:'No one-off spending in this year',
+
+    split_contracts_title: 'Fixed & one-off spending',
+    split_expenses_title:  'One-off & fixed spending',
+    split_current_month:   'Current month',
+    split_total:           'Combined',
+    split_fixed:           'Fixed',
+    split_one_off:         'One-off',
 
     // Dates
     months_full:  ['January','February','March','April','May','June','July','August','September','October','November','December'],
