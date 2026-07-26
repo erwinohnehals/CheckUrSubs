@@ -1,9 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEntryStore } from './entryStore.js';
+import { createExpenseStore } from './expenseStore.js';
+import { createAccountStore } from './accountStore.js';
+import { createBudgetStore } from './budget.js';
 import {
-  SETTINGS_KEYS, applySettings, readSettings, isBackup, backupFilename,
+  BACKUP_VERSION, SETTINGS_KEYS, applySettings, readSettings, isBackup, backupFilename,
   bytesToBase64, base64ToBytes, encodeDocument, decodeDocument, restoreBackup,
+  createBackup,
 } from './backup.js';
 
 const createMemoryStorage = (initial = {}) => {
@@ -59,6 +63,23 @@ test('names the file after the day it was made', () => {
     backupFilename(new Date('2026-07-25T09:00:00Z')),
     'gold-und-geld-backup-2026-07-25.json',
   );
+});
+
+test('version 2 backups contain every local data domain', async () => {
+  const payload = await createBackup({
+    entries: [{ id: 'contract-1', name: 'Internet', billingDay: 4 }],
+    expenses: [{ id: 'expense-1', amount: 12 }],
+    accounts: [{ id: 'cash', label: 'Cash' }],
+    budgets: { groceries: { amount: 300, currency: 'EUR', since: '2026-07' } },
+    storage: createMemoryStorage({ lang: 'en' }),
+  });
+
+  assert.equal(payload.version, BACKUP_VERSION);
+  assert.equal(payload.version, 2);
+  assert.equal(payload.entries[0].billingDay, undefined);
+  assert.deepEqual(payload.expenses, [{ id: 'expense-1', amount: 12 }]);
+  assert.deepEqual(payload.accounts, [{ id: 'cash', label: 'Cash' }]);
+  assert.equal(payload.budgets.groceries.amount, 300);
 });
 
 test('base64 survives bytes that are not text', () => {
@@ -118,6 +139,64 @@ test('restores entries and settings from a backup file', async () => {
   assert.deepEqual(store.list().map(e => e.name), ['Netflix']);
   assert.equal(settingsStorage.getItem('lang'), 'de');
   assert.equal(settingsStorage.getItem('currency'), null);
+});
+
+test('restores expenses, accounts and budgets onto a clean profile', async () => {
+  const dataStorage = createMemoryStorage();
+  const entryStore = createEntryStore(dataStorage, () => 'contract-local');
+  const expenseStore = createExpenseStore(dataStorage, () => 'expense-local');
+  const accountStore = createAccountStore(dataStorage, () => 'account-local');
+  const budgetStore = createBudgetStore(dataStorage);
+
+  const result = await restoreBackup({
+    format: 'goldgeld-backup',
+    version: 2,
+    settings: {},
+    entries: [{ id: 'contract-1', name: 'Internet', price: 30 }],
+    expenses: [{
+      id: 'expense-1',
+      direction: 'expense',
+      title: 'Market',
+      date: '2026-07-26',
+      amount: 12.5,
+      category: 'groceries',
+      items: [],
+    }],
+    accounts: [{ id: 'cash', label: 'Cash', kind: 'cash' }],
+    budgets: { groceries: { amount: 300, currency: 'EUR', since: '2026-07' } },
+    documents: [],
+  }, { entryStore, expenseStore, accountStore, budgetStore, storage: dataStorage });
+
+  assert.deepEqual(result, {
+    entries: 1, expenses: 1, accounts: 1, budgets: 1, documents: 0, settings: 0,
+  });
+  assert.equal(expenseStore.list()[0].title, 'Market');
+  assert.equal(accountStore.list()[0].label, 'Cash');
+  assert.equal(budgetStore.get('groceries').amount, 300);
+});
+
+test('version 1 backups still restore and clear domains they did not contain', async () => {
+  const dataStorage = createMemoryStorage();
+  const entryStore = createEntryStore(dataStorage, () => 'contract-local');
+  const expenseStore = createExpenseStore(dataStorage, () => 'expense-local');
+  const accountStore = createAccountStore(dataStorage, () => 'account-local');
+  const budgetStore = createBudgetStore(dataStorage);
+
+  expenseStore.create({ title: 'Old expense', date: '2026-07-01', amount: 5 });
+  accountStore.create({ label: 'Old account' });
+  budgetStore.set('groceries', { amount: 100 }, '2026-07');
+
+  await restoreBackup({
+    format: 'goldgeld-backup',
+    version: 1,
+    entries: [{ name: 'Legacy contract', price: 10 }],
+    documents: [],
+  }, { entryStore, expenseStore, accountStore, budgetStore, storage: dataStorage });
+
+  assert.equal(entryStore.list().length, 1);
+  assert.deepEqual(expenseStore.list(), []);
+  assert.deepEqual(accountStore.list(), []);
+  assert.deepEqual(budgetStore.all(), {});
 });
 
 test('a damaged document cannot replace the current data', async () => {

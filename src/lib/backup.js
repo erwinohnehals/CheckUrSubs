@@ -13,7 +13,7 @@ import * as vault from './vault.js';
 import { newId } from './entryStore.js';
 
 export const BACKUP_FORMAT  = 'goldgeld-backup';
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 
 const APP = 'Gold&Geld';
 
@@ -130,7 +130,13 @@ export const isBackup = (parsed) => asRecord(parsed)?.format === BACKUP_FORMAT;
 export const backupFilename = (date = new Date()) =>
   `gold-und-geld-backup-${date.toISOString().slice(0, 10)}.json`;
 
-export const createBackup = async ({ entries = [], storage = globalThis.localStorage } = {}) => {
+export const createBackup = async ({
+  entries = [],
+  expenses = [],
+  accounts = [],
+  budgets = {},
+  storage = globalThis.localStorage,
+} = {}) => {
   const records = documentStore.isAvailable() ? await documentStore.all() : [];
   const documents = [];
 
@@ -147,6 +153,9 @@ export const createBackup = async ({ entries = [], storage = globalThis.localSto
     settings:    readSettings(storage),
     vault:       vault.readMeta(),
     entries:     entries.map(stripRuntime),
+    expenses,
+    accounts,
+    budgets,
     documents,
   };
 };
@@ -156,10 +165,19 @@ export const createBackup = async ({ entries = [], storage = globalThis.localSto
  * Ersetzt den gesamten Gerätestand durch den der Sicherung.
  * Gibt zurück, wie viel angekommen ist.
  */
-export const restoreBackup = async (parsed, { entryStore, storage = globalThis.localStorage }) => {
+export const restoreBackup = async (parsed, {
+  entryStore,
+  expenseStore,
+  accountStore,
+  budgetStore,
+  storage = globalThis.localStorage,
+}) => {
   if (!isBackup(parsed)) throw new Error('not-a-backup');
 
-  const rows      = Array.isArray(parsed.entries)   ? parsed.entries   : [];
+  const rows       = Array.isArray(parsed.entries)  ? parsed.entries  : [];
+  const expenses   = Array.isArray(parsed.expenses) ? parsed.expenses : [];
+  const accounts   = Array.isArray(parsed.accounts) ? parsed.accounts : [];
+  const budgets    = asRecord(parsed.budgets) || {};
   const documents = Array.isArray(parsed.documents) ? parsed.documents : [];
   // Binärdaten vollständig prüfen, bevor wir den bestehenden Stand verändern.
   // Eine beschädigte Sicherungsdatei darf nicht erst nach dem Löschen auffallen.
@@ -176,6 +194,9 @@ export const restoreBackup = async (parsed, { entryStore, storage = globalThis.l
   }
 
   const entries = entryStore.replaceAll(rows);
+  const restoredExpenses = expenseStore?.replaceAll(expenses) || [];
+  const restoredAccounts = accountStore?.replaceAll(accounts) || [];
+  const restoredBudgets  = budgetStore?.replaceAll(budgets) || {};
   const settings = applySettings(storage, parsed.settings);
 
   let restoredDocuments = 0;
@@ -183,5 +204,12 @@ export const restoreBackup = async (parsed, { entryStore, storage = globalThis.l
     restoredDocuments = await documentStore.replaceAll(decodedDocuments);
   }
 
-  return { entries: entries.length, documents: restoredDocuments, settings };
+  return {
+    entries: entries.length,
+    expenses: restoredExpenses.length,
+    accounts: restoredAccounts.length,
+    budgets: Object.keys(restoredBudgets).length,
+    documents: restoredDocuments,
+    settings,
+  };
 };

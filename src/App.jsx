@@ -19,7 +19,7 @@ import {
 import * as vault from './lib/vault';
 import * as documentStore from './lib/documentStore';
 import * as backup from './lib/backup';
-import { toCSV, parseCSV } from './lib/csv';
+import { toCSV, parseCSV, expensesToCSV } from './lib/csv';
 import {
   MONTHS_SHORT, extractBillingDay, extractBillingMonth,
   daysInMonth, clampDay, billingDateIn, startOfToday,
@@ -42,7 +42,9 @@ import {
   PageHeader, MobilePageHeader,
 } from './ui';
 import { ExpensesSection } from './features/expenses/ExpensesSection';
-import { useExpenses } from './features/expenses/useExpenses';
+import {
+  useExpenses, expenseStore, accountStore, budgetStore,
+} from './features/expenses/useExpenses';
 import { SpendSplitCard } from './features/expenses/SpendSplitCard';
 import { inMonth, monthSummary } from './features/expenses/summary';
 import { recurringInMonth } from './features/expenses/yearSummary';
@@ -99,8 +101,8 @@ const byLocation = (a, b) => {
 // ist eine andere Bewegung als der zwischen Reitern — deshalb ein eigener
 // Schalter, und deshalb bleibt das Wischen innerhalb eines Bereichs.
 const SECTION_ITEMS = [
-  { id: 'contracts', labelKey: 'section_contracts', icon: ClipboardList },
   { id: 'expenses',  labelKey: 'section_expenses',  icon: ShoppingCart  },
+  { id: 'contracts', labelKey: 'section_contracts', icon: ClipboardList },
 ];
 
 const SECTION_TABS = {
@@ -900,12 +902,9 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
   const [rates,        setRates]        = useState(() => loadRates() || DEFAULT_RATES);
   const [ratesLoading, setRatesLoading] = useState(false);
 
-  // Bereich und Reiter überleben das Neuladen: wer zuletzt im Monat war, landet
-  // dort wieder und nicht auf der Übersicht der Verträge.
-  const [section, setSection] = useState(() => {
-    const stored = localStorage.getItem('section');
-    return SECTION_TABS[stored] ? stored : 'contracts';
-  });
+  // Ausgaben ist der feste Einstieg. Die Reiter innerhalb beider Bereiche
+  // überleben weiterhin das Neuladen.
+  const [section, setSection] = useState('expenses');
   const [tabBySection, setTabBySection] = useState(() => ({
     contracts: readTab('contracts'),
     expenses:  readTab('expenses'),
@@ -973,7 +972,6 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
     if (next === section) return;
     setExitingTab(activeTab);
     setSection(next);
-    localStorage.setItem('section', next);
     setSearchQuery('');
     setSearchOpen(false);
   }, [section, activeTab]);
@@ -998,9 +996,9 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, exitingTab]);
 
-  // Erster Anstrich: die Gruppen der Startansicht kaskadieren herein
+  // Erster Anstrich: die Gruppen der tatsächlichen Startansicht kaskadieren herein
   useEffect(() => {
-    const pane = tabRefs.home.current;
+    const pane = tabRefs[activeTab]?.current;
     if (pane) staggerIn(pane.querySelectorAll('[data-group]'), { duration: 350, step: 80, rise: 16 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1390,7 +1388,7 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
   // Dasselbe Menü an drei Stellen — als Element gebaut, nicht dreimal getippt
   const settingsMenu = (
     <SettingsMenu
-      entries={entries} onImport={handleImport} vaultState={vaultState}
+      entries={entries} expenses={expenses} onImport={handleImport} vaultState={vaultState}
       lang={lang} toggleLang={toggleLang}
       theme={theme} themePreference={themePreference} onThemeChange={setThemePreference}
       currency={currency} onCurrencyChange={changeCurrency}
@@ -1407,6 +1405,8 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
       className="w-full lg:hidden"
       layout="grid grid-cols-2"
       trackClass="bg-surface-sunken border border-border rounded-lg"
+      pillClass="section-pill"
+      activeItemClass="text-surface"
       itemClass="flex items-center justify-center gap-1.5 py-2 text-xs"
       renderItem={(item) => (
         <>
@@ -1428,7 +1428,8 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
         theme={theme} themePreference={themePreference} setThemePreference={setThemePreference}
         currency={currency} onCurrencyChange={changeCurrency}
         ratesLoading={ratesLoading} onRefreshRates={refreshRates}
-        entries={entries} onImport={handleImport} vaultState={vaultState}
+        entries={entries} expenses={expenses}
+        onImport={handleImport} vaultState={vaultState}
       />
 
       <div className="w-full max-w-[450px] min-h-screen border-x border-border bg-surface flex flex-col relative overflow-hidden
@@ -2038,12 +2039,13 @@ const DesktopRowDemo = () => {
 const getOnboardingSteps = (t) => [
   { icon: Sparkles,     ...t.onb_slides[0] },
   { icon: Plus,         ...t.onb_slides[1] },
+  { icon: ShoppingCart, ...t.onb_slides[2] },
   { type: 'swipe',
-    icon: List,         ...t.onb_slides[2] },
-  { icon: CalendarDays, ...t.onb_slides[3] },
-  { icon: BarChart2,    ...t.onb_slides[4] },
+    icon: List,         ...t.onb_slides[3] },
+  { icon: CalendarDays, ...t.onb_slides[4] },
+  { icon: BarChart2,    ...t.onb_slides[5] },
   { type: 'pwa',
-    icon: Download,     ...t.onb_slides[5] },
+    icon: Download,     ...t.onb_slides[6] },
 ];
 
 const Onboarding = ({ onDone, toggleLang, lang, theme, toggleTheme }) => {
@@ -2334,7 +2336,7 @@ const SupportMenu = ({ align = 'left' }) => {
 
 
 // ─── Import / Export Menu ─────────────────────────────────────────────────────
-const ImportExportMenu = ({ entries, onImport, vaultState, embedded = false }) => {
+const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = false }) => {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [importStatus, setImportStatus] = useState(null); // null | 'ok' | 'err'
@@ -2353,6 +2355,10 @@ const ImportExportMenu = ({ entries, onImport, vaultState, embedded = false }) =
 
   const exportCSV = () => {
     download('gold-und-geld-export.csv', 'text/csv', toCSV(CSV_HEADERS, entries));
+  };
+
+  const exportExpensesCSV = () => {
+    download('gold-und-geld-ausgaben.csv', 'text/csv', expensesToCSV(expenses.transactions));
   };
 
   // Verschlüsselte Passwörter kommen mit — zusammen mit den Tresor-Metadaten
@@ -2385,7 +2391,12 @@ const ImportExportMenu = ({ entries, onImport, vaultState, embedded = false }) =
     setBackupBusy(true);
 
     try {
-      const payload = await backup.createBackup({ entries });
+      const payload = await backup.createBackup({
+        entries,
+        expenses: expenses.transactions,
+        accounts: expenses.accounts,
+        budgets: expenses.budgets,
+      });
       download(backup.backupFilename(), 'application/json', JSON.stringify(payload));
       setImportMsg(t.io_backup_ok);
       setImportStatus('ok');
@@ -2417,8 +2428,10 @@ const ImportExportMenu = ({ entries, onImport, vaultState, embedded = false }) =
         if (backup.isBackup(parsed)) {
           if (!window.confirm(t.io_restore_confirm)) return;
 
-          const result = await backup.restoreBackup(parsed, { entryStore });
-          setImportMsg(t.io_restore_ok(result.entries));
+          const result = await backup.restoreBackup(parsed, {
+            entryStore, expenseStore, accountStore, budgetStore,
+          });
+          setImportMsg(t.io_restore_ok(result.entries + result.expenses));
           setImportStatus('ok');
 
           // Sprache, Farbschema und Währung stecken in den Einstellungen —
@@ -2500,9 +2513,16 @@ const ImportExportMenu = ({ entries, onImport, vaultState, embedded = false }) =
             <Download className="w-4 h-4 text-ink-2" />
             <span className="text-sm font-medium">{t.io_export}</span>
           </div>
-          <div className="flex gap-2">
-            <button onClick={exportCSV}  className={btn('secondary', 'sm', 'flex-1 text-xs')}>CSV</button>
-            <button onClick={exportJSON} className={btn('secondary', 'sm', 'flex-1 text-xs')}>JSON</button>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={exportCSV} className={btn('secondary', 'sm', 'text-xs')}>
+              {t.io_contracts_csv}
+            </button>
+            <button onClick={exportExpensesCSV} className={btn('secondary', 'sm', 'text-xs')}>
+              {t.io_expenses_csv}
+            </button>
+            <button onClick={exportJSON} className={btn('secondary', 'sm', 'col-span-2 text-xs')}>
+              JSON
+            </button>
           </div>
           <p className="text-[11px] text-ink-3 mt-2">{t.io_docs_note}</p>
         </div>
@@ -2532,7 +2552,7 @@ const ImportExportMenu = ({ entries, onImport, vaultState, embedded = false }) =
 // Alle app-weiten Entscheidungen sind an einem Ort. Der Import-/Export-Block
 // nutzt weiterhin dieselbe Logik wie bisher, wird hier aber direkt eingebettet.
 const SettingsMenu = ({
-  entries, onImport, vaultState,
+  entries, expenses, onImport, vaultState,
   lang, toggleLang,
   theme, themePreference, onThemeChange,
   currency, onCurrencyChange,
@@ -2635,7 +2655,8 @@ const SettingsMenu = ({
 
           <div className="border-t border-border">
             <ImportExportMenu
-              entries={entries} onImport={onImport} vaultState={vaultState} embedded
+              entries={entries} expenses={expenses}
+              onImport={onImport} vaultState={vaultState} embedded
             />
           </div>
         </div>
@@ -4602,7 +4623,7 @@ const DesktopSidebar = ({
   theme, themePreference, setThemePreference,
   currency, onCurrencyChange,
   ratesLoading, onRefreshRates,
-  entries, onImport, vaultState,
+  entries, expenses, onImport, vaultState,
 }) => {
   const t = useT();
   const items = navItems(t, tabs);
@@ -4621,6 +4642,8 @@ const DesktopSidebar = ({
         className="mt-7 w-full"
         layout="grid grid-cols-2"
         trackClass="bg-surface-sunken border border-border rounded-lg"
+        pillClass="section-pill"
+        activeItemClass="text-surface"
         itemClass="flex items-center justify-center gap-1.5 py-2 text-xs"
         renderItem={(item) => (
           <>
@@ -4652,7 +4675,7 @@ const DesktopSidebar = ({
       <div className="mt-auto space-y-3">
         <SettingsMenu
           align="top" buttonClass="w-full" triggerLabel={t.settings_title}
-          entries={entries} onImport={onImport} vaultState={vaultState}
+          entries={entries} expenses={expenses} onImport={onImport} vaultState={vaultState}
           lang={lang} toggleLang={toggleLang}
           theme={theme} themePreference={themePreference} onThemeChange={setThemePreference}
           currency={currency} onCurrencyChange={onCurrencyChange}

@@ -5,7 +5,9 @@ import { useSlidingPill } from '../lib/motion';
 // an- und ausgehen. Die Beschriftungen blenden nur ihre Farbe über.
 export const Segmented = ({
   items, value, onChange,
-  className = '', trackClass = '', itemClass = '', pillClass = '', vertical = false,
+  className = '', trackClass = '', itemClass = '', pillClass = '',
+  activeItemClass = 'text-ink', inactiveItemClass = 'text-ink-2 hover:text-ink',
+  vertical = false,
   layout, renderItem,
 }) => {
   const { trackRef, pillRef, setItem } = useSlidingPill(value);
@@ -21,7 +23,8 @@ export const Segmented = ({
             onClick={() => onChange(item.id)}
             aria-current={active ? 'page' : undefined}
             className={`relative z-10 rounded-lg font-medium
-              transition-colors duration-300 ${active ? 'text-ink' : 'text-ink-2 hover:text-ink'} ${itemClass}`}>
+              transition-colors duration-300
+              ${active ? activeItemClass : inactiveItemClass} ${itemClass}`}>
             {renderItem ? renderItem(item, active) : item.label}
           </button>
         );

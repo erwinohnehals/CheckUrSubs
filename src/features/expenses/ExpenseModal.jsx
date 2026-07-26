@@ -54,7 +54,8 @@ const toFormItems = (transaction) =>
   }));
 
 export const ExpenseModal = ({
-  open, initial, accounts = [], knownTags = [], currency, onSave, onClose, onDocsChange, isDesktop,
+  open, initial, isEditing = false, isRepeat = false,
+  accounts = [], knownTags = [], currency, onSave, onClose, onDocsChange, isDesktop,
 }) => {
   const t    = useT();
   const lang = useLang();
@@ -95,10 +96,10 @@ export const ExpenseModal = ({
 
   const amountRef = useRef(null);
   useEffect(() => {
-    if (!open || initial || !isDesktop) return;
+    if (!open || isEditing || !isDesktop) return;
     const id = setTimeout(() => amountRef.current?.focus(), DURATION.modalIn);
     return () => clearTimeout(id);
-  }, [open, initial, isDesktop]);
+  }, [open, isEditing, isDesktop]);
 
   // Die Kategorien der beiden Richtungen sind getrennte Sätze — eine Ausgabe mit
   // der Kategorie „Gehalt" gäbe es nicht, also fällt die Wahl beim Umschalten weg
@@ -177,7 +178,9 @@ export const ExpenseModal = ({
           </span>
           <div className="min-w-0 flex-1">
             <h2 id="expense-modal-title" className="text-lg lg:text-xl font-semibold tracking-tight truncate">
-              {initial ? (title.trim() || t.exp_modal_edit) : (income ? t.exp_modal_new_income : t.exp_modal_new)}
+              {isEditing
+                ? (title.trim() || t.exp_modal_edit)
+                : (isRepeat ? t.exp_modal_repeat : (income ? t.exp_modal_new_income : t.exp_modal_new))}
             </h2>
             <p className="text-xs text-ink-3 truncate mt-0.5">
               {total > 0 ? fmtAmount(total) : (income ? t.exp_income : t.exp_spent)}
@@ -312,7 +315,7 @@ export const ExpenseModal = ({
         </button>
         <button type="button" disabled={!canSave} onClick={submit}
           className={btn('primary', 'md', 'flex-1 py-3 lg:flex-none lg:px-10')}>
-          <Check className="w-4 h-4" />{initial ? t.modal_save : t.modal_add}
+          <Check className="w-4 h-4" />{isEditing ? t.modal_save : t.modal_add}
         </button>
       </footer>
     </Overlay>

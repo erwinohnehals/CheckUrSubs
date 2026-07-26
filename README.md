@@ -1,9 +1,9 @@
 # Gold&Geld
 
-Ein lokal gespeicherter Überblick über alles, was regelmäßig Geld kostet:
-Versicherungen, Strom, Internet, Mobilfunk, Miete, Rundfunkbeitrag und Abos —
-inklusive Vertragsdaten, Kündigungsfristen, Dokumenten und Portal-Zugängen.
-Ohne Konto, ohne Backend.
+Ein lokal gespeicherter Überblick über laufende Kosten und alltägliche Ausgaben:
+Verträge, Abos, einmalige Einkäufe, Einnahmen und Budgets — inklusive
+Kündigungsfristen, Belegen, Vertragsdokumenten und Portal-Zugängen. Ohne
+Benutzerkonto, ohne Backend.
 
 ![PWA](https://img.shields.io/badge/PWA-ready-blueviolet)
 ![React](https://img.shields.io/badge/React-19-61dafb)
@@ -13,6 +13,13 @@ Ohne Konto, ohne Backend.
 ## Funktionen
 
 - Summen pro Monat, Jahr und Tag, Abbuchungskalender und anstehende Zahlungen
+- **Ausgaben & Einnahmen**: einzelne Beträge oder Einkäufe mit Positionen,
+  eigenen Kategorien, Konten, Notizen, Tags und Belegen
+- **Budgets mit Übertrag**: nicht verbrauchtes oder überzogenes Budget wird in
+  den Folgemonat übernommen; ein manueller Neustart ist jederzeit möglich
+- **Jahresbericht**: Einnahmen und Einmalausgaben je Monat, Kategorien,
+  größte Einkäufe und direkter Vergleich mit den laufenden Kosten
+- Vergangene Vorgänge mit **Erneut erfassen** als Vorlage für heute übernehmen
 - **Kündigungsfristen**: Vertragsende + Frist ergeben das Datum, bis zu dem
   gekündigt sein muss — inklusive Rollen auf das nächste Vertragsjahr bei
   automatischer Verlängerung
@@ -27,8 +34,9 @@ Ohne Konto, ohne Backend.
 - Auswertung nach Kategorie und Eintrag, Kostenverlauf über 3/6/12 Monate
 - Mehrere Währungen mit zwischengespeicherten Wechselkursen
 - Deutsch und Englisch
-- CSV- und JSON-Export/-Import
-- **Vollständige Sicherung** als eine Datei — mit Dokumenten und Einstellungen
+- Getrennte CSV-Exporte für Verträge und Ausgaben sowie JSON-Export/-Import
+- **Vollständige Sicherung** als eine Datei — mit Ausgaben, Konten, Budgets,
+  Dokumenten und Einstellungen
 - Installierbare PWA
 
 ## Wo die Daten liegen
@@ -38,6 +46,9 @@ Alles bleibt im Browser dieses Geräts — es gibt kein Konto und keine Synchron
 | Was | Wo | Schlüssel |
 |---|---|---|
 | Einträge, Vertragsdaten, eigene Felder | `localStorage` | `goldgeld.entries` |
+| Ausgaben und Einnahmen | `localStorage` | `goldgeld.expenses` |
+| Benannte Konten | `localStorage` | `goldgeld.accounts` |
+| Budgets und Übertragsbeginn | `localStorage` | `goldgeld.budgets` |
 | Dokumente (Blobs, max. 20 MB je Datei) | IndexedDB | `goldgeld` / `documents` |
 | Tresor-Metadaten (Salt + Prüf-Token) | `localStorage` | `goldgeld.vault` |
 
@@ -45,18 +56,21 @@ Wer die Browserdaten der Seite löscht, löscht auch die Einträge.
 
 ## Sichern und wiederherstellen
 
-Unter **Auswertung → Daten** stehen zwei Wege nebeneinander:
+Unter **Einstellungen → Daten** stehen Export und vollständige Sicherung
+nebeneinander:
 
 | | Enthält | Beim Einlesen |
 |---|---|---|
-| **Export** (CSV / JSON) | Einträge, beim JSON zusätzlich die Tresor-Metadaten | wird zum vorhandenen Bestand **hinzugefügt**, Dubletten übersprungen |
-| **Sicherung** (JSON) | Einträge, Dokumente, Einstellungen (Sprache, Währung, Farbschema) und Tresor-Metadaten | **ersetzt** nach Rückfrage den gesamten Stand des Geräts |
+| **Verträge CSV / JSON** | Vertragsdaten, beim JSON zusätzlich die Tresor-Metadaten | wird zum vorhandenen Vertragsbestand **hinzugefügt**, Dubletten übersprungen |
+| **Ausgaben CSV** | eine Zeile je Position; `receipt_id` hält die Zeilen eines Einkaufs zusammen | Export zur Weiterverarbeitung |
+| **Sicherung** (JSON) | Verträge, Ausgaben, Konten, Budgets, Dokumente, Einstellungen und Tresor-Metadaten | **ersetzt** nach Rückfrage den gesamten Stand des Geräts |
 
 Die Sicherung ist die Datei für den Ernstfall und für den Umzug auf ein anderes
 Gerät. Beide Dateien liest derselbe Knopf (*Import → Datei wählen*) — eine
-Sicherung wird an ihrem Format erkannt. Dokumente stecken als Base64 darin, die
-Datei ist also etwa ein Drittel größer als die Dateien zusammen. Nach dem
-Wiederherstellen lädt die Seite neu, damit Sprache und Farbschema greifen.
+Sicherung wird an ihrem Format erkannt. Sicherungen der Version 1 bleiben
+lesbar. Dokumente und Belege stecken als Base64 darin, die Datei ist also etwa
+ein Drittel größer als die Dateien zusammen. Nach dem Wiederherstellen lädt die
+Seite neu, damit Sprache und Farbschema greifen.
 
 Daten aus der Vorgängerversion (`checkursubs.subscriptions`) werden beim ersten
 Start automatisch übernommen.

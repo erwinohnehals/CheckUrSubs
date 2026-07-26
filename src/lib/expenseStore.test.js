@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createExpenseStore, categoryBreakdown, parseAmount, isCounted,
+  createExpenseStore, categoryBreakdown, parseAmount, isCounted, repeatTransactionDraft,
 } from './expenseStore.js';
 
 const createMemoryStorage = (initial = {}) => {
@@ -17,6 +17,31 @@ const createStore = (storage = createMemoryStorage()) => {
   let nextId = 0;
   return createExpenseStore(storage, () => `local-${++nextId}`);
 };
+
+test('repeat drafts use today and shed identities from the old transaction', () => {
+  const original = {
+    id: 'expense-1',
+    direction: 'income',
+    title: 'Refund',
+    date: '2026-07-01',
+    amount: 12,
+    items: [{ id: 'item-1', label: 'Part', amount: 12, category: null }],
+    refund_for: 'purchase-1',
+    created_at: '2026-07-01T08:00:00.000Z',
+    archived_at: '2026-07-02T08:00:00.000Z',
+  };
+
+  const draft = repeatTransactionDraft(original, new Date('2026-07-26T14:00:00Z'));
+
+  assert.equal(draft.id, undefined);
+  assert.equal(draft.date, '2026-07-26');
+  assert.equal(draft.items[0].id, undefined);
+  assert.equal(draft.amount, 12);
+  assert.equal(draft.refund_for, null);
+  assert.equal(draft.created_at, undefined);
+  assert.equal(draft.archived_at, null);
+  assert.equal(original.items[0].id, 'item-1');
+});
 
 test('starts empty when no local data exists', () => {
   assert.deepEqual(createStore().list(), []);

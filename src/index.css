@@ -209,6 +209,13 @@ html, body { overscroll-behavior: none; overscroll-behavior-x: none; }
   opacity: 0; pointer-events: none;
 }
 
+/* Der Bereichswechsel ist die oberste Navigationsebene und braucht mehr
+   Kontrast als die Reiter innerhalb eines Bereichs. */
+.section-pill {
+  background: rgb(var(--ink));
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+}
+
 /* ════════════════════════════════════════════════════════════════════════════
    Keyframe-Bibliothek (design-language.html §4.6).
    Ein-Endpunkt-Keyframes: Eintritte definieren nur `from`, Austritte nur `to`.

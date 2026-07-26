@@ -77,10 +77,10 @@ export const DatePicker = ({ value, onChange, label }) => {
         </span>
       </button>
 
-      <PopMenu open={open} className="top-full mt-2 left-0 right-0" width="" >
-        <div className="p-3">
+      <PopMenu open={open} className="top-full right-0 mt-2 w-full max-w-[360px]" width="">
+        <div className="p-2.5">
           {/* Monatsnavigation */}
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <button type="button" onClick={prevMonth} aria-label="←"
               className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-2 hover:bg-surface-3 transition">
               <ChevronDown className="w-4 h-4 rotate-90" />
@@ -103,7 +103,7 @@ export const DatePicker = ({ value, onChange, label }) => {
               const isToday    = day === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
               return (
                 <button key={day} type="button" onClick={() => selectDay(day)} data-no-press
-                  className={`aspect-square rounded-lg text-xs font-medium transition
+                  className={`h-9 rounded-lg text-xs font-medium transition
                     ${isSelected ? 'bg-ink text-surface'
                       : isToday   ? 'bg-surface-sunken text-ink'
                       : 'text-ink-2 hover:bg-surface-3'}`}>

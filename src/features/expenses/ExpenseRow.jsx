@@ -6,7 +6,7 @@
 // Einnahmen tragen ein Vorzeichen und einen Pfeil, keine Farbe: Farbe bleibt dem
 // Status vorbehalten, und „Geld kam herein" ist kein Status.
 
-import { ArrowDownLeft, ChevronRight, Paperclip, Pencil, Trash2 } from 'lucide-react';
+import { ArrowDownLeft, ChevronRight, CopyPlus, Paperclip, Pencil, Trash2 } from 'lucide-react';
 import { useT } from '../../lib/i18n';
 import { getExpenseCategory } from '../../lib/expenseCategories';
 import { Badge, useSwipeRow } from '../../ui';
@@ -25,7 +25,7 @@ const ItemChip = ({ count, open, onToggle, label }) => (
 
 export const ExpenseRow = ({
   transaction, fmtAmount, accountLabel, docCount = 0,
-  expanded = false, onToggle, onEdit, onDelete, isDesktop,
+  expanded = false, onToggle, onEdit, onRepeat, onDelete, isDesktop,
 }) => {
   const t = useT();
 
@@ -82,6 +82,11 @@ export const ExpenseRow = ({
         </div>
         <div className="shrink-0 text-right">{amount}</div>
         <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition">
+          <button type="button" title={t.exp_repeat}
+            onClick={(event) => { event.stopPropagation(); onRepeat(); }}
+            className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-2 transition">
+            <CopyPlus className="w-4 h-4" />
+          </button>
           <button type="button" title={t.exp_modal_edit}
             onClick={(event) => { event.stopPropagation(); onEdit(); }}
             className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-2 transition">
@@ -100,12 +105,12 @@ export const ExpenseRow = ({
 
   return <MobileExpenseRow
     title={title} meta={meta} amount={amount} badges={badges}
-    Icon={Icon} details={details} onEdit={onEdit} onDelete={onDelete} />;
+    Icon={Icon} details={details} onEdit={onEdit} onRepeat={onRepeat} onDelete={onDelete} />;
 };
 
 // Eigene Komponente, weil useSwipeRow ein Haken ist und am Desktop nicht laufen soll
 const MobileExpenseRow = ({
-  title, meta, amount, badges, Icon, details, onEdit, onDelete,
+  title, meta, amount, badges, Icon, details, onEdit, onRepeat, onDelete,
 }) => {
   const t = useT();
   const { ref, handlers } = useSwipeRow({ onLeft: onDelete, onRight: onEdit, onTap: onEdit });
@@ -135,6 +140,12 @@ const MobileExpenseRow = ({
             </div>
             {meta && <p className="text-xs text-ink-3 truncate mt-0.5">{meta}</p>}
           </div>
+          <button type="button" title={t.exp_repeat} aria-label={t.exp_repeat}
+            onClick={(event) => { event.stopPropagation(); onRepeat(); }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-ink-3
+              hover:text-ink hover:bg-surface-3 transition">
+            <CopyPlus className="w-4 h-4" />
+          </button>
           <div className="shrink-0">{amount}</div>
         </div>
       </div>

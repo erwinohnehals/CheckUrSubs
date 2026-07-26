@@ -98,6 +98,8 @@ export const translations = {
     io_title:          'Daten',
     io_subtitle:       'Bleiben auf diesem Gerät',
     io_export:         'Export',
+    io_contracts_csv:  'Verträge CSV',
+    io_expenses_csv:   'Ausgaben CSV',
     io_import:         'Import',
     io_import_hint:    'JSON oder CSV',
     io_import_btn:     'Sicherung oder Datei importieren',
@@ -109,14 +111,14 @@ export const translations = {
     io_backup:         'Sicherung',
     io_backup_btn:     'Sicherung erstellen',
     io_backup_busy:    'Wird erstellt …',
-    io_backup_note:    'Alles: Einträge, Dokumente, Einstellungen, Tresor',
+    io_backup_note:    'Alles: Verträge, Ausgaben, Konten, Budgets, Dokumente und Tresor',
     io_backup_keep:    'Extern oder in einem Cloud-Ordner aufbewahren.',
     io_backup_ok:      'Sicherung wurde heruntergeladen',
     io_backup_err:     'Sicherung fehlgeschlagen',
     io_restore_hint:   'Eine Sicherung wird erkannt und ersetzt alles',
     io_restore_confirm:
       'Die Sicherung ersetzt alle Daten auf diesem Gerät — Einträge, Dokumente und Einstellungen. Fortfahren?',
-    io_restore_ok:     (n) => `Wiederhergestellt: ${n} — lädt neu …`,
+    io_restore_ok:     (n) => `Wiederhergestellt: ${n} Datensätze — lädt neu …`,
 
     // Auswertung
     analytics_title:    'Auswertung',
@@ -376,6 +378,7 @@ export const translations = {
     exp_add:       'Ausgabe erfassen',
     exp_add_first: 'Erste Ausgabe erfassen',
     exp_delete:    'Löschen',
+    exp_repeat:    'Erneut erfassen',
     exp_deleted:   'Vorgang gelöscht',
     exp_swipe_hint:'← wischen zum Löschen · wischen zum Bearbeiten →',
     exp_empty_title:    'Noch nichts erfasst',
@@ -386,6 +389,7 @@ export const translations = {
     // ── Formular ──
     exp_modal_new:        'Ausgabe erfassen',
     exp_modal_new_income: 'Einnahme erfassen',
+    exp_modal_repeat:     'Erneut erfassen',
     exp_modal_edit:       'Bearbeiten',
     exp_tab_amount:  'Betrag',
     exp_tab_items:   'Positionen',
@@ -521,6 +525,10 @@ export const translations = {
         subtitle: 'Name eintippen — bekannte Anbieter schlägt die App vor und setzt die Kategorie. Dazu passende Felder: Versichertennummer, Zählernummer, Jahresverbrauch.',
       },
       {
+        title: 'Ausgaben im Alltag',
+        subtitle: 'Einmalige Ausgaben und Einnahmen im eigenen Bereich erfassen, Einkäufe in Positionen aufteilen und Budgets mit Übertrag von Monat zu Monat setzen.',
+      },
+      {
         title: 'Einträge verwalten',
         subtitle: 'Antippen zeigt alles Erfasste auf einen Blick. Nach links wischen zum Archivieren, nach rechts zum Bearbeiten.',
       },
@@ -632,6 +640,8 @@ export const translations = {
     io_title:          'Data',
     io_subtitle:       'Stored only on this device',
     io_export:         'Export',
+    io_contracts_csv:  'Contracts CSV',
+    io_expenses_csv:   'Spending CSV',
     io_import:         'Import',
     io_import_hint:    'JSON or CSV',
     io_import_btn:     'Import backup or file',
@@ -643,14 +653,14 @@ export const translations = {
     io_backup:         'Backup',
     io_backup_btn:     'Create backup',
     io_backup_busy:    'Creating …',
-    io_backup_note:    'Everything: entries, documents, settings, vault',
+    io_backup_note:    'Everything: contracts, spending, accounts, budgets, documents and vault',
     io_backup_keep:    'Keep the file externally or in cloud storage.',
     io_backup_ok:      'Backup downloaded',
     io_backup_err:     'Backup failed',
     io_restore_hint:   'A backup file is detected and replaces everything',
     io_restore_confirm:
       'Restoring replaces all data on this device — entries, documents and settings. Continue?',
-    io_restore_ok:     (n) => `Restored: ${n} — reloading …`,
+    io_restore_ok:     (n) => `Restored: ${n} records — reloading …`,
 
     // Analytics
     analytics_title:    'Analytics',
@@ -910,6 +920,7 @@ export const translations = {
     exp_add:       'Add expense',
     exp_add_first: 'Log your first expense',
     exp_delete:    'Delete',
+    exp_repeat:    'Log again',
     exp_deleted:   'Entry deleted',
     exp_swipe_hint:'← swipe to delete · swipe to edit →',
     exp_empty_title:    'Nothing logged yet',
@@ -920,6 +931,7 @@ export const translations = {
     // ── Form ──
     exp_modal_new:        'Add expense',
     exp_modal_new_income: 'Add income',
+    exp_modal_repeat:     'Log again',
     exp_modal_edit:       'Edit',
     exp_tab_amount:  'Amount',
     exp_tab_items:   'Items',
@@ -1053,6 +1065,10 @@ export const translations = {
       {
         title: 'Add your contracts',
         subtitle: 'Type a name — the app suggests known providers and sets the category, then offers the fields that fit: policy number, meter number, last year\'s consumption.',
+      },
+      {
+        title: 'Everyday spending',
+        subtitle: 'Log one-off spending and income in their own section, split purchases into line items, and set budgets that carry over from month to month.',
       },
       {
         title: 'Manage entries',

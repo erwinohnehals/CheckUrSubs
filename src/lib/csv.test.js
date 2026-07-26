@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { csvCell, toCSV, parseRows, parseCSV } from './csv.js';
+import {
+  csvCell, toCSV, parseRows, parseCSV,
+  EXPENSE_CSV_HEADERS, expenseCSVRows, expensesToCSV,
+} from './csv.js';
 
 test('quotes only the values that need it', () => {
   assert.equal(csvCell('Strom'), 'Strom');
@@ -85,4 +88,58 @@ test('round-trips an export through the parser', () => {
   assert.equal(parsed[2].location, 'Hauptstraße 5\n10115 Berlin');
   assert.equal(parsed[2].notes, 'a,b');
   assert.equal(parsed[2].price, '900');
+});
+
+test('expense export emits one row per item and keeps the receipt identity', () => {
+  const rows = expenseCSVRows([{
+    id: 'receipt-1',
+    direction: 'expense',
+    date: '2026-07-26',
+    title: 'Weekly shop',
+    merchant: 'Market',
+    account_id: 'bank',
+    currency_code: 'EUR',
+    amount: 12.5,
+    category: 'groceries',
+    items: [
+      { id: 'item-1', label: 'Bread', amount: 2.5, category: null },
+      { id: 'item-2', label: 'Pan', amount: 10, category: 'household' },
+    ],
+    tags: ['weekly', 'home'],
+    note: 'Used a coupon',
+    refund_for: null,
+    archived_at: null,
+  }]);
+
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map(row => row.receipt_id), ['receipt-1', 'receipt-1']);
+  assert.deepEqual(rows.map(row => row.category), ['groceries', 'household']);
+  assert.equal(rows[0].tags, 'weekly | home');
+
+  const parsed = parseCSV(expensesToCSV([{
+    ...rows[0],
+    id: 'single-1',
+    items: [],
+    category: 'groceries',
+    tags: ['weekly'],
+  }]));
+  assert.deepEqual(Object.keys(parsed[0]), EXPENSE_CSV_HEADERS);
+  assert.equal(parsed[0].receipt_id, 'single-1');
+});
+
+test('an unsplit expense remains one CSV row', () => {
+  const [row] = expenseCSVRows([{
+    id: 'receipt-2',
+    direction: 'expense',
+    date: '2026-07-26',
+    amount: 8,
+    category: 'restaurant',
+    items: [],
+    tags: [],
+  }]);
+
+  assert.equal(row.receipt_id, 'receipt-2');
+  assert.equal(row.item_id, '');
+  assert.equal(row.amount, 8);
+  assert.equal(row.category, 'restaurant');
 });

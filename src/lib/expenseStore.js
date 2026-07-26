@@ -62,6 +62,21 @@ export const parseAmount = (value) => {
 export const sumAmounts = (values) =>
   roundCents(values.reduce((sum, value) => sum + value, 0));
 
+/**
+ * Formularvorlage für „Erneut erfassen“. Inhalt und Betrag kommen mit, aber
+ * Vorgangs-, Positions- und Erstattungsbezüge gehören zum alten Datensatz.
+ */
+export const repeatTransactionDraft = (transaction, now = new Date()) => ({
+  ...transaction,
+  id: undefined,
+  date: todayISO(now),
+  items: (transaction?.items || [])
+    .map(({ label, amount, category }) => ({ label, amount, category })),
+  refund_for: null,
+  created_at: undefined,
+  archived_at: null,
+});
+
 const normalizeTags = (input) => {
   if (!Array.isArray(input)) return [];
   const seen = new Set();

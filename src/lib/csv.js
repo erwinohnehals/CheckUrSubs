@@ -18,6 +18,57 @@ export const toCSV = (headers, rows) => [
   ...rows.map(row => headers.map(header => csvCell(row[header])).join(',')),
 ].join('\n');
 
+export const EXPENSE_CSV_HEADERS = [
+  'receipt_id', 'direction', 'date', 'title', 'merchant',
+  'account_id', 'currency_code', 'item_id', 'item_label', 'amount',
+  'category', 'receipt_category', 'tags', 'note', 'refund_for', 'archived_at',
+];
+
+/**
+ * Ein Vorgang bleibt über receipt_id zusammenhängend, während jede Position
+ * ihre eigene Zeile bekommt. Vorgänge ohne Aufteilung werden zu genau einer
+ * Zeile, damit im Export keine Ausgabe verschwindet.
+ */
+export const expenseCSVRows = (transactions = []) =>
+  transactions.flatMap((transaction) => {
+    const common = {
+      receipt_id:      transaction.id,
+      direction:       transaction.direction,
+      date:            transaction.date,
+      title:           transaction.title,
+      merchant:        transaction.merchant,
+      account_id:      transaction.account_id,
+      currency_code:   transaction.currency_code,
+      receipt_category: transaction.category,
+      tags:            (transaction.tags || []).join(' | '),
+      note:            transaction.note,
+      refund_for:      transaction.refund_for,
+      archived_at:     transaction.archived_at,
+    };
+    const items = Array.isArray(transaction.items) ? transaction.items : [];
+
+    if (!items.length) {
+      return [{
+        ...common,
+        item_id: '',
+        item_label: '',
+        amount: transaction.amount,
+        category: transaction.category,
+      }];
+    }
+
+    return items.map((item) => ({
+      ...common,
+      item_id: item.id,
+      item_label: item.label,
+      amount: item.amount,
+      category: item.category || transaction.category,
+    }));
+  });
+
+export const expensesToCSV = (transactions = []) =>
+  toCSV(EXPENSE_CSV_HEADERS, expenseCSVRows(transactions));
+
 /**
  * Zerlegt CSV in Zeilen aus Feldern. Versteht Anführungszeichen, verdoppelte
  * Anführungszeichen als Escape und Umbrüche innerhalb eines Feldes.

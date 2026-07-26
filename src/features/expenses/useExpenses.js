@@ -8,14 +8,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useT } from '../../lib/i18n';
 import { monthKey, shiftMonth } from '../../lib/dates';
-import { createExpenseStore } from '../../lib/expenseStore';
+import { createExpenseStore, repeatTransactionDraft } from '../../lib/expenseStore';
 import { createAccountStore } from '../../lib/accountStore';
 import { createBudgetStore } from '../../lib/budget';
 import * as documentStore from '../../lib/documentStore';
 
-const expenseStore = createExpenseStore(window.localStorage);
-const accountStore = createAccountStore(window.localStorage);
-const budgetStore  = createBudgetStore(window.localStorage);
+export const expenseStore = createExpenseStore(window.localStorage);
+export const accountStore = createAccountStore(window.localStorage);
+export const budgetStore  = createBudgetStore(window.localStorage);
 
 // So lange bleibt ein gelöschter Vorgang zurückholbar — wie auf der Vertragsseite
 const UNDO_MS = 5000;
@@ -30,6 +30,8 @@ export const useExpenses = ({ onDocsChange } = {}) => {
 
   const [modalOpen,    setModalOpen]    = useState(false);
   const [editing,      setEditing]      = useState(null);
+  const [repeatDraft,  setRepeatDraft]  = useState(null);
+  const [modalKey,     setModalKey]     = useState(0);
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [toast,        setToast]        = useState(null);
 
@@ -57,18 +59,31 @@ export const useExpenses = ({ onDocsChange } = {}) => {
   const openAdd = useCallback(() => {
     ensureAccounts();
     setEditing(null);
+    setRepeatDraft(null);
+    setModalKey((value) => value + 1);
     setModalOpen(true);
   }, [ensureAccounts]);
 
   const openEdit = useCallback((transaction) => {
     ensureAccounts();
+    setRepeatDraft(null);
     setEditing(transaction);
+    setModalKey((value) => value + 1);
+    setModalOpen(true);
+  }, [ensureAccounts]);
+
+  const openRepeat = useCallback((transaction) => {
+    ensureAccounts();
+    setEditing(null);
+    setRepeatDraft(repeatTransactionDraft(transaction));
+    setModalKey((value) => value + 1);
     setModalOpen(true);
   }, [ensureAccounts]);
 
   const closeModal = useCallback(() => {
     setModalOpen(false);
     setEditing(null);
+    setRepeatDraft(null);
   }, []);
 
   const openAccounts = useCallback(() => {
@@ -183,9 +198,13 @@ export const useExpenses = ({ onDocsChange } = {}) => {
     thisMonth: useCallback(() => setMonth(monthKey(new Date())), []),
 
     modalOpen,
+    modalKey,
     editing,
+    modalInitial: editing || repeatDraft,
+    repeating: Boolean(repeatDraft),
     openAdd,
     openEdit,
+    openRepeat,
     closeModal,
     save,
 

@@ -37,7 +37,7 @@ export const MonthTab = ({
   month, onStep, onToday, atCurrent,
   transactions, amountUSD, fmt, fmtAmountIn, accountLabelOf, docCounts = {},
   budgetRows, onOpenBudget,
-  onAdd, onEdit, onDelete, onManageAccounts, isDesktop,
+  onAdd, onEdit, onRepeat, onDelete, onManageAccounts, isDesktop,
 }) => {
   const t = useT();
   const dayLabel = useDayLabel();
@@ -140,6 +140,7 @@ export const MonthTab = ({
                             expanded={expanded.has(transaction.id)}
                             onToggle={() => toggle(transaction.id)}
                             onEdit={() => onEdit(transaction)}
+                            onRepeat={() => onRepeat(transaction)}
                             onDelete={() => onDelete(transaction)}
                             isDesktop={isDesktop} />
                         ))}

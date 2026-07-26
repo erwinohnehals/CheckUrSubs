@@ -94,16 +94,16 @@ export const ExpensesSection = ({
     (category, amount) => expenses.setBudget(category, { amount, currency }),
     [expenses, currency]);
 
-  // Ein archiviertes Konto bleibt in der Auswahl, solange der bearbeitete Vorgang
-  // darauf zeigt — sonst fiele es beim Speichern still weg.
+  // Ein archiviertes Konto bleibt in der Auswahl, solange der bearbeitete oder
+  // wiederholte Vorgang darauf zeigt — sonst fiele es beim Speichern still weg.
   const modalAccounts = useMemo(() => {
     const active  = expenses.activeAccounts;
-    const current = expenses.editing?.account_id;
+    const current = expenses.modalInitial?.account_id;
     if (!current || active.some((account) => account.id === current)) return active;
 
     const archived = expenses.accounts.find((account) => account.id === current);
     return archived ? [...active, archived] : active;
-  }, [expenses.activeAccounts, expenses.accounts, expenses.editing]);
+  }, [expenses.activeAccounts, expenses.accounts, expenses.modalInitial]);
 
   const manageAccounts = (
     <button type="button" onClick={expenses.openAccounts} className={btn('secondary', 'sm')}>
@@ -127,7 +127,8 @@ export const ExpensesSection = ({
             amountUSD={amountUSD} fmt={fmt} fmtAmountIn={fmtAmountIn}
             accountLabelOf={accountLabelOf} docCounts={docCounts}
             budgetRows={rows} onOpenBudget={onOpenBudget}
-            onAdd={expenses.openAdd} onEdit={expenses.openEdit} onDelete={expenses.remove}
+            onAdd={expenses.openAdd} onEdit={expenses.openEdit}
+            onRepeat={expenses.openRepeat} onDelete={expenses.remove}
             onManageAccounts={expenses.openAccounts}
             isDesktop={isDesktop} />
         </div>
@@ -163,8 +164,9 @@ export const ExpensesSection = ({
       </div>
 
       {/* ── Ausgabe erfassen / bearbeiten ── */}
-      <ExpenseModal key={expenses.editing?.id || 'new'}
-        open={expenses.modalOpen} initial={expenses.editing}
+      <ExpenseModal key={expenses.modalKey}
+        open={expenses.modalOpen} initial={expenses.modalInitial}
+        isEditing={Boolean(expenses.editing)} isRepeat={expenses.repeating}
         accounts={modalAccounts} knownTags={tags} currency={currency}
         onSave={expenses.save} onClose={expenses.closeModal} onDocsChange={onDocsChange}
         isDesktop={isDesktop} />
