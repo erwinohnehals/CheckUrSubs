@@ -27,6 +27,10 @@ import {
 import { useTheme } from './lib/theme';
 import { fmtDateFromISO, fmtDateFromISOWithYear } from './lib/dates';
 import {
+  CURRENCIES, DEFAULT_CURRENCY, DEFAULT_RATES, getCurrency,
+  fetchRates, loadRates, fmtMoney, toUSD, monthlyUSD, recurringMonthlyUSD,
+} from './lib/money';
+import {
   STANDARD_EASE, POWER1_IN, POWER1_OUT, EXPO_OUT, DURATION,
   reducedMotion, restartAnimation, staggerIn, useButtonPress,
 } from './lib/motion';
@@ -83,44 +87,9 @@ const byLocation = (a, b) => {
   return a.localeCompare(b);
 };
 
-// ─── Währungen ─────────────────────────────────────────────────────────────────
-const CURRENCIES = [
-  { code: 'EUR', symbol: '€',   label: 'EUR (€)' },
-  { code: 'CHF', symbol: 'CHF', label: 'CHF' },
-  { code: 'USD', symbol: '$',   label: 'USD ($)' },
-  { code: 'GBP', symbol: '£',   label: 'GBP (£)' },
-];
-const DEFAULT_CURRENCY = 'EUR';
-const getCurrency   = (code) => CURRENCIES.find(c => c.code === code) || CURRENCIES[0];
-const DEFAULT_RATES = { USD: 1, EUR: 0.92, CHF: 0.88, GBP: 0.79 };
-
-const fetchRates = async () => {
-  try {
-    const res  = await fetch('https://open.er-api.com/v6/latest/USD');
-    const data = await res.json();
-    if (data.result !== 'success') return null;
-    const { USD, EUR, CHF, GBP } = data.rates;
-    const rates = { USD: 1, EUR, CHF, GBP };
-    localStorage.setItem('fxRates',   JSON.stringify(rates));
-    localStorage.setItem('fxRatesAt', Date.now().toString());
-    return rates;
-  } catch { return null; }
-};
-
-const loadRates = () => {
-  try {
-    const raw = localStorage.getItem('fxRates');
-    const at  = Number(localStorage.getItem('fxRatesAt') || 0);
-    if (raw && Date.now() - at < 4 * 60 * 60 * 1000) return JSON.parse(raw);
-  } catch { /* Cache unbrauchbar — Fallback-Kurse reichen */ }
-  return null;
-};
-
 // ─── Konstanten ───────────────────────────────────────────────────────────────
 // MONTHS_SHORT und alles rund um Abbuchungstermine stehen in lib/billing.js
 const TABS         = ['home', 'calendar', 'analytics'];
-const LOCALES      = { de: 'de-DE', en: 'en-US' };
-const localeOf     = (lang) => LOCALES[lang] || LOCALES.de;
 
 // Gespeichertes Abbuchungsdatum ("24" oder "8 Mar") übersetzt anzeigen
 const fmtBillingDate = (raw, t, lang) => {
@@ -131,21 +100,6 @@ const fmtBillingDate = (raw, t, lang) => {
   const index = month ? MONTHS_SHORT.indexOf(month) : -1;
 
   return index >= 0 ? `${day}${suffix} ${t.months_short[index]}` : `${day}${suffix}`;
-};
-
-// Geldbetrag in der Anzeige-Währung, lokalisiert formatiert
-const fmtMoney = (value, code, lang) => {
-  const fraction = Math.abs(value % 1) < 0.005 ? 0 : 2;
-  try {
-    return new Intl.NumberFormat(localeOf(lang), {
-      style: 'currency',
-      currency: code,
-      minimumFractionDigits: fraction,
-      maximumFractionDigits: fraction,
-    }).format(value);
-  } catch {
-    return `${getCurrency(code).symbol}${value.toFixed(fraction)}`;
-  }
 };
 
 // ─── Anbieterkatalog (Autovervollständigung) ──────────────────────────────────
@@ -350,17 +304,6 @@ const cancelByDate = (entry) => {
   const rolled = new Date(deadline);
   while (rolled < today) rolled.setFullYear(rolled.getFullYear() + 1);
   return rolled.toISOString().split('T')[0];
-};
-
-// Preis in Originalwährung → USD als gemeinsame Rechengröße
-const toUSD = (price, currencyCode, rates) => {
-  const rate = rates?.[currencyCode] ?? DEFAULT_RATES[currencyCode] ?? 1;
-  return Number(price || 0) / rate;
-};
-
-const monthlyUSD = (entry, rates) => {
-  const p = toUSD(entry.price ?? 0, entry.currency_code || DEFAULT_CURRENCY, rates);
-  return entry.period === 'yearly' ? p / 12 : p;
 };
 
 // ─── Хук drag-scroll (горизонталь) ────────────────────────────────────────────
@@ -1110,7 +1053,7 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
   const archivedEntries = entries.filter(entry => Boolean(entry.archived_at));
   const listedEntries = listView === 'archived' ? archivedEntries : currentEntries;
   const activeEntries  = currentEntries.filter(isBilled);
-  const totalMonthlyUSD = activeEntries.reduce((a, s) => a + monthly(s), 0);
+  const totalMonthlyUSD = recurringMonthlyUSD(currentEntries, rates);
   const totalYearlyUSD  = totalMonthlyUSD * 12;
 
   // Die Detailansicht hängt an der ID, nicht am Objekt — nach dem Speichern
