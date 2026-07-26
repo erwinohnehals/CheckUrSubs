@@ -3,7 +3,7 @@ import {
   Home, List, BarChart2, Plus, Pencil, Trash2, CreditCard,
   CalendarDays, ChevronDown, Check, ArrowUpDown, Search, X,
   RefreshCw, Gamepad2, Briefcase, Music, BookOpen, Zap,
-  Shield, Heart, Sparkles, Wifi, Server, Tv, Package,
+  Shield, Sparkles, Wifi, Server, Tv, Package,
   Wallet, Download, Upload, Smartphone, Droplets, Car, Radio, Dumbbell,
   Users, Lock, Eye, EyeOff, Copy, ExternalLink, Paperclip, FileText,
   AlertTriangle, KeyRound, Flame, Plug, Trash, HeartPulse, ClipboardList,
@@ -1467,7 +1467,6 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
               <PageHeader title={t.nav_home} subtitle={t.home_subtitle} />
 
               <header className="relative flex items-center justify-between gap-2 px-1 pt-2 lg:hidden">
-                <SupportMenu />
                 <div className="flex items-center gap-2 min-w-0">
                   <BrandMark className="w-10 h-8 rounded-md p-0.5" />
                   <h1 className="whitespace-nowrap"><Wordmark className="text-[21px]" /></h1>
@@ -2272,97 +2271,6 @@ const Onboarding = ({ onDone, toggleLang, lang, theme, toggleTheme }) => {
     </div>
   );
 };
-
-// ─── Аватар с меню выхода ───────────────────────────────────────────────────────
-// ─── Support Menu ──────────────────────────────────────────────────────────────
-const SUPPORT_LINKS = [
-  {
-    id: 'boosty',
-    label: 'Boosty',
-    hint: 'Card',
-    url: 'https://boosty.to/casablanque/donate',
-    icon: () => (
-      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
-      </svg>
-    ),
-  },
-
-  {
-    id: 'CloudTips',
-    label: 'CloudTips',
-    hint: 'Card/SBP',
-    url: 'https://pay.cloudtips.ru/p/18fa81b4',
-    icon: () => (
-      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
-      </svg>
-    ),
-  },
-
-  {
-    id: 'usdt',
-    label: 'USDT',
-    hint: 'Avalanche C-Chain (AVAXC)',
-    url: null,
-    address: '0x3bE6114bc999482843bde238F4e17997B5355F76',
-    icon: () => (
-      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm.75 13.5v1.5h-1.5v-1.5C9.5 15.83 8.5 14.92 8.5 13.75h1.5c0 .55.67 1 1.5 1s1.5-.45 1.5-1c0-.59-.54-.88-1.76-1.22C9.87 12.1 8.5 11.5 8.5 10.25 8.5 9.08 9.5 8.17 11.25 8V6.5h1.5V8c1.75.17 2.75 1.08 2.75 2.25h-1.5c0-.55-.67-1-1.5-1s-1.5.45-1.5 1c0 .55.49.84 1.74 1.18 1.38.38 2.76.96 2.76 2.32 0 1.17-1 2.08-2.75 2.25z"/>
-      </svg>
-    ),
-  },
-];
-
-// align: 'left' — öffnet nach unten (Kopfzeile), 'top' — nach oben (Seitenleiste)
-const SupportMenu = ({ align = 'left' }) => {
-  const t = useT();
-  const [open, setOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const close = useCallback(() => setOpen(false), []);
-  const ref = useDismiss(open, close);
-  const menuPos = align === 'top' ? 'left-0 bottom-12' : 'left-0 top-12';
-
-  const copyAddress = (address) => {
-    navigator.clipboard.writeText(address).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
-
-  return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen(v => !v)} title={t.support_title} aria-label={t.support_title}
-        className="w-10 h-10 rounded-lg border border-border bg-surface-2 flex items-center justify-center
-          text-ink-2 hover:text-ink hover:bg-surface-3 transition shrink-0">
-        <Heart className="w-4 h-4" />
-      </button>
-      <PopMenu open={open} className={menuPos} origin={align === 'top' ? 'bottom left' : 'top left'}>
-        <MenuHeader title={t.support_title} hint={t.support_subtitle} />
-        {SUPPORT_LINKS.map(link => (
-          <div key={link.id} data-menu-item className="px-3 py-2">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-ink-2"><link.icon /></span>
-              <span className="text-sm font-medium text-ink">{link.label}</span>
-              <span className="text-[11px] text-ink-3 ml-auto truncate">{link.hint}</span>
-            </div>
-            {link.url ? (
-              <a href={link.url} target="_blank" rel="noopener noreferrer" onClick={close}
-                className={btn('secondary', 'sm', 'w-full text-xs')}>
-                {t.support_open}
-              </a>
-            ) : (
-              <button onClick={() => copyAddress(link.address)} className={btn('secondary', 'sm', 'w-full text-xs')}>
-                {copied ? <><Check className="w-3.5 h-3.5" />{t.support_copied}</> : <><Copy className="w-3.5 h-3.5" />{t.support_copy}</>}
-              </button>
-            )}
-          </div>
-        ))}
-      </PopMenu>
-    </div>
-  );
-};
-
 
 // ─── Import / Export Menu ─────────────────────────────────────────────────────
 const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = false }) => {
@@ -4785,13 +4693,9 @@ const DesktopSidebar = ({
           </>
         )} />
 
-      {/* Der Herzknopf stand nur in der Kopfzeile des Telefons — am Schreibtisch
-          gab es ihn schlicht nicht, obwohl `align="top"` für genau diese Ecke
-          gebaut war. */}
-      <div className="mt-auto flex items-center gap-2">
-        <SupportMenu align="top" />
+      <div className="mt-auto">
         <SettingsMenu
-          align="top" buttonClass="flex-1 min-w-0" triggerLabel={t.settings_title}
+          align="top" buttonClass="w-full min-w-0" triggerLabel={t.settings_title}
           entries={entries} expenses={expenses} onImport={onImport} vaultState={vaultState}
           lang={lang} toggleLang={toggleLang}
           theme={theme} themePreference={themePreference} onThemeChange={setThemePreference}

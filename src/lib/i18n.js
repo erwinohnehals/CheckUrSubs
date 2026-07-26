@@ -396,6 +396,8 @@ export const translations = {
     imp_exclude:      'Auslassen',
     imp_include_all:  'Alle übernehmen',
     imp_exclude_all:  'Alle abwählen',
+    imp_expand_all:   'Alle Monate ausklappen',
+    imp_collapse_all: 'Alle Monate einklappen',
     imp_confirm:      (n) => `${n} Vorgänge übernehmen`,
     imp_done:         (n) => `${n} Vorgänge übernommen`,
     imp_unknown:      'Format nicht erkannt — ist das eine Umsatzdatei?',
@@ -564,13 +566,6 @@ export const translations = {
     // Kündigungshilfe
     cancel_how:  'So kündigst du ',
     cancel_link: 'diesen Vertrag',
-
-    // Unterstützung
-    support_title:    'Entwicklung unterstützen',
-    support_subtitle: 'Die App ist kostenlos und bleibt es',
-    support_open:     'Öffnen →',
-    support_copy:     'Adresse kopieren',
-    support_copied:   '✓ Kopiert',
 
     // Statusbadges
     badge_paused: 'pausiert',
@@ -1014,6 +1009,8 @@ export const translations = {
     imp_exclude:      'Exclude',
     imp_include_all:  'Include all',
     imp_exclude_all:  'Deselect all',
+    imp_expand_all:   'Expand all months',
+    imp_collapse_all: 'Collapse all months',
     imp_confirm:      (n) => `Import ${n} entries`,
     imp_done:         (n) => `${n} entries imported`,
     imp_unknown:      'Format not recognised — is this a transaction file?',
@@ -1182,13 +1179,6 @@ export const translations = {
     // Cancellation helper
     cancel_how:  'How to cancel ',
     cancel_link: 'this contract',
-
-    // Support
-    support_title:    'Support the developer',
-    support_subtitle: 'The app is free and always will be',
-    support_open:     'Open →',
-    support_copy:     'Copy address',
-    support_copied:   '✓ Copied',
 
     // Status badges
     badge_paused: 'paused',

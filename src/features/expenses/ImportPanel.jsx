@@ -13,7 +13,7 @@
 import { useMemo, useState } from 'react';
 import {
   AlertCircle, ArrowLeftRight, Check, CheckCheck, ChevronDown, CopyCheck,
-  FileUp, Landmark, X,
+  ChevronsDownUp, ChevronsUpDown, FileUp, Landmark, X,
 } from 'lucide-react';
 import { useLang, useT } from '../../lib/i18n';
 import { fmtDateFromISO } from '../../lib/dates';
@@ -93,7 +93,7 @@ const MonthSection = ({ group, open, onOpen, lang, months, fmt, onToggle, onCate
   // Kopf und letzte Zeile selbst.
   return (
     <section className="rounded-xl border border-border">
-      <button type="button" onClick={onOpen}
+      <button type="button" onClick={onOpen} aria-expanded={open}
         className={`w-full flex items-center gap-3 px-3 py-2.5 bg-surface-2 hover:bg-surface-3 transition
           text-left rounded-t-xl ${open ? '' : 'rounded-b-xl'}`}>
         <ChevronDown className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
@@ -132,7 +132,7 @@ export const ImportPanel = ({
   const months = t.months_short;
 
   const [filter, setFilter]   = useState('review');
-  const [openMonth, setOpenM] = useState(null);
+  const [openMonths, setOpenMonths] = useState(null);
   const [items, setItems]     = useState([]);
   const [accountId, setAcct]  = useState(null);
 
@@ -146,7 +146,7 @@ export const ImportPanel = ({
     setItems(state?.items || []);
     setAcct(state?.accountId || accounts[0]?.id || null);
     setFilter('review');
-    setOpenM(null);
+    setOpenMonths(null);
   }
 
   const summary = useMemo(() => importSummary(items), [items]);
@@ -159,7 +159,25 @@ export const ImportPanel = ({
   }, [items, filter]);
 
   const groups = useMemo(() => groupByMonth(visible), [visible]);
-  const currentMonth = openMonth ?? groups[0]?.month ?? null;
+  // Null preserves the previous default: the first visible month starts open.
+  // Once the user acts, the Set is the complete source of truth and can hold
+  // any number of open months — including none or all of them.
+  const currentOpenMonths = openMonths ?? new Set(groups[0]?.month ? [groups[0].month] : []);
+  const allMonthsOpen = groups.length > 0
+    && groups.every((group) => currentOpenMonths.has(group.month));
+
+  const toggleMonth = (month) => setOpenMonths((current) => {
+    const next = new Set(current ?? (groups[0]?.month ? [groups[0].month] : []));
+    if (next.has(month)) next.delete(month);
+    else next.add(month);
+    return next;
+  });
+
+  const toggleAllMonths = () => {
+    setOpenMonths(allMonthsOpen
+      ? new Set()
+      : new Set(groups.map((group) => group.month)));
+  };
 
   const toggle = (key) => setItems((rows) => rows.map((item) =>
     (item.key === key ? { ...item, include: !item.include } : item)));
@@ -263,7 +281,7 @@ export const ImportPanel = ({
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex gap-1 flex-1">
                 {FILTERS.map((id) => (
-                  <button key={id} type="button" onClick={() => { setFilter(id); setOpenM(null); }}
+                  <button key={id} type="button" onClick={() => { setFilter(id); setOpenMonths(null); }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition
                       ${filter === id ? 'bg-ink text-surface' : 'text-ink-2 hover:bg-surface-3'}`}>
                     {t[`imp_filter_${id}`]}
@@ -276,6 +294,15 @@ export const ImportPanel = ({
                 <CheckCheck className="w-3.5 h-3.5" />
                 {filter === 'excluded' ? t.imp_include_all : t.imp_exclude_all}
               </button>
+              {groups.length > 0 && (
+                <button type="button" onClick={toggleAllMonths}
+                  className={btn('ghost', 'sm')}>
+                  {allMonthsOpen
+                    ? <ChevronsDownUp className="w-3.5 h-3.5" />
+                    : <ChevronsUpDown className="w-3.5 h-3.5" />}
+                  {allMonthsOpen ? t.imp_collapse_all : t.imp_expand_all}
+                </button>
+              )}
             </div>
 
             {groups.length === 0 ? (
@@ -287,8 +314,8 @@ export const ImportPanel = ({
               <div className="space-y-2">
                 {groups.map((group) => (
                   <MonthSection key={group.month} group={group} lang={lang} months={months} fmt={fmt}
-                    open={group.month === currentMonth}
-                    onOpen={() => setOpenM(group.month === currentMonth ? '' : group.month)}
+                    open={currentOpenMonths.has(group.month)}
+                    onOpen={() => toggleMonth(group.month)}
                     onToggle={toggle} onCategory={setCategory} />
                 ))}
               </div>
