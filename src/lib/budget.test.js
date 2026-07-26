@@ -140,6 +140,21 @@ test('counts what was spent per category and month, income excluded', () => {
   assert.deepEqual(spend.months(), ['2026-02', '2026-03']);
 });
 
+test('counts every currency in the same unit', () => {
+  const store = createExpenseStore(createMemoryStorage());
+  store.create({ title: 'REWE',  date: '2026-02-04', category: 'groceries',
+    currency_code: 'EUR', amount: 92 });
+  store.create({ title: 'Migros', date: '2026-02-11', category: 'groceries',
+    currency_code: 'CHF', amount: 88 });
+
+  const rates = { EUR: 0.92, CHF: 0.88 };
+  const spend = spendIndex(store.list(),
+    (amount, transaction) => amount / rates[transaction.currency_code]);
+
+  // 100 + 100, nicht 180: zwei Hunderter in fremder Währung sind kein Achtziger
+  assert.equal(spend.at('groceries', '2026-02'), 200);
+});
+
 test('income never moves a budget', () => {
   const store = createExpenseStore(createMemoryStorage());
   store.create({ title: 'Gehalt', date: '2026-01-31', direction: 'income',

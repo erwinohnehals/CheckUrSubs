@@ -7,7 +7,8 @@ import {
   Wallet, Download, Upload, Smartphone, Droplets, Car, Radio, Dumbbell,
   Users, Lock, Eye, EyeOff, Copy, ExternalLink, Paperclip, FileText,
   AlertTriangle, KeyRound, Flame, Plug, Trash, HeartPulse, ClipboardList,
-  Sun, Moon, MapPin, Layers, Archive, Settings, Languages
+  Sun, Moon, MapPin, Layers, Archive, Settings, Languages,
+  ShoppingCart, PiggyBank, CalendarRange
 } from 'lucide-react';
 import { createEntryStore, newId, kindForCategory, isBilled } from './lib/entryStore';
 import { LangContext, useLang, useT, APP_NAME } from './lib/i18n';
@@ -37,8 +38,11 @@ import {
 import {
   CARD, PANEL, INPUT_CLASS, DOT, btn, Segmented, PopMenu, MenuHeader, MenuItem,
   Overlay, StatusPill, Badge, MeterRow, Note, Switch, SelectInput, DatePicker,
-  Toast, useDismiss, useSwipeRow,
+  Toast, useDismiss, useSwipeRow, CurrencySelect, DocumentsPanel,
+  PageHeader, MobilePageHeader,
 } from './ui';
+import { ExpensesSection } from './features/expenses/ExpensesSection';
+import { useExpenses } from './features/expenses/useExpenses';
 
 const entryStore = createEntryStore(window.localStorage);
 
@@ -87,9 +91,44 @@ const byLocation = (a, b) => {
   return a.localeCompare(b);
 };
 
-// ─── Konstanten ───────────────────────────────────────────────────────────────
+// ─── Navigation ───────────────────────────────────────────────────────────────
+// Zwei Bereiche, jeder mit eigenen Reitern. Der Wechsel zwischen den Bereichen
+// ist eine andere Bewegung als der zwischen Reitern — deshalb ein eigener
+// Schalter, und deshalb bleibt das Wischen innerhalb eines Bereichs.
+const SECTION_ITEMS = [
+  { id: 'contracts', labelKey: 'section_contracts', icon: ClipboardList },
+  { id: 'expenses',  labelKey: 'section_expenses',  icon: ShoppingCart  },
+];
+
+const SECTION_TABS = {
+  contracts: ['home',  'calendar', 'analytics'],
+  expenses:  ['month', 'budget',   'year'],
+};
+
+const NAV_ITEMS = {
+  home:      { labelKey: 'nav_home',      icon: Home          },
+  calendar:  { labelKey: 'nav_calendar',  icon: CalendarDays  },
+  analytics: { labelKey: 'nav_analytics', icon: BarChart2     },
+  month:     { labelKey: 'nav_month',     icon: Wallet        },
+  budget:    { labelKey: 'nav_budget',    icon: PiggyBank     },
+  year:      { labelKey: 'nav_year',      icon: CalendarRange },
+};
+
+// Die Ziffer ist die Position im Bereich, nicht die des Reiters überhaupt:
+// „2“ führt in beiden Bereichen zum mittleren Reiter.
+const navItems = (t, tabs) => tabs.map((id, index) => ({
+  id,
+  label:    t[NAV_ITEMS[id].labelKey],
+  icon:     NAV_ITEMS[id].icon,
+  shortcut: String(index + 1),
+}));
+
+const readTab = (section) => {
+  const stored = localStorage.getItem(`tab.${section}`);
+  return SECTION_TABS[section].includes(stored) ? stored : SECTION_TABS[section][0];
+};
+
 // MONTHS_SHORT und alles rund um Abbuchungstermine stehen in lib/billing.js
-const TABS         = ['home', 'calendar', 'analytics'];
 
 // Gespeichertes Abbuchungsdatum ("24" oder "8 Mar") übersetzt anzeigen
 const fmtBillingDate = (raw, t, lang) => {
@@ -349,7 +388,8 @@ const useDragScroll = () => {
 };
 
 // ─── Хук свайп между вкладками ────────────────────────────────────────────────
-const useTabSwipe = (activeTab, setActiveTab, enabled = true) => {
+// `tabs` ist die Liste des aktiven Bereichs — gewischt wird nur innerhalb davon
+const useTabSwipe = (tabs, activeTab, setActiveTab, enabled = true) => {
   const ref    = useRef(null);
   const state  = useRef({ x: 0, y: 0, active: false });
 
@@ -376,15 +416,15 @@ const useTabSwipe = (activeTab, setActiveTab, enabled = true) => {
       // Высокий порог (120px) + строго горизонтально (угол < 30°)
       if (Math.abs(dx) < 120) return;
       if (Math.abs(dy) > Math.abs(dx) * 0.58) return;
-      const idx = TABS.indexOf(activeTab);
-      if (dx < 0 && idx < TABS.length - 1) setActiveTab(TABS[idx + 1]);
-      if (dx > 0 && idx > 0)               setActiveTab(TABS[idx - 1]);
+      const idx = tabs.indexOf(activeTab);
+      if (dx < 0 && idx < tabs.length - 1) setActiveTab(tabs[idx + 1]);
+      if (dx > 0 && idx > 0)               setActiveTab(tabs[idx - 1]);
     };
 
     el.addEventListener('touchstart', onStart, { passive: true });
     el.addEventListener('touchend',   onEnd,   { passive: true });
     return () => { el.removeEventListener('touchstart', onStart); el.removeEventListener('touchend', onEnd); };
-  }, [activeTab, setActiveTab, enabled]);
+  }, [tabs, activeTab, setActiveTab, enabled]);
 
   return ref;
 };
@@ -443,17 +483,6 @@ const useVault = () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // BAUSTEINE — die bereichsübergreifenden liegen in ui/, hier die der Verträge
 // ═══════════════════════════════════════════════════════════════════════════════
-
-// Kopfzeile am Telefon — links ausgerichtet wie am Desktop, kein zentriertes Symbol
-const MobilePageHeader = ({ icon: Icon, title, children }) => (
-  <header className="flex items-center justify-between gap-3 px-1 pt-1 pb-1 lg:hidden">
-    <div className="flex items-center gap-2.5 min-w-0">
-      <Icon className="w-5 h-5 text-ink-3 shrink-0" strokeWidth={2} />
-      <h2 className="text-lg font-semibold tracking-tight truncate">{title}</h2>
-    </div>
-    {children}
-  </header>
-);
 
 const TrendBars = ({ totals, maxVal, months, labels, fmt, isDesktop, range }) => (
   <div className="flex items-end gap-1.5 lg:gap-2">
@@ -867,7 +896,20 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
     localStorage.getItem('currency') || DEFAULT_CURRENCY);
   const [rates,        setRates]        = useState(() => loadRates() || DEFAULT_RATES);
   const [ratesLoading, setRatesLoading] = useState(false);
-  const [activeTab,    setActiveTab]    = useState('home');
+
+  // Bereich und Reiter überleben das Neuladen: wer zuletzt im Monat war, landet
+  // dort wieder und nicht auf der Übersicht der Verträge.
+  const [section, setSection] = useState(() => {
+    const stored = localStorage.getItem('section');
+    return SECTION_TABS[stored] ? stored : 'contracts';
+  });
+  const [tabBySection, setTabBySection] = useState(() => ({
+    contracts: readTab('contracts'),
+    expenses:  readTab('expenses'),
+  }));
+  const activeTab = tabBySection[section];
+  const sectionTabs = SECTION_TABS[section];
+
   const [isModalOpen,  setIsModalOpen]  = useState(false);
   const [editingEntry,   setEditingEntry]   = useState(null);
   // Die ID überlebt das Schließen — so bleibt der Eintrag während der
@@ -905,7 +947,10 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
   const fmtOriginal = (entry) =>
     fmtMoney(Number(entry.price ?? 0), entry.currency_code || DEFAULT_CURRENCY, lang);
 
-  const tabRefs = { home: useRef(null), calendar: useRef(null), analytics: useRef(null) };
+  const tabRefs = {
+    home:  useRef(null), calendar: useRef(null), analytics: useRef(null),
+    month: useRef(null), budget:   useRef(null), year:      useRef(null),
+  };
 
   // Die abtretende Ansicht bleibt sichtbar, bis ihre Animation durch ist
   const [exitingTab, setExitingTab] = useState(null);
@@ -913,10 +958,22 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
   const switchTab = useCallback((tab) => {
     if (tab === activeTab) return;
     setExitingTab(activeTab);
-    setActiveTab(tab);
+    setTabBySection(current => ({ ...current, [section]: tab }));
+    localStorage.setItem(`tab.${section}`, tab);
     setSearchQuery('');
     setSearchOpen(false);
-  }, [activeTab]);
+  }, [activeTab, section]);
+
+  // Der Bereichswechsel führt auf den Reiter, auf dem man dort zuletzt war —
+  // animiert wird er wie ein Reiterwechsel, denn genau das sieht das Auge.
+  const switchSection = useCallback((next) => {
+    if (next === section) return;
+    setExitingTab(activeTab);
+    setSection(next);
+    localStorage.setItem('section', next);
+    setSearchQuery('');
+    setSearchOpen(false);
+  }, [section, activeTab]);
 
   // Ansichtswechsel: alte Ansicht zieht nach links ab, neue kommt von rechts —
   // mit Überlappung, der Eintritt startet 100ms vor Ende des Austritts.
@@ -945,15 +1002,23 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const swipeRef = useTabSwipe(activeTab, switchTab, !isModalOpen && !detailOpen && !isDesktop);
-
-  // ── Anzahl hinterlegter Dokumente je Eintrag ───────────────────────────────
+  // ── Anzahl hinterlegter Dokumente je Datensatz ─────────────────────────────
+  // countsByEntry() zählt global über beide Bereiche: Belege einer Ausgabe hängen
+  // an ihrer ID wie Policen an der eines Vertrags.
   const refreshDocCounts = useCallback(() => {
     if (!documentStore.isAvailable()) return;
     documentStore.countsByEntry().then(setDocCounts).catch(() => {});
   }, []);
 
   useEffect(() => { refreshDocCounts(); }, [refreshDocCounts]);
+
+  // ── Die Ausgabenseite ──────────────────────────────────────────────────────
+  // Ihr Zustand liegt in ihrem eigenen Haken; App ruft ihn hier auf, damit der
+  // `+`-Knopf der Seitenleiste ihr Formular öffnen kann.
+  const expenses = useExpenses({ onDocsChange: refreshDocCounts });
+
+  const swipeRef = useTabSwipe(sectionTabs, activeTab, switchTab,
+    !isModalOpen && !detailOpen && !expenses.modalOpen && !expenses.accountsOpen && !isDesktop);
 
   // ── Клавиатура (десктоп) ───────────────────────────────────────────────────
   const searchRef = useRef(null);
@@ -971,20 +1036,24 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
         return;
       }
       if (isModalOpen || confirmEntry || detailOpen || typing || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === 'n' || e.key === 'т') { e.preventDefault(); setEditingEntry(null); setIsModalOpen(true); }
+      if (expenses.modalOpen || expenses.accountsOpen) return;
+      if (e.key === 'n' || e.key === 'т') { e.preventDefault(); addForSection(); }
       if (e.key === '/') {
         e.preventDefault();
+        switchSection('contracts');
         switchTab('home');
         setSearchOpen(true);
         setTimeout(() => searchRef.current?.focus(), 0);
       }
-      if (e.key === '1') switchTab('home');
-      if (e.key === '2') switchTab('calendar');
-      if (e.key === '3') switchTab('analytics');
+      // Die Ziffer zählt innerhalb des Bereichs — „2“ ist immer der mittlere Reiter
+      const index = ['1', '2', '3'].indexOf(e.key);
+      if (index >= 0) switchTab(sectionTabs[index]);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isDesktop, isModalOpen, confirmEntry, detailOpen, switchTab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDesktop, isModalOpen, confirmEntry, detailOpen, switchTab, switchSection,
+      sectionTabs, expenses.modalOpen, expenses.accountsOpen]);
 
   // ── Курсы валют ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1062,6 +1131,10 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
 
   const openAdd     = () => { setEditingEntry(null); setIsModalOpen(true); };
   const openEdit    = (s) => { setEditingEntry(s);   setIsModalOpen(true); };
+
+  // Der `+`-Knopf des Rahmens legt an, was im aktuellen Bereich Sinn ergibt
+  const addForSection = () => (section === 'expenses' ? expenses.openAdd() : openAdd());
+
   const openDetail  = (s) => { setDetailId(s.id);    setDetailOpen(true); };
   const closeDetail = () => setDetailOpen(false);
 
@@ -1299,11 +1372,51 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
     ]);
   };
 
+  // Ein einziger Bausatz für alle sechs Ansichten: die abtretende bleibt neben
+  // der neuen stehen, bis ihre Animation durch ist.
+  const paneProps = (tab) => ({
+    ref: tabRefs[tab],
+    className: `absolute inset-0 overflow-y-auto desktop-scroll pb-32 lg:pb-12 safe-top
+      ${activeTab === tab || exitingTab === tab ? 'block' : 'hidden'}`,
+  });
+
+  // Dasselbe Menü an drei Stellen — als Element gebaut, nicht dreimal getippt
+  const settingsMenu = (
+    <SettingsMenu
+      entries={entries} onImport={handleImport} vaultState={vaultState}
+      lang={lang} toggleLang={toggleLang}
+      theme={theme} themePreference={themePreference} onThemeChange={setThemePreference}
+      currency={currency} onCurrencyChange={changeCurrency}
+      ratesLoading={ratesLoading} onRefreshRates={refreshRates}
+    />
+  );
+
+  // Am Telefon sitzt der Bereichswechsel unter der Kopfzeile jeder Ansicht — der
+  // Reiterbalken unten gehört den Reitern des Bereichs, nicht den Bereichen.
+  const sectionSwitch = (
+    <Segmented
+      items={SECTION_ITEMS.map(({ id, labelKey, icon }) => ({ id, label: t[labelKey], icon }))}
+      value={section} onChange={switchSection}
+      className="w-full lg:hidden"
+      layout="grid grid-cols-2"
+      trackClass="bg-surface-sunken border border-border rounded-lg"
+      itemClass="flex items-center justify-center gap-1.5 py-2 text-xs"
+      renderItem={(item) => (
+        <>
+          <item.icon className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{item.label}</span>
+        </>
+      )} />
+  );
+
   return (
     <div className="min-h-screen bg-surface text-ink flex justify-center select-none lg:justify-start lg:select-text">
       {/* ── Боковая навигация (десктоп) ── */}
       <DesktopSidebar
-        activeTab={activeTab} onSwitch={switchTab} onAdd={openAdd}
+        section={section} onSectionChange={switchSection}
+        activeTab={activeTab} tabs={sectionTabs}
+        onSwitch={switchTab} onAdd={addForSection}
+        addLabel={section === 'expenses' ? t.exp_add : t.add_sub}
         lang={lang} toggleLang={toggleLang}
         theme={theme} themePreference={themePreference} setThemePreference={setThemePreference}
         currency={currency} onCurrencyChange={changeCurrency}
@@ -1318,7 +1431,7 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
         <div ref={el => { swipeRef.current = el; }} className="flex-1 relative overflow-hidden">
 
           {/* ════ HOME ════ */}
-          <div ref={tabRefs.home} className={`absolute inset-0 overflow-y-auto desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'home' || exitingTab === 'home' ? 'block' : 'hidden'}`}>
+          <div {...paneProps('home')}>
             <div className="p-4 space-y-5 lg:p-8 lg:pt-7 lg:space-y-7 lg:max-w-[1180px]">
               {/* Заголовок — десктоп */}
               <PageHeader title={t.nav_home} subtitle={t.home_subtitle} />
@@ -1329,16 +1442,10 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
                   <BrandMark className="w-10 h-8 rounded-md p-0.5" />
                   <h1 className="whitespace-nowrap"><Wordmark className="text-[21px]" /></h1>
                 </div>
-                <div className="flex items-center gap-2">
-                  <SettingsMenu
-                    entries={entries} onImport={handleImport} vaultState={vaultState}
-                    lang={lang} toggleLang={toggleLang}
-                    theme={theme} themePreference={themePreference} onThemeChange={setThemePreference}
-                    currency={currency} onCurrencyChange={changeCurrency}
-                    ratesLoading={ratesLoading} onRefreshRates={refreshRates}
-                  />
-                </div>
+                <div className="flex items-center gap-2">{settingsMenu}</div>
               </header>
+
+              {sectionSwitch}
 
             {/* Сетка дашборда: на мобиле — колонка, на десктопе — 3 колонки */}
             <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
@@ -1500,18 +1607,13 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
           </div>
 
           {/* ════ CALENDAR ════ */}
-          <div ref={tabRefs.calendar} className={`absolute inset-0 overflow-y-auto desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'calendar' || exitingTab === 'calendar' ? 'block' : 'hidden'}`}>
+          <div {...paneProps('calendar')}>
             <div className="p-4 pt-6 space-y-5 lg:p-8 lg:pt-7 lg:space-y-7 lg:max-w-[1180px]">
               <PageHeader title={t.calendar_title} subtitle={t.calendar_subtitle} />
               <MobilePageHeader icon={CalendarDays} title={t.calendar_title}>
-                <SettingsMenu
-                  entries={entries} onImport={handleImport} vaultState={vaultState}
-                  lang={lang} toggleLang={toggleLang}
-                  theme={theme} themePreference={themePreference} onThemeChange={setThemePreference}
-                  currency={currency} onCurrencyChange={changeCurrency}
-                  ratesLoading={ratesLoading} onRefreshRates={refreshRates}
-                />
+                {settingsMenu}
               </MobilePageHeader>
+              {sectionSwitch}
               {(() => {
                 const now    = new Date();
                 const isPast = calYear < now.getFullYear() || (calYear === now.getFullYear() && calMonth < now.getMonth());
@@ -1538,18 +1640,13 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
           </div>
 
           {/* ════ ANALYTICS ════ */}
-          <div ref={tabRefs.analytics} className={`absolute inset-0 overflow-y-auto desktop-scroll pb-32 lg:pb-12 safe-top ${activeTab === 'analytics' || exitingTab === 'analytics' ? 'block' : 'hidden'}`}>
+          <div {...paneProps('analytics')}>
             <div className="p-4 pt-6 space-y-4 lg:p-8 lg:pt-7 lg:space-y-0 lg:max-w-[1180px]">
               <PageHeader title={t.analytics_title} subtitle={t.analytics_subtitle} className="lg:mb-7" />
               <MobilePageHeader icon={BarChart2} title={t.analytics_title}>
-                <SettingsMenu
-                  entries={entries} onImport={handleImport} vaultState={vaultState}
-                  lang={lang} toggleLang={toggleLang}
-                  theme={theme} themePreference={themePreference} onThemeChange={setThemePreference}
-                  currency={currency} onCurrencyChange={changeCurrency}
-                  ratesLoading={ratesLoading} onRefreshRates={refreshRates}
-                />
+                {settingsMenu}
               </MobilePageHeader>
+              {sectionSwitch}
 
               {/* Сетка карточек: колонка на мобиле, 2 колонки на десктопе */}
               <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
@@ -1781,18 +1878,23 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
               </div>
             </div>
           </div>
+
+          {/* ════ AUSGABEN: Monat · Budget · Jahr ════ */}
+          <ExpensesSection
+            expenses={expenses} paneProps={paneProps}
+            settings={settingsMenu} sectionSwitch={sectionSwitch}
+            onOpenBudget={() => switchTab('budget')}
+            fmt={fmt} rates={rates} currency={currency}
+            docCounts={docCounts} onDocsChange={refreshDocCounts}
+            isDesktop={isDesktop} />
         </div>
 
         {/* ── Навбар (мобильный; на десктопе — боковая панель) ── */}
-        {/* Eine gleitende Pille wandert zwischen den Reitern — §4.4 */}
+        {/* Eine gleitende Pille wandert zwischen den Reitern des Bereichs — §4.4 */}
         <div className="fixed bottom-5 left-0 right-0 flex justify-center px-4 pointer-events-none safe-bottom z-30 lg:hidden">
           <Segmented
-            value={activeTab} onChange={switchTab}
-            items={[
-              { id: 'home',      label: t.nav_home,      icon: Home },
-              { id: 'calendar',  label: t.nav_calendar,  icon: CalendarDays },
-              { id: 'analytics', label: t.nav_analytics, icon: BarChart2 },
-            ]}
+            key={section} value={activeTab} onChange={switchTab}
+            items={navItems(t, sectionTabs)}
             className="max-w-[360px] w-full pointer-events-auto"
             layout="grid grid-cols-3"
             trackClass="glass border border-border rounded-full shadow-xl"
@@ -3290,105 +3392,6 @@ const VaultPanel = ({ vaultState }) => {
   );
 };
 
-// ─── Dokumente eines Eintrags ─────────────────────────────────────────────────
-const DocumentsPanel = ({ entryId, onChange }) => {
-  const t    = useT();
-  const lang = useLang();
-  const [documents, setDocuments] = useState([]);
-  const [error, setError] = useState('');
-  const [busy,  setBusy]  = useState(false);
-  const fileRef = useRef(null);
-  const available = documentStore.isAvailable();
-
-  const reload = useCallback(() => {
-    if (!available) return;
-    documentStore.listFor(entryId).then(setDocuments).catch(() => {});
-  }, [entryId, available]);
-
-  useEffect(() => { reload(); }, [reload]);
-
-  const handleFiles = async (event) => {
-    const files = Array.from(event.target.files || []);
-    event.target.value = '';
-    if (!files.length) return;
-
-    setBusy(true);
-    setError('');
-
-    for (const file of files) {
-      try {
-        await documentStore.add(entryId, file);
-      } catch (err) {
-        setError(err.message === 'too-large'
-          ? t.docs_too_large(Math.round(documentStore.MAX_FILE_BYTES / 1024 / 1024))
-          : t.docs_error);
-      }
-    }
-
-    setBusy(false);
-    reload();
-    onChange?.();
-  };
-
-  const removeDocument = async (id) => {
-    await documentStore.remove(id);
-    reload();
-    onChange?.();
-  };
-
-  if (!available) {
-    return <Note tone="warning">{t.docs_unavailable}</Note>;
-  }
-
-  return (
-    <div className="space-y-3">
-      <p className="text-[11px] text-ink-3 px-1">{t.docs_hint}</p>
-
-      {documents.length === 0 ? (
-        <p className="text-sm text-ink-3 text-center py-6">{t.docs_empty}</p>
-      ) : (
-        <div className="rounded-xl border border-border divide-y divide-border overflow-hidden">
-          {documents.map(document => (
-            <div key={document.id} className="flex items-center gap-3 px-3 py-2.5 bg-surface">
-              <FileText className="w-4 h-4 text-ink-3 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium truncate">{document.name}</p>
-                <p className="text-[11px] text-ink-3">
-                  {documentStore.formatSize(document.size)} · {fmtDateFromISO(document.addedAt, lang, t.months_short)}
-                </p>
-              </div>
-              <button type="button" title={t.docs_open}
-                onClick={() => documentStore.openDocument(document.id)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-3 transition">
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-              <button type="button" title={t.docs_download}
-                onClick={() => documentStore.openDocument(document.id, { download: true })}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-3 transition">
-                <Download className="w-3.5 h-3.5" />
-              </button>
-              <button type="button" title={t.docs_delete}
-                onClick={() => removeDocument(document.id)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-3 hover:text-error hover:bg-surface-3 transition">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {error && <p className="text-[11px] text-error px-1">{error}</p>}
-
-      <button type="button" onClick={() => fileRef.current?.click()} disabled={busy}
-        className="w-full flex items-center justify-center gap-2 py-3 rounded-lg border border-dashed border-border-strong
-          text-xs font-medium text-ink-2 hover:text-ink hover:bg-surface-3 transition disabled:opacity-50">
-        <Upload className="w-4 h-4" />{t.docs_add}
-      </button>
-      <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFiles} />
-    </div>
-  );
-};
-
 // ─── Eintrag ansehen ──────────────────────────────────────────────────────────
 // Die Detailansicht zeigt ausschließlich, was auch gefüllt ist. Aus einem
 // Formular mit dreißig Feldern wird so eine Karte mit sechs Zeilen.
@@ -4285,7 +4288,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
                         className={`${INPUT_CLASS} pl-9`}
                         value={price} onChange={e => setPrice(e.target.value)} />
                     </div>
-                    <ModalCurrencySelector value={modalCurrency} onChange={setModalCurrency} />
+                    <CurrencySelect value={modalCurrency} onChange={setModalCurrency} />
                   </div>
                 </FieldGroup>
 
@@ -4563,32 +4566,6 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
   );
 };
 
-const ModalCurrencySelector = ({ value, onChange }) => {
-  const [open, setOpen] = useState(false);
-  const close = useCallback(() => setOpen(false), []);
-  const ref = useDismiss(open, close);
-  const curr = getCurrency(value);
-
-  return (
-    <div ref={ref} className="relative">
-      <button type="button" onClick={() => setOpen(o => !o)}
-        className="h-full bg-surface border border-border rounded-lg px-3 text-sm flex items-center gap-1
-          hover:bg-surface-3 transition text-ink-2 font-medium whitespace-nowrap">
-        {curr.code} <ChevronDown className={`w-4 h-4 text-ink-3 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      <PopMenu open={open} className="top-full mt-1 right-0" origin="top right" width="w-[150px]">
-        {CURRENCIES.map(c => (
-          <MenuItem key={c.code} onClick={() => { onChange(c.code); setOpen(false); }}
-            className={value === c.code ? 'text-ink' : ''}>
-            <span className="flex-1">{c.label}</span>
-            {value === c.code && <Check className="w-4 h-4" />}
-          </MenuItem>
-        ))}
-      </PopMenu>
-    </div>
-  );
-};
-
 // Gespeichert wird das kanonische englische Kürzel, angezeigt das übersetzte
 const MonthPicker = ({ value, onChange }) => {
   const t = useT();
@@ -4621,17 +4598,6 @@ const MonthPicker = ({ value, onChange }) => {
   );
 };
 
-// ─── Десктоп: шапка страницы ──────────────────────────────────────────────────
-const PageHeader = ({ title, subtitle, children, className = '' }) => (
-  <header className={`hidden lg:flex items-end justify-between gap-6 ${className}`}>
-    <div className="min-w-0">
-      <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-      {subtitle && <p className="text-sm text-ink-3 mt-1.5">{subtitle}</p>}
-    </div>
-    {children && <div className="shrink-0 flex items-center gap-2">{children}</div>}
-  </header>
-);
-
 const BrandMark = ({ className = '' }) => (
   <img
     src="/goldgeld-logo.png"
@@ -4643,7 +4609,7 @@ const BrandMark = ({ className = '' }) => (
 // ─── Десктоп: боковая навигация ───────────────────────────────────────────────
 // Auch hier gleitet die Markierung — senkrecht statt waagerecht.
 const DesktopSidebar = ({
-  activeTab, onSwitch, onAdd,
+  section, onSectionChange, activeTab, tabs, onSwitch, onAdd, addLabel,
   lang, toggleLang,
   theme, themePreference, setThemePreference,
   currency, onCurrencyChange,
@@ -4651,11 +4617,7 @@ const DesktopSidebar = ({
   entries, onImport, vaultState,
 }) => {
   const t = useT();
-  const items = [
-    { id: 'home',      label: t.nav_home,      icon: Home,         shortcut: '1' },
-    { id: 'calendar',  label: t.nav_calendar,  icon: CalendarDays, shortcut: '2' },
-    { id: 'analytics', label: t.nav_analytics, icon: BarChart2,    shortcut: '3' },
-  ];
+  const items = navItems(t, tabs);
 
   return (
     <aside className="hidden lg:flex flex-col w-[264px] shrink-0 h-screen sticky top-0 z-40 bg-surface border-r border-border px-5 py-7">
@@ -4664,12 +4626,28 @@ const DesktopSidebar = ({
         <Wordmark className="text-[30px] leading-none min-w-0 block truncate" />
       </div>
 
-      <button onClick={onAdd} className={btn('primary', 'md', 'mt-7 w-full py-3')}>
+      {/* Der Bereich steht über den Reitern, weil er über ihnen liegt */}
+      <Segmented
+        items={SECTION_ITEMS.map(({ id, labelKey, icon }) => ({ id, label: t[labelKey], icon }))}
+        value={section} onChange={onSectionChange}
+        className="mt-7 w-full"
+        layout="grid grid-cols-2"
+        trackClass="bg-surface-sunken border border-border rounded-lg"
+        itemClass="flex items-center justify-center gap-1.5 py-2 text-xs"
+        renderItem={(item) => (
+          <>
+            <item.icon className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{item.label}</span>
+          </>
+        )} />
+
+      <button onClick={onAdd} className={btn('primary', 'md', 'mt-4 w-full py-3')}>
         <Plus className="w-4 h-4" />
-        {t.add_sub}
+        {addLabel}
       </button>
 
       <Segmented
+        key={section}
         items={items} value={activeTab} onChange={onSwitch}
         vertical className="mt-7 -mx-1"
         trackClass="gap-1"

@@ -5,7 +5,7 @@ import { btn } from './tokens';
 
 // ─── Toast (§4.3) ─────────────────────────────────────────────────────────────
 // Unten rechts, Fläche 2 mit kräftigem Rand, dünner Laufbalken.
-export const Toast = ({ open, entry, onUndo }) => {
+export const Toast = ({ open, entry, onUndo, title }) => {
   const t = useT();
   const rendered = usePresence(open, DURATION.toastOut);
   const ref = useRef(null);
@@ -29,7 +29,7 @@ export const Toast = ({ open, entry, onUndo }) => {
           rounded-lg px-4 py-3 flex flex-col gap-2.5 shadow-xl">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-ink">{t.sub_deleted}</p>
+            <p className="text-sm font-medium text-ink">{title || t.sub_deleted}</p>
             <p className="text-xs text-ink-3 truncate">{shown?.name}</p>
           </div>
           <button onClick={onUndo} className={btn('secondary', 'sm', 'shrink-0')}>{t.undo}</button>

@@ -23,6 +23,14 @@ const MAX_FOLD_MONTHS = 600;
 const roundCents = (value) =>
   Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
 
+// Gerechnet wird in der gemeinsamen Rechengröße, angezeigt in der Anzeige-
+// währung — auf Cent gerundet wird deshalb erst beim Anzeigen. Hier wird nur das
+// Rauschen der Fließkommazahlen weggeschnitten: zwei Kategorien, je auf Cent
+// gerundet und zurückgerechnet, ergäben sonst „214,99 €“ neben der Monatssumme,
+// die dieselben zwei Ausgaben als „215 €“ zeigt.
+const roundAmount = (value) =>
+  Number.isFinite(value) ? Math.round(value * 1e6) / 1e6 : 0;
+
 const asString = (value, fallback = '') =>
   typeof value === 'string' ? value : fallback;
 
@@ -137,8 +145,13 @@ export const createBudgetStore = (storage) => {
  *
  * Läuft ausschließlich über categoryBreakdown — der Bon setzt die Kategorie,
  * einzelne Positionen dürfen abweichen, und das steht nur an einer Stelle.
+ *
+ * `amountIn(betrag, vorgang)` bringt den Betrag in die Größe, in der gerechnet
+ * wird. Ein Einkauf in Franken und eine Grenze in Euro dürfen nicht stumpf
+ * verglichen werden; den Umweg über die Rechengröße kennt lib/money.js. Ohne die
+ * Funktion wird der rohe Betrag genommen, was Tests einwährungsfrei macht.
  */
-export const spendIndex = (transactions = []) => {
+export const spendIndex = (transactions = [], amountIn = (amount) => amount) => {
   const totals = new Map();
 
   for (const transaction of transactions) {
@@ -148,13 +161,14 @@ export const spendIndex = (transactions = []) => {
     if (!month) continue;
 
     for (const { category, amount } of categoryBreakdown(transaction)) {
-      const key = `${month}|${category}`;
-      totals.set(key, (totals.get(key) || 0) + amount);
+      const key   = `${month}|${category}`;
+      const value = Number(amountIn(amount, transaction)) || 0;
+      totals.set(key, (totals.get(key) || 0) + value);
     }
   }
 
   return {
-    at: (category, month) => roundCents(totals.get(`${month}|${category}`) || 0),
+    at: (category, month) => roundAmount(totals.get(`${month}|${category}`) || 0),
     /** Alle Monate mit Ausgaben, aufsteigend — Grundlage des Jahresberichts. */
     months: () => [...new Set([...totals.keys()].map((key) => key.split('|')[0]))].sort(),
   };
@@ -191,7 +205,7 @@ export const createCarryover = (budgets = {}, spentAt = () => 0) => {
     // Vom Startmonat nach vorne: jeder Rest — auch ein negativer — geht mit
     for (let step = 0; step < span; step += 1) {
       const previous = shiftMonth(from, step);
-      available = roundCents(budget.amount + available - spentAt(category, previous));
+      available = roundAmount(budget.amount + available - spentAt(category, previous));
       memo.set(`${category}|${shiftMonth(from, step + 1)}`, available);
     }
 
@@ -210,15 +224,15 @@ export const createCarryover = (budgets = {}, spentAt = () => 0) => {
       if (available === null) return null;
 
       const budget = budgets[category];
-      const spent  = roundCents(spentAt(category, month));
+      const spent  = roundAmount(spentAt(category, month));
 
       return {
         cap:       budget.amount,
         currency:  budget.currency,
-        carry:     roundCents(available - budget.amount),
+        carry:     roundAmount(available - budget.amount),
         available,
         spent,
-        remaining: roundCents(available - spent),
+        remaining: roundAmount(available - spent),
         ratio:     available > 0 ? spent / available : (spent > 0 ? Infinity : 0),
       };
     },

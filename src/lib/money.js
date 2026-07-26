@@ -41,9 +41,16 @@ export const loadRates = () => {
   return null;
 };
 
-/** Geldbetrag in der Anzeige-Währung, lokalisiert formatiert */
+/**
+ * Geldbetrag in der Anzeige-Währung, lokalisiert formatiert.
+ *
+ * Runde Beträge stehen ohne Nachkommastellen da. Gemessen wird der Abstand zur
+ * nächsten ganzen Zahl, nicht der Rest: 400 € einmal durch die Rechengröße und
+ * zurück ergibt 399,9999…, und `% 1` läge dort bei 0,9999 — die Grenze stünde
+ * als „400,00 €“ neben einer anderen, die „400 €“ heißt.
+ */
 export const fmtMoney = (value, code, lang) => {
-  const fraction = Math.abs(value % 1) < 0.005 ? 0 : 2;
+  const fraction = Math.abs(value - Math.round(value)) < 0.005 ? 0 : 2;
   try {
     return new Intl.NumberFormat(localeOf(lang), {
       style: 'currency',
