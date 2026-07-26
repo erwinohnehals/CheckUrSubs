@@ -307,6 +307,39 @@ export const translations = {
     cat_vpn:           'VPN',
     cat_other:         'Sonstiges',
 
+    // Kategorien der Ausgaben — eigener Satz, darum `xcat_` statt `cat_`
+    xcat_groceries: 'Lebensmittel',
+    xcat_dining:    'Restaurant & Café',
+    xcat_household: 'Haushalt',
+    xcat_garden:    'Garten',
+    xcat_clothing:  'Kleidung',
+    xcat_health:    'Gesundheit',
+    xcat_transport: 'Auto & Verkehr',
+    xcat_travel:    'Reisen',
+    xcat_leisure:   'Freizeit & Hobby',
+    xcat_gifts:     'Geschenke & Spenden',
+    xcat_tech:      'Technik',
+    xcat_pets:      'Haustiere',
+    xcat_education: 'Bildung',
+    xcat_fees:      'Gebühren & Steuern',
+    xcat_other:     'Sonstiges',
+
+    // Kategorien der Einnahmen
+    xcat_income_salary: 'Gehalt',
+    xcat_income_bonus:  'Bonus',
+    xcat_income_refund: 'Erstattung',
+    xcat_income_sale:   'Verkauf',
+    xcat_income_gift:   'Geschenk',
+    xcat_income_other:  'Sonstiges',
+
+    // Konten
+    account_seed_cash:   'Bargeld',
+    account_seed_bank:   'Girokonto',
+    account_kind_cash:   'Bargeld',
+    account_kind_bank:   'Bank',
+    account_kind_card:   'Karte',
+    account_kind_online: 'Online',
+
     // Datum
     months_full:  ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'],
     months_short: ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'],
@@ -673,6 +706,39 @@ export const translations = {
     cat_education:     'Education',
     cat_vpn:           'VPN',
     cat_other:         'Other',
+
+    // Expense categories — their own set, hence `xcat_` instead of `cat_`
+    xcat_groceries: 'Groceries',
+    xcat_dining:    'Restaurants & cafés',
+    xcat_household: 'Household',
+    xcat_garden:    'Garden',
+    xcat_clothing:  'Clothing',
+    xcat_health:    'Health',
+    xcat_transport: 'Car & transport',
+    xcat_travel:    'Travel',
+    xcat_leisure:   'Leisure & hobbies',
+    xcat_gifts:     'Gifts & donations',
+    xcat_tech:      'Tech',
+    xcat_pets:      'Pets',
+    xcat_education: 'Education',
+    xcat_fees:      'Fees & taxes',
+    xcat_other:     'Other',
+
+    // Income categories
+    xcat_income_salary: 'Salary',
+    xcat_income_bonus:  'Bonus',
+    xcat_income_refund: 'Refund',
+    xcat_income_sale:   'Sale',
+    xcat_income_gift:   'Gift',
+    xcat_income_other:  'Other',
+
+    // Accounts
+    account_seed_cash:   'Cash',
+    account_seed_bank:   'Current account',
+    account_kind_cash:   'Cash',
+    account_kind_bank:   'Bank',
+    account_kind_card:   'Card',
+    account_kind_online: 'Online',
 
     // Dates
     months_full:  ['January','February','March','April','May','June','July','August','September','October','November','December'],
