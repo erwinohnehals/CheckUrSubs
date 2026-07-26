@@ -25,11 +25,16 @@ import {
   isDueWithinDays, wasActiveIn,
 } from './lib/billing';
 import { useTheme } from './lib/theme';
+import { fmtDateFromISO, fmtDateFromISOWithYear } from './lib/dates';
 import {
   STANDARD_EASE, POWER1_IN, POWER1_OUT, EXPO_OUT, DURATION,
-  reducedMotion, restartAnimation, staggerIn, usePresence, usePopAnimation,
-  useSlidingPill, useButtonPress,
+  reducedMotion, restartAnimation, staggerIn, useButtonPress,
 } from './lib/motion';
+import {
+  CARD, PANEL, INPUT_CLASS, DOT, btn, Segmented, PopMenu, MenuHeader, MenuItem,
+  Overlay, StatusPill, Badge, MeterRow, Note, Switch, SelectInput, DatePicker,
+  Toast, useDismiss, useSwipeRow,
+} from './ui';
 
 const entryStore = createEntryStore(window.localStorage);
 
@@ -78,11 +83,6 @@ const byLocation = (a, b) => {
   return a.localeCompare(b);
 };
 
-// Anteile in einer Liste werden über die Deckkraft einer einzigen Tintenfläche
-// unterschieden — kein Farbkreis, aber jede Zeile bleibt auseinanderzuhalten.
-const RANK_OPACITY = [1, 0.82, 0.66, 0.54, 0.44, 0.36, 0.3, 0.25];
-const rankOpacity = (i) => RANK_OPACITY[Math.min(i, RANK_OPACITY.length - 1)];
-
 // ─── Währungen ─────────────────────────────────────────────────────────────────
 const CURRENCIES = [
   { code: 'EUR', symbol: '€',   label: 'EUR (€)' },
@@ -121,21 +121,6 @@ const loadRates = () => {
 const TABS         = ['home', 'calendar', 'analytics'];
 const LOCALES      = { de: 'de-DE', en: 'en-US' };
 const localeOf     = (lang) => LOCALES[lang] || LOCALES.de;
-
-// ISO-Datum → "14. Mär" (de) bzw. "14 Mar" (en)
-const fmtDateFromISO = (isoStr, lang, months) => {
-  const d = new Date(isoStr);
-  if (isNaN(d)) return '';
-  const short = months?.[d.getMonth()] ?? MONTHS_SHORT[d.getMonth()];
-  return lang === 'de' ? `${d.getDate()}. ${short}` : `${d.getDate()} ${short}`;
-};
-
-// Wie fmtDateFromISO, zusätzlich mit Jahr → "14. Mär 2026" bzw. "14 Mar 2026".
-// Für Vertragsdaten, die auch Jahre in der Zukunft/Vergangenheit liegen können.
-const fmtDateFromISOWithYear = (isoStr, lang, months) => {
-  const base = fmtDateFromISO(isoStr, lang, months);
-  return base ? `${base} ${new Date(isoStr).getFullYear()}` : '';
-};
 
 // Gespeichertes Abbuchungsdatum ("24" oder "8 Mar") übersetzt anzeigen
 const fmtBillingDate = (raw, t, lang) => {
@@ -513,183 +498,8 @@ const useVault = () => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// BAUSTEINE — Rezepte aus design-language.html §5 und §6
+// BAUSTEINE — die bereichsübergreifenden liegen in ui/, hier die der Verträge
 // ═══════════════════════════════════════════════════════════════════════════════
-
-// Radien-Leiter: 8px Bedienelemente · 12px Karten · 16px Modale · voll für Pillen
-const CARD       = 'bg-surface-2 border border-border rounded-xl';
-const PANEL      = 'bg-surface-2 border border-border-strong rounded-xl shadow-xl';
-const INPUT_CLASS = 'w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:border-border-strong transition';
-
-const BTN_VARIANT = {
-  // Primär ist massive Tinte — bewusst nicht der Akzent
-  primary:   'bg-ink text-surface hover:bg-ink-2 disabled:hover:bg-ink',
-  secondary: 'bg-surface-2 text-ink border border-border hover:bg-surface-3',
-  ghost:     'text-ink-2 hover:bg-surface-3 hover:text-ink',
-  danger:    'bg-error text-white hover:opacity-90',
-};
-const BTN_SIZE = {
-  sm: 'px-3 py-1.5 text-sm',
-  md: 'px-4 py-2 text-sm',
-  lg: 'px-6 py-3 text-base',
-};
-const btn = (variant = 'primary', size = 'md', extra = '') =>
-  `inline-flex items-center justify-center gap-2 rounded-lg font-medium
-   disabled:opacity-50 disabled:cursor-not-allowed
-   ${BTN_VARIANT[variant]} ${BTN_SIZE[size]} ${extra}`;
-
-// ─── Segmented Control mit gleitender Markierung (§4.4) ───────────────────────
-// Eine einzige Pille wandert zwischen den Einträgen — keine Hintergründe, die
-// an- und ausgehen. Die Beschriftungen blenden nur ihre Farbe über.
-const Segmented = ({
-  items, value, onChange,
-  className = '', trackClass = '', itemClass = '', pillClass = '', vertical = false,
-  layout, renderItem,
-}) => {
-  const { trackRef, pillRef, setItem } = useSlidingPill(value);
-
-  return (
-    <div ref={trackRef}
-      className={`relative ${layout || (vertical ? 'flex flex-col' : 'inline-flex')} gap-0.5 p-1 ${trackClass} ${className}`}>
-      <span ref={pillRef} aria-hidden="true" className={`seg-pill rounded-lg ${pillClass}`} />
-      {items.map(item => {
-        const active = item.id === value;
-        return (
-          <button key={item.id} type="button" ref={setItem(item.id)} data-no-press
-            onClick={() => onChange(item.id)}
-            aria-current={active ? 'page' : undefined}
-            className={`relative z-10 rounded-lg font-medium
-              transition-colors duration-300 ${active ? 'text-ink' : 'text-ink-2 hover:text-ink'} ${itemClass}`}>
-            {renderItem ? renderItem(item, active) : item.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-};
-
-// ─── Dropdown 'pop' (§4.3) ────────────────────────────────────────────────────
-// Bleibt bis zum Ende der Ausblendung montiert; Zeilen kaskadieren hinein.
-const PopMenu = ({ open, children, className = '', origin = 'top left', width = 'w-[240px]' }) => {
-  const rendered = usePresence(open, DURATION.ddOut);
-  const panelRef = useRef(null);
-  usePopAnimation(open, panelRef, { origin });
-
-  if (!rendered) return null;
-  return (
-    <div ref={panelRef} role="menu"
-      className={`absolute z-50 ${width} ${PANEL} overflow-hidden p-1 ${className}`}>
-      {children}
-    </div>
-  );
-};
-
-const MenuHeader = ({ title, hint }) => (
-  <div className="px-3 pt-2 pb-2.5 mb-1 border-b border-border">
-    <p className="text-sm font-medium text-ink">{title}</p>
-    {hint && <p className="text-xs text-ink-3 mt-0.5">{hint}</p>}
-  </div>
-);
-
-const MenuItem = ({ icon: Icon, children, className = '', ...props }) => (
-  <button type="button" data-menu-item
-    className={`w-full flex items-center gap-2.5 text-left px-3 py-2 rounded-lg text-sm
-      text-ink-2 hover:bg-surface-3 hover:text-ink transition ${className}`}
-    {...props}>
-    {Icon && <Icon className="w-4 h-4 shrink-0" />}
-    {children}
-  </button>
-);
-
-// Schließt Menüs bei Klick daneben und mit Escape
-const useDismiss = (open, onClose) => {
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('mousedown', onPointer);
-    document.addEventListener('touchstart', onPointer);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onPointer);
-      document.removeEventListener('touchstart', onPointer);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open, onClose]);
-  return ref;
-};
-
-// ─── Modal (§4.3) ─────────────────────────────────────────────────────────────
-// Am Desktop steigt das Panel auf und skaliert, am Telefon fährt ein Blatt hoch.
-// Der Austritt läuft schneller als der Eintritt.
-const Overlay = ({ open, onClose, children, panelClass = '', sheet = false, labelledBy }) => {
-  const rendered = usePresence(open, DURATION.modalOut);
-  const backdropRef = useRef(null);
-  const panelRef    = useRef(null);
-
-  useLayoutEffect(() => {
-    if (!rendered || reducedMotion()) return;
-    const enter = open;
-    restartAnimation(backdropRef.current,
-      enter ? `modal-backdrop-in ${DURATION.backdropIn}ms ${STANDARD_EASE}`
-            : `modal-backdrop-out ${DURATION.modalOut}ms ${STANDARD_EASE} forwards`);
-    const keyframe = sheet ? 'sheet' : 'modal-panel';
-    restartAnimation(panelRef.current,
-      enter ? `${keyframe}-in ${DURATION.modalIn}ms ${STANDARD_EASE}`
-            : `${keyframe}-out ${DURATION.modalOut}ms ${STANDARD_EASE} forwards`);
-  }, [open, rendered, sheet]);
-
-  // Escape schließt — aber erst, wenn kein Menü mehr offen ist. Ein offenes
-  // PopMenu fängt die Taste selbst ab und darf das Modal nicht mitreißen.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e) => {
-      if (e.key !== 'Escape') return;
-      if (document.querySelector('[role="menu"]')) return;
-      onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  if (!rendered) return null;
-  return (
-    <>
-      <div ref={backdropRef} onClick={onClose}
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={labelledBy}
-        onClick={e => e.stopPropagation()}
-        className={`fixed z-50 ${panelClass}`}>
-        {children}
-      </div>
-    </>
-  );
-};
-
-// ─── Kleinteile ───────────────────────────────────────────────────────────────
-// Status ist der einzige Ort, an dem Farbe getragen wird
-const TONE = {
-  success: 'text-success bg-success/10 border-success/25',
-  warning: 'text-warning bg-warning/10 border-warning/25',
-  error:   'text-error   bg-error/10   border-error/25',
-  muted:   'text-ink-3   bg-surface-3  border-border',
-};
-const DOT = { success: 'bg-success', warning: 'bg-warning', error: 'bg-error', muted: 'bg-ink-3' };
-
-const StatusPill = ({ tone = 'muted', label, pulse = false }) => (
-  <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-medium ${TONE[tone]}`}>
-    <span className={`w-1.5 h-1.5 rounded-full ${DOT[tone]} ${pulse ? 'animate-pulse' : ''}`} />
-    {label}
-  </span>
-);
-
-const Badge = ({ tone = 'muted', icon: Icon, children, title }) => (
-  <span title={title}
-    className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md border shrink-0 ${TONE[tone]}`}>
-    {Icon && <Icon className="w-3 h-3" />}{children}
-  </span>
-);
 
 // Kopfzeile am Telefon — links ausgerichtet wie am Desktop, kein zentriertes Symbol
 const MobilePageHeader = ({ icon: Icon, title, children }) => (
@@ -700,35 +510,6 @@ const MobilePageHeader = ({ icon: Icon, title, children }) => (
     </div>
     {children}
   </header>
-);
-
-// ─── Balken ───────────────────────────────────────────────────────────────────
-// Anteile werden über die Deckkraft einer Tintenfläche unterschieden.
-const MeterRow = ({ leading, title, subtitle, value, meta, share, rank = 0, index = 0 }) => (
-  <div className="space-y-2">
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2.5 min-w-0">
-        {leading}
-        <div className="min-w-0">
-          <p className="text-sm font-medium truncate">{title}</p>
-          {subtitle && <p className="text-xs text-ink-3 truncate">{subtitle}</p>}
-        </div>
-      </div>
-      <div className="text-right shrink-0">
-        <p className="text-sm font-semibold">{value}</p>
-        {meta && <p className="text-xs text-ink-3">{meta}</p>}
-      </div>
-    </div>
-    <div className="w-full h-1.5 bg-surface-3 rounded-full overflow-hidden">
-      <div
-        className="h-full rounded-full bg-ink origin-left"
-        style={{
-          width: `${Math.max(2, Math.min(100, share))}%`,
-          opacity: rankOpacity(rank),
-          animation: `bar-fill 600ms ${EXPO_OUT} ${index * 40}ms backwards`,
-        }} />
-    </div>
-  </div>
 );
 
 const TrendBars = ({ totals, maxVal, months, labels, fmt, isDesktop, range }) => (
@@ -2114,47 +1895,6 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
   );
 };
 
-// ─── Toast (§4.3) ─────────────────────────────────────────────────────────────
-// Unten rechts, Fläche 2 mit kräftigem Rand, dünner Laufbalken.
-const Toast = ({ open, entry, onUndo }) => {
-  const t = useT();
-  const rendered = usePresence(open, DURATION.toastOut);
-  const ref = useRef(null);
-  // Während der Ausblendung ist `entry` schon weg — den letzten Namen behalten
-  const [shown, setShown] = useState(entry);
-  if (entry && entry !== shown) setShown(entry);
-
-  useLayoutEffect(() => {
-    if (!rendered || reducedMotion()) return;
-    restartAnimation(ref.current, open
-      ? `toast-in ${DURATION.toastIn}ms ${STANDARD_EASE}`
-      : `toast-out ${DURATION.toastOut}ms ${STANDARD_EASE} forwards`);
-  }, [open, rendered]);
-
-  if (!rendered) return null;
-  return (
-    <div className="fixed bottom-28 left-0 right-0 flex justify-center px-4 pointer-events-none z-40
-      lg:bottom-6 lg:left-auto lg:right-6 lg:justify-end lg:px-0">
-      <div ref={ref} role="status"
-        className="pointer-events-auto max-w-[420px] w-full lg:w-[340px] bg-surface-2 border border-border-strong
-          rounded-lg px-4 py-3 flex flex-col gap-2.5 shadow-xl">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-ink">{t.sub_deleted}</p>
-            <p className="text-xs text-ink-3 truncate">{shown?.name}</p>
-          </div>
-          <button onClick={onUndo} className={btn('secondary', 'sm', 'shrink-0')}>{t.undo}</button>
-        </div>
-        {open && (
-          <div className="w-full h-0.5 rounded-full bg-surface-3 overflow-hidden">
-            <div className="h-full bg-border-strong animate-toast-progress" />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
 // ─── Löschen bestätigen ───────────────────────────────────────────────────────
 const ConfirmDelete = ({ entry, onCancel, onConfirm }) => {
   const t = useT();
@@ -3219,68 +2959,6 @@ const SoonCard = ({ entry, fmtOriginal }) => {
   );
 };
 
-// ─── Wischen am Telefon ───────────────────────────────────────────────────────
-// Ohne Animationsbibliothek: touch-action übernimmt die vertikale Achse, die
-// horizontale bewegen wir selbst und lassen sie mit der Hauskurve zurückgleiten.
-const useSwipeRow = ({ onLeft, onRight, onTap, max = 90, threshold = 70 }) => {
-  const ref   = useRef(null);
-  const state = useRef({ active: false, axis: null, dx: 0, startX: 0, startY: 0, swiped: false });
-
-  const move = (px, animate) => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.transition = animate && !reducedMotion() ? `transform 400ms ${STANDARD_EASE}` : 'none';
-    el.style.transform  = px ? `translateX(${px}px)` : '';
-  };
-
-  const onPointerDown = (e) => {
-    if (e.pointerType === 'mouse') return; // Mit der Maus wird geklickt, nicht gewischt
-    state.current = { active: true, axis: null, dx: 0, startX: e.clientX, startY: e.clientY, swiped: false };
-    move(0, false);
-  };
-
-  const onPointerMove = (e) => {
-    const s = state.current;
-    if (!s.active) return;
-    const dx = e.clientX - s.startX;
-    const dy = e.clientY - s.startY;
-
-    // Achse erst nach ein paar Pixeln festlegen — schräge Gesten sind Scrollen
-    if (!s.axis) {
-      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
-      s.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
-      if (s.axis === 'x') { try { ref.current?.setPointerCapture(e.pointerId); } catch { /* nicht fangbar */ } }
-    }
-    if (s.axis !== 'x') return;
-
-    // Jenseits der Grenze wird es zäh
-    const over = Math.abs(dx) - max;
-    s.dx = over > 0 ? Math.sign(dx) * (max + over * 0.12) : dx;
-    move(s.dx, false);
-  };
-
-  const end = (e) => {
-    const s = state.current;
-    if (!s.active) return;
-    s.active = false;
-    try { ref.current?.releasePointerCapture(e.pointerId); } catch { /* nie gefangen */ }
-    move(0, true);
-    if (s.axis !== 'x') return;
-
-    // Eine Wischgeste löst danach noch ein click aus — das schlucken wir
-    s.swiped = true;
-    if (s.dx <= -threshold) onLeft?.();
-    else if (s.dx >= threshold) onRight?.();
-  };
-
-  const onClick = () => {
-    if (state.current.swiped) { state.current.swiped = false; return; }
-    onTap?.();
-  };
-
-  return { ref, handlers: { onPointerDown, onPointerMove, onPointerUp: end, onPointerCancel: end, onClick } };
-};
-
 const EntryRow = ({
   entry, fmt, fmtOriginal, monthly, onOpen, onEdit, onArchive, onRestore, onDelete,
   docCount = 0, hideLocation = false, archived = false,
@@ -3390,91 +3068,6 @@ const EntryRow = ({
   );
 };
 
-// ─── Модалка ───────────────────────────────────────────────────────────────────
-// ─── DatePicker ────────────────────────────────────────────────────────────────
-const DatePicker = ({ value, onChange, label }) => {
-  const t    = useT();
-  const lang = useLang();
-  const [open, setOpen] = useState(false);
-  const close = useCallback(() => setOpen(false), []);
-  const ref = useDismiss(open, close);
-  const today = new Date();
-  const parsed = value ? new Date(value) : null;
-  const [viewYear,  setViewYear]  = useState(parsed?.getFullYear()  ?? today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(parsed?.getMonth()     ?? today.getMonth());
-
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const offset = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7;
-  const cells = [...Array(offset).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
-
-  const selectDay = (d) => {
-    const mm = String(viewMonth + 1).padStart(2, '0');
-    const dd = String(d).padStart(2, '0');
-    onChange(`${viewYear}-${mm}-${dd}`);
-    setOpen(false);
-  };
-
-  const prevMonth = () => { if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); } else setViewMonth(m => m - 1); };
-  const nextMonth = () => { if (viewMonth === 11) { setViewMonth(0);  setViewYear(y => y + 1); } else setViewMonth(m => m + 1); };
-
-  const selectedDay   = parsed?.getDate();
-  const selectedMonth = parsed?.getMonth();
-  const selectedYear  = parsed?.getFullYear();
-
-  return (
-    <div ref={ref} className="relative">
-      <button type="button" onClick={() => setOpen(v => !v)} data-no-press
-        className={`${INPUT_CLASS} bg-surface-2 flex items-center gap-3 text-left hover:bg-surface-3`}>
-        <CalendarDays className="w-4 h-4 text-ink-3 shrink-0" />
-        <span className="text-xs text-ink-3">{label}</span>
-        <span className="ml-auto text-sm">
-          {parsed
-            ? <span className="text-ink">{fmtDateFromISO(value, lang, t.months_short)}</span>
-            : <span className="text-ink-3">{t.datepicker_choose}</span>}
-        </span>
-      </button>
-
-      <PopMenu open={open} className="top-full mt-2 left-0 right-0" width="" >
-        <div className="p-3">
-          {/* Навигация по месяцу */}
-          <div className="flex items-center justify-between mb-3">
-            <button type="button" onClick={prevMonth} aria-label="←"
-              className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-2 hover:bg-surface-3 transition">
-              <ChevronDown className="w-4 h-4 rotate-90" />
-            </button>
-            <span className="text-sm font-medium">{t.months_full[viewMonth]} {viewYear}</span>
-            <button type="button" onClick={nextMonth} aria-label="→"
-              className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-2 hover:bg-surface-3 transition">
-              <ChevronDown className="w-4 h-4 -rotate-90" />
-            </button>
-          </div>
-          {/* Дни недели */}
-          <div className="grid grid-cols-7 mb-1">
-            {t.days_short.map(d => <div key={d} className="text-center text-[11px] text-ink-3 uppercase py-1">{d}</div>)}
-          </div>
-          {/* Дни */}
-          <div className="grid grid-cols-7 gap-0.5">
-            {cells.map((day, i) => {
-              if (!day) return <div key={`e-${i}`} />;
-              const isSelected = day === selectedDay && viewMonth === selectedMonth && viewYear === selectedYear;
-              const isToday    = day === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
-              return (
-                <button key={day} type="button" onClick={() => selectDay(day)} data-no-press
-                  className={`aspect-square rounded-lg text-xs font-medium transition
-                    ${isSelected ? 'bg-ink text-surface'
-                      : isToday   ? 'bg-surface-sunken text-ink'
-                      : 'text-ink-2 hover:bg-surface-3'}`}>
-                  {day}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </PopMenu>
-    </div>
-  );
-};
-
 // ─── Formular-Bausteine ───────────────────────────────────────────────────────
 const FieldShell = ({ label, hint, children, className = '' }) => (
   <label className={`block space-y-1.5 ${className}`}>
@@ -3498,41 +3091,6 @@ const FieldGroup = ({ label, hint, children, className = '' }) => (
 // (SectionTitle weiter oben trägt Symbol und Rahmen und gehört den Seiten.)
 const GroupTitle = ({ children, className = '' }) => (
   <p className={`text-[11px] uppercase tracking-[0.16em] text-ink-3 px-1 ${className}`}>{children}</p>
-);
-
-// Der Ein-Zustand ist eine der wenigen Stellen, an denen der Akzent auftaucht (§2)
-const Switch = ({ checked, onChange, label }) => (
-  <button type="button" role="switch" aria-checked={checked} data-no-press
-    onClick={() => onChange(!checked)}
-    className="w-full flex items-center gap-3 text-left group">
-    <span className={`w-9 h-5 rounded-full p-0.5 shrink-0 transition-colors duration-200
-      ${checked ? 'bg-accent' : 'bg-border-strong'}`}>
-      <span className="block w-4 h-4 rounded-full bg-surface-2 shadow-sm transition-transform duration-300"
-        style={{ transform: `translateX(${checked ? 16 : 0}px)`, transitionTimingFunction: STANDARD_EASE }} />
-    </span>
-    <span className="text-xs text-ink-2 group-hover:text-ink transition-colors">{label}</span>
-  </button>
-);
-
-// Ruhiger Hinweis — Farbe nur als schmaler Streifen am Rand
-const Note = ({ tone = 'muted', icon: Icon = AlertTriangle, children }) => (
-  <div className={`flex gap-2.5 rounded-lg border px-3 py-2.5 ${TONE[tone]}`}>
-    <Icon className="w-4 h-4 shrink-0 mt-px" />
-    <p className="text-[11px] leading-relaxed">{children}</p>
-  </div>
-);
-
-const SelectInput = ({ value, onChange, placeholder, options }) => (
-  <div className="relative">
-    <select value={value} onChange={e => onChange(e.target.value)}
-      className={`${INPUT_CLASS} appearance-none pr-10 ${value ? 'text-ink' : 'text-ink-3'}`}>
-      <option value="">{placeholder}</option>
-      {options.map(option => (
-        <option key={option.value} value={option.value} className="text-ink">{option.label}</option>
-      ))}
-    </select>
-    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" />
-  </div>
 );
 
 // Passwortartige Eingabe mit Aufdecken und Kopieren

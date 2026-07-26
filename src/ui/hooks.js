@@ -1,0 +1,83 @@
+import { useEffect, useRef } from 'react';
+import { STANDARD_EASE, reducedMotion } from '../lib/motion';
+
+// Schließt Menüs bei Klick daneben und mit Escape
+export const useDismiss = (open, onClose) => {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('touchstart', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('touchstart', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, onClose]);
+  return ref;
+};
+
+// ─── Wischen am Telefon ───────────────────────────────────────────────────────
+// Ohne Animationsbibliothek: touch-action übernimmt die vertikale Achse, die
+// horizontale bewegen wir selbst und lassen sie mit der Hauskurve zurückgleiten.
+export const useSwipeRow = ({ onLeft, onRight, onTap, max = 90, threshold = 70 }) => {
+  const ref   = useRef(null);
+  const state = useRef({ active: false, axis: null, dx: 0, startX: 0, startY: 0, swiped: false });
+
+  const move = (px, animate) => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.transition = animate && !reducedMotion() ? `transform 400ms ${STANDARD_EASE}` : 'none';
+    el.style.transform  = px ? `translateX(${px}px)` : '';
+  };
+
+  const onPointerDown = (e) => {
+    if (e.pointerType === 'mouse') return; // Mit der Maus wird geklickt, nicht gewischt
+    state.current = { active: true, axis: null, dx: 0, startX: e.clientX, startY: e.clientY, swiped: false };
+    move(0, false);
+  };
+
+  const onPointerMove = (e) => {
+    const s = state.current;
+    if (!s.active) return;
+    const dx = e.clientX - s.startX;
+    const dy = e.clientY - s.startY;
+
+    // Achse erst nach ein paar Pixeln festlegen — schräge Gesten sind Scrollen
+    if (!s.axis) {
+      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+      s.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      if (s.axis === 'x') { try { ref.current?.setPointerCapture(e.pointerId); } catch { /* nicht fangbar */ } }
+    }
+    if (s.axis !== 'x') return;
+
+    // Jenseits der Grenze wird es zäh
+    const over = Math.abs(dx) - max;
+    s.dx = over > 0 ? Math.sign(dx) * (max + over * 0.12) : dx;
+    move(s.dx, false);
+  };
+
+  const end = (e) => {
+    const s = state.current;
+    if (!s.active) return;
+    s.active = false;
+    try { ref.current?.releasePointerCapture(e.pointerId); } catch { /* nie gefangen */ }
+    move(0, true);
+    if (s.axis !== 'x') return;
+
+    // Eine Wischgeste löst danach noch ein click aus — das schlucken wir
+    s.swiped = true;
+    if (s.dx <= -threshold) onLeft?.();
+    else if (s.dx >= threshold) onRight?.();
+  };
+
+  const onClick = () => {
+    if (state.current.swiped) { state.current.swiped = false; return; }
+    onTap?.();
+  };
+
+  return { ref, handlers: { onPointerDown, onPointerMove, onPointerUp: end, onPointerCancel: end, onClick } };
+};
