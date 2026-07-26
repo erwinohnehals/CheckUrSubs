@@ -19,6 +19,10 @@ Benutzerkonto, ohne Backend.
   den Folgemonat übernommen; ein manueller Neustart ist jederzeit möglich
 - **Jahresbericht**: Einnahmen und Einmalausgaben je Monat, Kategorien,
   größte Einkäufe und direkter Vergleich mit den laufenden Kosten
+- **Umbuchungen zählen nicht mit**: Geld zwischen eigenen Konten oder aus
+  Erspartem lässt sich als Umbuchung erfassen — die Zeile bleibt in der Liste,
+  geht aber in keine Summe ein, nicht in Monat, Budget oder Jahresbericht. So
+  bleibt sichtbar, was tatsächlich verdient und ausgegeben wurde
 - Vergangene Vorgänge mit **Erneut erfassen** als Vorlage für heute übernehmen
 - **Kündigungsfristen**: Vertragsende + Frist ergeben das Datum, bis zu dem
   gekündigt sein muss — inklusive Rollen auf das nächste Vertragsjahr bei

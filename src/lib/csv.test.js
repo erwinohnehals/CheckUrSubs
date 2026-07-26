@@ -127,6 +127,21 @@ test('expense export emits one row per item and keeps the receipt identity', () 
   assert.equal(parsed[0].receipt_id, 'single-1');
 });
 
+test('the export says which rows are transfers', () => {
+  const [transfer] = expenseCSVRows([{
+    id: 'receipt-3', direction: 'income', date: '2026-07-20',
+    title: 'Mein Geld', amount: 800, category: 'income_other',
+    items: [], tags: [], internal: true,
+  }]);
+  const [purchase] = expenseCSVRows([{
+    id: 'receipt-4', direction: 'expense', date: '2026-07-21',
+    amount: 8, category: 'groceries', items: [], tags: [],
+  }]);
+
+  assert.equal(transfer.internal, 'true');
+  assert.equal(purchase.internal, '');
+});
+
 test('an unsplit expense remains one CSV row', () => {
   const [row] = expenseCSVRows([{
     id: 'receipt-2',

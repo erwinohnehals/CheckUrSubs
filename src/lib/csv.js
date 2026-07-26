@@ -21,7 +21,10 @@ export const toCSV = (headers, rows) => [
 export const EXPENSE_CSV_HEADERS = [
   'receipt_id', 'direction', 'date', 'title', 'merchant',
   'account_id', 'currency_code', 'item_id', 'item_label', 'amount',
-  'category', 'receipt_category', 'tags', 'note', 'refund_for', 'archived_at',
+  'category', 'receipt_category', 'tags', 'note', 'refund_for',
+  // Wer die Datei in einer Tabelle summiert, muss dieselbe Auskunft haben wie die
+  // App: ohne die Spalte wäre eine Umbuchung dort wieder Einkommen.
+  'internal', 'archived_at',
 ];
 
 /**
@@ -43,6 +46,7 @@ export const expenseCSVRows = (transactions = []) =>
       tags:            (transaction.tags || []).join(' | '),
       note:            transaction.note,
       refund_for:      transaction.refund_for,
+      internal:        transaction.internal ? 'true' : '',
       archived_at:     transaction.archived_at,
     };
     const items = Array.isArray(transaction.items) ? transaction.items : [];

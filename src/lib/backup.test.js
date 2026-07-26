@@ -179,6 +179,33 @@ test('restores expenses, accounts and budgets onto a clean profile', async () =>
   assert.equal(budgetStore.get('groceries').amount, 300);
 });
 
+test('a transfer is still a transfer after a round trip through a backup', async () => {
+  const dataStorage = createMemoryStorage();
+  const entryStore = createEntryStore(dataStorage, () => 'contract-local');
+  const expenseStore = createExpenseStore(dataStorage, () => 'expense-local');
+  const accountStore = createAccountStore(dataStorage, () => 'account-local');
+  const budgetStore = createBudgetStore(dataStorage);
+
+  const transfer = expenseStore.create({
+    title: 'Mein Geld', date: '2026-07-20', direction: 'income',
+    amount: 800, internal: true,
+  });
+
+  const backup = await createBackup({
+    expenses: [transfer],
+    storage: dataStorage,
+  });
+
+  // Denselben Speicher leeren und aus der Sicherung wieder aufbauen
+  expenseStore.replaceAll([]);
+  await restoreBackup(backup, {
+    entryStore, expenseStore, accountStore, budgetStore, storage: dataStorage,
+  });
+
+  // Ohne diese Zeile wäre nach einem Umzug aus 800 € Umbuchung 800 € Einkommen
+  assert.equal(expenseStore.list()[0].internal, true);
+});
+
 test('version 1 backups still restore and clear domains they did not contain', async () => {
   const dataStorage = createMemoryStorage();
   const entryStore = createEntryStore(dataStorage, () => 'contract-local');
