@@ -148,18 +148,3 @@ export const useSlidingPill = (activeKey) => {
 
   return { trackRef, pillRef, setItem };
 };
-
-// ── Globales Druckfeedback für Buttons ────────────────────────────────────────
-// Ein delegierter Listener statt Handler an jedem Button.
-export const useButtonPress = () => {
-  useEffect(() => {
-    const onPointerDown = (e) => {
-      if (reducedMotion()) return;
-      const button = e.target.closest?.('button');
-      if (!button || button.disabled || button.hasAttribute('data-no-press')) return;
-      restartAnimation(button, 'btn-press 400ms linear');
-    };
-    document.addEventListener('pointerdown', onPointerDown, true);
-    return () => document.removeEventListener('pointerdown', onPointerDown, true);
-  }, []);
-};

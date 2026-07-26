@@ -7,6 +7,7 @@ export * from './hooks';
 export * from './Segmented';
 export * from './PopMenu';
 export * from './Overlay';
+export * from './ConfirmDialog';
 export * from './Status';
 export * from './MeterRow';
 export * from './Toast';

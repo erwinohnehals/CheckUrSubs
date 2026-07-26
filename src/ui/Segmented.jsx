@@ -21,7 +21,7 @@ export const Segmented = ({
       {items.map(item => {
         const active = item.id === value;
         return (
-          <button key={item.id} type="button" ref={setItem(item.id)} data-no-press
+          <button key={item.id} type="button" ref={setItem(item.id)}
             {...itemAttrs}
             onClick={() => onChange(item.id)}
             aria-current={active ? 'page' : undefined}

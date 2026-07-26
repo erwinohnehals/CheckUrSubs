@@ -9,7 +9,7 @@ import { useDismiss } from './hooks';
 
 // Der Ein-Zustand ist eine der wenigen Stellen, an denen der Akzent auftaucht (§2)
 export const Switch = ({ checked, onChange, label }) => (
-  <button type="button" role="switch" aria-checked={checked} data-no-press
+  <button type="button" role="switch" aria-checked={checked}
     onClick={() => onChange(!checked)}
     className="w-full flex items-center gap-3 text-left group">
     <span className={`w-9 h-5 rounded-full p-0.5 shrink-0 transition-colors duration-200
@@ -66,7 +66,7 @@ export const DatePicker = ({ value, onChange, label }) => {
 
   return (
     <div ref={ref} className="relative">
-      <button type="button" onClick={() => setOpen(v => !v)} data-no-press
+      <button type="button" onClick={() => setOpen(v => !v)}
         className={`${INPUT_CLASS} bg-surface-2 flex items-center gap-3 text-left hover:bg-surface-3`}>
         <CalendarDays className="w-4 h-4 text-ink-3 shrink-0" />
         <span className="text-xs text-ink-3">{label}</span>
@@ -81,12 +81,12 @@ export const DatePicker = ({ value, onChange, label }) => {
         <div className="p-2.5">
           {/* Monatsnavigation */}
           <div className="flex items-center justify-between mb-2">
-            <button type="button" onClick={prevMonth} aria-label="←"
+            <button type="button" onClick={prevMonth} aria-label={t.month_previous}
               className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-2 hover:bg-surface-3 transition">
               <ChevronDown className="w-4 h-4 rotate-90" />
             </button>
             <span className="text-sm font-medium">{t.months_full[viewMonth]} {viewYear}</span>
-            <button type="button" onClick={nextMonth} aria-label="→"
+            <button type="button" onClick={nextMonth} aria-label={t.month_next}
               className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-2 hover:bg-surface-3 transition">
               <ChevronDown className="w-4 h-4 -rotate-90" />
             </button>
@@ -102,7 +102,7 @@ export const DatePicker = ({ value, onChange, label }) => {
               const isSelected = day === selectedDay && viewMonth === selectedMonth && viewYear === selectedYear;
               const isToday    = day === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
               return (
-                <button key={day} type="button" onClick={() => selectDay(day)} data-no-press
+                <button key={day} type="button" onClick={() => selectDay(day)}
                   className={`h-9 rounded-lg text-xs font-medium transition
                     ${isSelected ? 'bg-ink text-surface'
                       : isToday   ? 'bg-surface-sunken text-ink'

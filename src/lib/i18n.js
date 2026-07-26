@@ -15,6 +15,8 @@ export const translations = {
     home_subtitle:      'Verträge, Abos und laufende Kosten an einem Ort',
     calendar_subtitle:  'Wann wie viel abgebucht wird',
     analytics_subtitle: 'Wohin das Geld geht',
+    analytics_empty_title:    'Noch nichts auszuwerten',
+    analytics_empty_subtitle: 'Sobald der erste Eintrag steht, stehen hier Verlauf, Anteile und Kategorien.',
     today:              'Heute',
     more_count:         (n) => `${n} weitere`,
 
@@ -37,6 +39,7 @@ export const translations = {
     search_placeholder: 'Suchen...',
     swipe_hint:    '← wischen zum Archivieren · wischen zum Bearbeiten →',
     swipe_hint_archived: '← wischen zum Löschen · wischen zum Wiederherstellen →',
+    hint_dismiss:  'Hinweis ausblenden',
     sort_az:       'A–Z',
     sort_price:    'Betrag',
     sort_date:     'Datum',
@@ -76,6 +79,10 @@ export const translations = {
     sub_per_year:  'Jahr',
     undo:          'Rückgängig',
     delete_confirm_hint: 'Dokumente und Zugangsdaten werden mit gelöscht.',
+    discard_title:       'Änderungen verwerfen?',
+    discard_hint:        'Was hier eingetragen wurde, ist danach weg.',
+    discard_action:      'Verwerfen',
+    discard_keep:        'Weiter bearbeiten',
 
     // Kalender
     calendar_title: 'Kalender',
@@ -119,6 +126,8 @@ export const translations = {
     io_restore_confirm:
       'Die Sicherung ersetzt alle Daten auf diesem Gerät — Einträge, Dokumente und Einstellungen. Fortfahren?',
     io_restore_ok:     (n) => `Wiederhergestellt: ${n} Datensätze — lädt neu …`,
+    io_restore_title:  'Sicherung einspielen?',
+    io_restore_action: 'Ersetzen',
 
     // Auswertung
     analytics_title:    'Auswertung',
@@ -261,6 +270,7 @@ export const translations = {
     vault_reset:        'Tresor zurücksetzen',
     vault_reset_hint:   'Löscht alle gespeicherten Passwörter und legt das Master-Passwort neu fest.',
     vault_reset_confirm:'Alle gespeicherten Passwörter löschen?',
+    vault_reset_action: 'Zurücksetzen',
     vault_decrypt_err:  'Passwort konnte nicht entschlüsselt werden',
 
     // Dokumente
@@ -422,6 +432,17 @@ export const translations = {
     exp_income:    'Einnahme',
     exp_count:     (n) => `${n} ${n === 1 ? 'Vorgang' : 'Vorgänge'}`,
     exp_list_title:'Nach Tagen',
+    exp_search:         'Suchen — Titel, Händler, Stichwort, Betrag',
+    exp_filter_category:'Kategorie',
+    exp_filter_tag:     'Stichwort',
+    exp_filter_any:     'Alle',
+    exp_scope_month:    'Monat',
+    exp_scope_all:      'Alle Monate',
+    exp_results_title:  'Treffer',
+    exp_results_sum:    'Summe der Treffer',
+    exp_results_empty:  'Kein Vorgang passt dazu',
+    exp_results_hint:   'Andere Schreibweise versuchen — oder über alle Monate suchen.',
+    exp_results_capped: (n) => `Nur die neuesten ${n} werden gezeigt`,
     exp_today:     'Heute',
     exp_yesterday: 'Gestern',
     exp_add:       'Ausgabe erfassen',
@@ -429,6 +450,7 @@ export const translations = {
     exp_delete:    'Löschen',
     exp_repeat:    'Erneut erfassen',
     exp_deleted:   'Vorgang gelöscht',
+    exp_delete_confirm: 'Beleg und Positionen werden mit gelöscht.',
     exp_swipe_hint:'← wischen zum Löschen · wischen zum Bearbeiten →',
     exp_empty_title:    'Noch nichts erfasst',
     exp_empty_subtitle: 'Ein Einkauf, eine Rechnung, ein Gehaltseingang — als ein Betrag oder in Positionen aufgeteilt.',
@@ -511,6 +533,8 @@ export const translations = {
     // ── Jahr & Vergleich ──
     year_previous:   'Vorheriges Jahr',
     year_next:       'Nächstes Jahr',
+    month_previous:  'Vorheriger Monat',
+    month_next:      'Nächster Monat',
     year_current:    'Dieses Jahr',
     year_total_in:   'Einnahmen gesamt',
     year_total_out:  'Ausgaben gesamt',
@@ -609,6 +633,8 @@ export const translations = {
     home_subtitle:      'Contracts, subscriptions and running costs in one place',
     calendar_subtitle:  'When you get billed, and how much',
     analytics_subtitle: 'Where the money goes',
+    analytics_empty_title:    'Nothing to break down yet',
+    analytics_empty_subtitle: 'Once the first entry is in, this shows the trend, the shares and the categories.',
     today:              'Today',
     more_count:         (n) => `${n} more`,
 
@@ -631,6 +657,7 @@ export const translations = {
     search_placeholder: 'Search...',
     swipe_hint:    '← swipe to archive · swipe to edit →',
     swipe_hint_archived: '← swipe to delete · swipe to restore →',
+    hint_dismiss:  'Dismiss hint',
     sort_az:       'A–Z',
     sort_price:    'Amount',
     sort_date:     'Date',
@@ -670,6 +697,10 @@ export const translations = {
     sub_per_year:  'yr',
     undo:          'Undo',
     delete_confirm_hint: 'Documents and credentials are deleted with it.',
+    discard_title:       'Discard changes?',
+    discard_hint:        'Anything entered here will be gone.',
+    discard_action:      'Discard',
+    discard_keep:        'Keep editing',
 
     // Calendar
     calendar_title: 'Calendar',
@@ -713,6 +744,8 @@ export const translations = {
     io_restore_confirm:
       'Restoring replaces all data on this device — entries, documents and settings. Continue?',
     io_restore_ok:     (n) => `Restored: ${n} records — reloading …`,
+    io_restore_title:  'Restore backup?',
+    io_restore_action: 'Replace',
 
     // Analytics
     analytics_title:    'Analytics',
@@ -855,6 +888,7 @@ export const translations = {
     vault_reset:        'Reset vault',
     vault_reset_hint:   'Deletes all saved passwords and sets a new master password.',
     vault_reset_confirm:'Delete all saved passwords?',
+    vault_reset_action: 'Reset',
     vault_decrypt_err:  'Could not decrypt the password',
 
     // Documents
@@ -1016,6 +1050,17 @@ export const translations = {
     exp_income:    'Income',
     exp_count:     (n) => `${n} ${n === 1 ? 'entry' : 'entries'}`,
     exp_list_title:'By day',
+    exp_search:         'Search — title, merchant, tag, amount',
+    exp_filter_category:'Category',
+    exp_filter_tag:     'Tag',
+    exp_filter_any:     'All',
+    exp_scope_month:    'Month',
+    exp_scope_all:      'All months',
+    exp_results_title:  'Results',
+    exp_results_sum:    'Total found',
+    exp_results_empty:  'No entry matches',
+    exp_results_hint:   'Try a different spelling — or search across all months.',
+    exp_results_capped: (n) => `Showing the ${n} most recent only`,
     exp_today:     'Today',
     exp_yesterday: 'Yesterday',
     exp_add:       'Add expense',
@@ -1023,6 +1068,7 @@ export const translations = {
     exp_delete:    'Delete',
     exp_repeat:    'Log again',
     exp_deleted:   'Entry deleted',
+    exp_delete_confirm: 'The receipt and its items are deleted with it.',
     exp_swipe_hint:'← swipe to delete · swipe to edit →',
     exp_empty_title:    'Nothing logged yet',
     exp_empty_subtitle: 'A shop trip, a bill, a paycheck — as one amount or split into line items.',
@@ -1105,6 +1151,8 @@ export const translations = {
     // ── Year & comparison ──
     year_previous:   'Previous year',
     year_next:       'Next year',
+    month_previous:  'Previous month',
+    month_next:      'Next month',
     year_current:    'This year',
     year_total_in:   'Total in',
     year_total_out:  'Total out',

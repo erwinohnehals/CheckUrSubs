@@ -9,11 +9,11 @@
 // gefaltet wären es zwei Gelegenheiten, sie auseinanderlaufen zu lassen.
 //
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { CalendarRange, PiggyBank, Wallet, Settings2, FileUp } from 'lucide-react';
+import { CalendarRange, PiggyBank, Wallet, Settings2, FileUp, Trash2 } from 'lucide-react';
 import { useLang, useT } from '../../lib/i18n';
 import { fmtMoney, toUSD, DEFAULT_RATES } from '../../lib/money';
 import { createCarryover, spendIndex } from '../../lib/budget';
-import { btn, PageHeader, MobilePageHeader, Toast } from '../../ui';
+import { btn, ConfirmDialog, PageHeader, MobilePageHeader, Toast } from '../../ui';
 import { MonthTab } from './MonthTab';
 import { BudgetTab } from './BudgetTab';
 import { YearTab } from './YearTab';
@@ -21,10 +21,34 @@ import { ExpenseModal } from './ExpenseModal';
 import { AccountsPanel } from './AccountsPanel';
 import { ImportPanel } from './ImportPanel';
 import { knownTags } from './summary';
+import { EMPTY_FILTER } from './filter';
 import { budgetRows, convertBudgets } from './budgetRows';
 import { buildYearReport } from './yearSummary';
 
 const PANE_BODY = 'p-4 pt-6 space-y-5 lg:p-8 lg:pt-7 lg:space-y-7 lg:max-w-[1180px]';
+
+// ── Löschen bestätigen ────────────────────────────────────────────────────────
+// Nach links wischen heißt bei den Verträgen „archivieren“ und fragt beim
+// Löschen nach. Hier hieß dieselbe Geste „weg damit“, ohne Rückfrage — dieselbe
+// Hand, zwei Bedeutungen. Jetzt fragt auch diese Seite.
+const ConfirmRemove = ({ transaction, onConfirm, onCancel }) => {
+  const t = useT();
+  const [shown, setShown] = useState(transaction);
+  if (transaction && transaction !== shown) setShown(transaction);
+
+  const label = shown?.title || shown?.merchant || t.exp_item_untitled;
+
+  return (
+    <ConfirmDialog
+      open={Boolean(transaction)}
+      title={`${t.exp_delete} «${label}»?`}
+      body={t.exp_delete_confirm}
+      confirmLabel={t.exp_delete}
+      icon={Trash2}
+      onConfirm={onConfirm}
+      onCancel={onCancel} />
+  );
+};
 
 export const ExpensesSection = ({
   expenses, paneProps, settings, sectionSwitch, onOpenBudget,
@@ -35,6 +59,11 @@ export const ExpensesSection = ({
   const lang = useLang();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
+  // Was gelöscht werden soll, wartet hier auf die Antwort
+  const [pendingRemove, setPendingRemove] = useState(null);
+  // Suche und Einschränkung überleben den Monatswechsel: wer nach „Rewe" sucht
+  // und einen Monat zurückblättert, sucht immer noch nach „Rewe".
+  const [filter, setFilter] = useState(EMPTY_FILTER);
 
   // Ein Einkauf in Franken und einer in Euro dürfen nicht stumpf addiert werden.
   // Gerechnet wird über die gemeinsame Größe, angezeigt in der Anzeigewährung.
@@ -147,8 +176,9 @@ export const ExpensesSection = ({
             amountUSD={amountUSD} fmt={fmt} fmtAmountIn={fmtAmountIn}
             accountLabelOf={accountLabelOf} docCounts={docCounts}
             budgetRows={rows} onOpenBudget={onOpenBudget}
+            filter={filter} onFilterChange={setFilter}
             onAdd={expenses.openAdd} onEdit={expenses.openEdit}
-            onRepeat={expenses.openRepeat} onDelete={expenses.remove}
+            onRepeat={expenses.openRepeat} onDelete={setPendingRemove}
             onManageAccounts={expenses.openAccounts}
             isDesktop={isDesktop} />
         </div>
@@ -205,6 +235,11 @@ export const ExpensesSection = ({
         onCreate={expenses.createAccount} onRename={expenses.updateAccount}
         onArchive={expenses.archiveAccount} onRestore={expenses.restoreAccount}
         onClose={expenses.closeAccounts} isDesktop={isDesktop} />
+
+      {/* ── Löschen bestätigen ── */}
+      <ConfirmRemove transaction={pendingRemove}
+        onConfirm={() => { expenses.remove(pendingRemove); setPendingRemove(null); }}
+        onCancel={() => setPendingRemove(null)} />
 
       {/* ── Rückgängig ── */}
       <Toast open={Boolean(expenses.toast)} title={t.exp_deleted}

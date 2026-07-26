@@ -18,8 +18,8 @@ import { newId, parseAmount, sumAmounts } from '../../lib/expenseStore';
 import { DURATION } from '../../lib/motion';
 import * as documentStore from '../../lib/documentStore';
 import {
-  INPUT_CLASS, btn, Overlay, Segmented, Switch, SelectInput, DatePicker,
-  CurrencySelect, DocumentsPanel,
+  INPUT_CLASS, btn, Overlay, ConfirmDialog, Segmented, Switch, SelectInput, DatePicker,
+  CurrencySelect, DocumentsPanel, useDirty, useCloseGuard,
 } from '../../ui';
 import { CategoryPicker } from './CategoryPicker';
 import { ItemsEditor } from './ReceiptItems';
@@ -112,6 +112,14 @@ export const ExpenseModal = ({
 
   const canSave = total > 0;
 
+  // Belege liegen schon in der Ablage, sobald sie angehängt wurden — was hier
+  // verglichen wird, ist allein das, was ein Verwerfen tatsächlich wegwürfe.
+  const dirty = useDirty(JSON.stringify([
+    direction, title, merchant, date, category, accountId, note, internal,
+    tags, items, amount, currencyCode,
+  ]));
+  const { asking, requestClose, confirmClose, cancelClose } = useCloseGuard(dirty, onClose);
+
   const submit = () => {
     if (!canSave) return;
 
@@ -167,7 +175,7 @@ export const ExpenseModal = ({
   const accountOptions = accounts.map((account) => ({ value: account.id, label: account.label }));
 
   return (
-    <Overlay open={open} onClose={onClose} sheet={!isDesktop} labelledBy="expense-modal-title"
+    <Overlay open={open} onClose={requestClose} sheet={!isDesktop} labelledBy="expense-modal-title"
       panelClass={isDesktop
         ? 'inset-0 m-auto h-fit w-[620px] max-h-[88vh] flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border shadow-2xl'
         : 'inset-x-3 bottom-3 top-14 flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border max-w-[450px] mx-auto shadow-2xl'}>
@@ -188,7 +196,8 @@ export const ExpenseModal = ({
               {total > 0 ? fmtAmount(total) : (income ? t.exp_income : t.exp_spent)}
             </p>
           </div>
-          <button type="button" onClick={onClose} title={t.detail_close} aria-label={t.detail_close}
+          <button type="button" onClick={requestClose} title={t.detail_close} aria-label={t.detail_close}
+            data-focus-skip
             className="w-9 h-9 -mt-1 -mr-2 shrink-0 rounded-lg flex items-center justify-center
               text-ink-3 hover:text-ink hover:bg-surface-3 transition">
             <X className="w-4 h-4" />
@@ -322,7 +331,7 @@ export const ExpenseModal = ({
 
       {/* ── Fuß ── */}
       <footer className="shrink-0 border-t border-border px-5 py-4 lg:px-7 flex items-center justify-end gap-2">
-        <button type="button" onClick={onClose} className={btn('ghost', 'md', 'px-5 py-3')}>
+        <button type="button" onClick={requestClose} className={btn('ghost', 'md', 'px-5 py-3')}>
           {t.modal_cancel}
         </button>
         <button type="button" disabled={!canSave} onClick={submit}
@@ -330,6 +339,11 @@ export const ExpenseModal = ({
           <Check className="w-4 h-4" />{isEditing ? t.modal_save : t.modal_add}
         </button>
       </footer>
+
+      <ConfirmDialog open={asking}
+        title={t.discard_title} body={t.discard_hint}
+        confirmLabel={t.discard_action} cancelLabel={t.discard_keep}
+        onConfirm={confirmClose} onCancel={cancelClose} />
     </Overlay>
   );
 };

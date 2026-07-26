@@ -22,7 +22,7 @@
   --color-border-strong:  203 200 194;  /* #CBC8C2  emphasized border */
   --color-content:         28  25  23;  /* #1C1917  primary text (stone-900) */
   --color-content-2:       87  83  78;  /* #57534E  secondary text (stone-600) */
-  --color-content-3:      168 162 158;  /* #A8A29E  muted text (stone-400) */
+  --color-content-3:      115 109 103;  /* #736D67  muted text — 4.6:1 on the app surface */
   --color-accent:         245 158  11;  /* #F59E0B  amber accent */
   --color-accent-hover:   217 119   6;  /* #D97706  amber hover */
 }
@@ -30,10 +30,10 @@
   /* Dark mode — warm charcoal, accent switches to warm peach */
   --color-surface:         22  20  20;  /* #161414  warm near-black app background */
   --color-surface-2:       32  29  29;  /* #201D1D  raised cards / panels */
-  --color-surface-3:       55  65  81;  /* #374151 */
+  --color-surface-3:       66  60  58;  /* #423C3A  warm hover, was blue-grey #374151 */
   --color-surface-sunken:  42  39  39;  /* #2A2727  lighter raised/active fill */
-  --color-border:          31  41  55;  /* #1F2937 */
-  --color-border-strong:   55  65  81;  /* #374151 */
+  --color-border:          46  42  41;  /* #2E2A29  warm, was blue-grey #1F2937 */
+  --color-border-strong:   74  68  65;  /* #4A4441  warm, was blue-grey #374151 */
   --color-content:        249 250 251;  /* #F9FAFB */
   --color-content-2:      209 213 219;  /* #D1D5DB */
   --color-content-3:      156 163 175;  /* #9CA3AF */
@@ -152,7 +152,6 @@ button {
   transition-duration: 150ms;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
-button:active { transform: scale(0.95); }
 .btn-primary   { background: rgb(var(--color-content)); color: rgb(var(--color-surface)); }
 .btn-primary:hover { background: rgb(var(--color-content-2)); }
 .btn-secondary { background: rgb(var(--color-surface-2)); color: rgb(var(--color-content)); border: 1px solid rgb(var(--color-border)); }
@@ -167,7 +166,7 @@ button:active { transform: scale(0.95); }
 :focus-visible { outline: 2px solid rgb(var(--color-accent)); outline-offset: 2px; border-radius: 4px; }
 button:focus-visible { outline: none; }
 
-::selection { background: #3B82F6; color: #fff; }
+::selection { background: rgb(var(--color-accent) / 0.32); color: rgb(var(--color-content)); }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: rgb(var(--color-surface-3)); }
 ::-webkit-scrollbar-thumb { background: rgb(var(--color-border-strong)); border-radius: 4px; }
@@ -230,13 +229,6 @@ button:focus-visible { outline: none; }
 /* Toast */
 @keyframes toast-in  { from { opacity: 0; transform: translateY(30px) scale(0.95); } }
 @keyframes toast-out { to   { opacity: 0; transform: translateY(50px) scale(0.95); } }
-
-/* Button press — easing lives inside the keyframes, applied with `linear` */
-@keyframes btn-press {
-  0%   { transform: scale(1);    animation-timing-function: cubic-bezier(0.55, 0.085, 0.68, 0.53); }
-  50%  { transform: scale(0.95); animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94); }
-  100% { transform: scale(1); }
-}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -359,7 +351,7 @@ kbd {
   <div class="swatch"><div class="chip" style="background:#CBC8C2"></div><div class="label"><strong>border-strong</strong>#CBC8C2</div></div>
   <div class="swatch"><div class="chip" style="background:#1C1917"></div><div class="label"><strong>ink</strong>#1C1917 · primary text</div></div>
   <div class="swatch"><div class="chip" style="background:#57534E"></div><div class="label"><strong>ink-2</strong>#57534E · secondary</div></div>
-  <div class="swatch"><div class="chip" style="background:#A8A29E"></div><div class="label"><strong>ink-3</strong>#A8A29E · muted</div></div>
+  <div class="swatch"><div class="chip" style="background:#736D67"></div><div class="label"><strong>ink-3</strong>#736D67 · muted</div></div>
   <div class="swatch"><div class="chip" style="background:#F59E0B"></div><div class="label"><strong>accent</strong>#F59E0B · amber</div></div>
   <div class="swatch"><div class="chip" style="background:#D97706"></div><div class="label"><strong>accent-hover</strong>#D97706</div></div>
 </div>
@@ -368,7 +360,7 @@ kbd {
 <div class="swatches">
   <div class="swatch"><div class="chip" style="background:#161414"></div><div class="label"><strong>surface</strong>#161414</div></div>
   <div class="swatch"><div class="chip" style="background:#201D1D"></div><div class="label"><strong>surface-2</strong>#201D1D</div></div>
-  <div class="swatch"><div class="chip" style="background:#374151"></div><div class="label"><strong>surface-3</strong>#374151</div></div>
+  <div class="swatch"><div class="chip" style="background:#423C3A"></div><div class="label"><strong>surface-3</strong>#423C3A</div></div>
   <div class="swatch"><div class="chip" style="background:#2A2727"></div><div class="label"><strong>surface-sunken</strong>#2A2727</div></div>
   <div class="swatch"><div class="chip" style="background:#F9FAFB"></div><div class="label"><strong>ink</strong>#F9FAFB</div></div>
   <div class="swatch"><div class="chip" style="background:#D1D5DB"></div><div class="label"><strong>ink-2</strong>#D1D5DB</div></div>
@@ -397,7 +389,7 @@ kbd {
   --color-border-strong:  203 200 194;     /* #CBC8C2 */
   --color-content:         28  25  23;     /* #1C1917 */
   --color-content-2:       87  83  78;     /* #57534E */
-  --color-content-3:      168 162 158;     /* #A8A29E */
+  --color-content-3:      115 109 103;     /* #736D67 */
   --color-accent:         245 158  11;     /* #F59E0B */
   --color-accent-hover:   217 119   6;     /* #D97706 */
 }
@@ -550,7 +542,6 @@ new ResizeObserver(() =&gt; movePill(currentActiveBtn, false)).observe(track);</
     </span>
     <button class="btn-secondary" id="staggerBtn">Replay list stagger</button>
     <button class="btn-secondary" id="toastBtn">Show toast</button>
-    <button class="btn-primary" id="pressBtn">Press me</button>
   </div>
   <ul class="stagger-list" id="staggerList" style="margin-top:1rem">
     <li>Review pull request</li>
@@ -586,13 +577,6 @@ new ResizeObserver(() =&gt; movePill(currentActiveBtn, false)).observe(track);</
 @keyframes toast-in  { from { opacity: 0; transform: translateY(30px) scale(0.95); } }
 @keyframes toast-out { to   { opacity: 0; transform: translateY(50px) scale(0.95); } }
 
-/* Button press — apply with `linear`; easing lives inside */
-@keyframes btn-press {
-  0%   { transform: scale(1);    animation-timing-function: cubic-bezier(0.55,0.085,0.68,0.53); }
-  50%  { transform: scale(0.95); animation-timing-function: cubic-bezier(0.25,0.46,0.45,0.94); }
-  100% { transform: scale(1); }
-}
-
 /* Apply from JS/components, e.g.: */
 el.style.animation = `dd-item-in 160ms cubic-bezier(0.625,0.05,0,1) ${64 + i * 19}ms backwards`;</code></pre>
 
@@ -610,7 +594,7 @@ el.style.animation = `dd-item-in 160ms cubic-bezier(0.625,0.05,0,1) ${64 + i * 1
 <ul>
   <li>Radius: <code>rounded-lg</code> (8px). Font-weight 500. Sizes: sm <code>px-3 py-1.5 text-sm</code>, md <code>px-4 py-2 text-base</code>, lg <code>px-6 py-3 text-lg</code>.</li>
   <li>Variants: <strong>primary</strong> solid <em>ink</em> bg / surface text (high-contrast, deliberately <em>not</em> the accent), hover to ink-2; <strong>secondary</strong> surface-2 bg with border, hover surface-3; <strong>ghost</strong> transparent, ink-2 text, hover surface-3; <strong>danger</strong> error red. The accent is not a button color here.</li>
-  <li>Press feedback: <code>active:scale-95</code> plus the <code>btn-press</code> keyframe fired on click. Disabled: <code>opacity-50 cursor-not-allowed</code>.</li>
+  <li>No press transform — buttons do not scale on click. Feedback is the hover/background change alone. Disabled: <code>opacity-50 cursor-not-allowed</code>.</li>
   <li>Touch: 44×44px minimum targets on all buttons/links; <code>-webkit-tap-highlight-color: transparent</code>.</li>
   <li>All interactive elements get the global 150ms transition on color/background/border/transform/shadow.</li>
   <li>Focus: 2px accent <code>:focus-visible</code> outline with 2px offset — suppressed on buttons (press feedback covers it), kept for inputs/links.</li>
@@ -642,7 +626,7 @@ el.style.animation = `dd-item-in 160ms cubic-bezier(0.625,0.05,0,1) ${64 + i * 1
 <h2 id="micro">8 · Micro-details that complete the feel</h2>
 <ul>
   <li>Custom scrollbars: 8px wide, surface-3 track, border-strong rounded thumb.</li>
-  <li>Text selection: blue <code>#3B82F6</code> with white text (both themes).</li>
+  <li>Text selection: the accent at 32% with <em>ink</em> text (both themes) — the one place amber fills an area.</li>
   <li>Inputs: no default focus ring/shadow (<code>outline: none</code> on focus) — rely on border-color changes and the container's affordances.</li>
   <li>Empty states and loading spinners stay quiet: ink-3 text, simple border-spin spinner (<code>border-2 border-current border-t-transparent rounded-full animate-spin</code>).</li>
   <li>Toasts: bottom-right, surface-2 with border-strong, a thin progress bar (border-strong fill) that drains linearly over the toast's lifetime.</li>
@@ -658,7 +642,7 @@ el.style.animation = `dd-item-in 160ms cubic-bezier(0.625,0.05,0,1) ${64 + i * 1
   <li>☐ Every panel/menu/modal: animated enter <em>and</em> faster exit, children cascading with backwards-fill staggers, reduced-motion respected, kept mounted until animationend (+timeout fallback).</li>
   <li>☐ Segmented controls / tab bars use the sliding highlight pill — one pill, glides 400ms from its current position, snaps on first paint (§4.4).</li>
   <li>☐ Keep the accent nearly unused: monochrome ink/surface everywhere; accent only for toggle on-states and focus rings, never for primary buttons (§2).</li>
-  <li>☐ Buttons: rounded-lg, 500 weight, the four variants (primary = solid ink, <em>not</em> accent), active:scale-95 + btn-press (§5).</li>
+  <li>☐ Buttons: rounded-lg, 500 weight, the four variants (primary = solid ink, <em>not</em> accent), no press transform (§5).</li>
   <li>☐ Radii ladder 8/12/16/full; borders over shadows (§6).</li>
   <li>☐ lucide-react icons, 16px inline, color from text (§7).</li>
   <li>☐ Left-aligned layout — never <code>mx-auto</code>-centered pages.</li>
@@ -715,15 +699,6 @@ initSegmented('segDemo');
 /* Theme toggle */
 $('themeToggle').addEventListener('click', () => {
   document.documentElement.classList.toggle('dark');
-});
-
-/* Button press */
-$('pressBtn').addEventListener('click', (e) => {
-  if (reduced()) return;
-  const el = e.currentTarget;
-  el.style.animation = '';
-  el.getBoundingClientRect();
-  el.style.animation = 'btn-press 400ms linear';
 });
 
 /* List stagger — 250ms STANDARD, 50ms/item, rise 20px */

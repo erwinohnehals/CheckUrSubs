@@ -33,12 +33,13 @@ import {
 } from './lib/money';
 import {
   STANDARD_EASE, POWER1_IN, POWER1_OUT, EXPO_OUT, DURATION,
-  reducedMotion, restartAnimation, staggerIn, staggerSwap, useButtonPress,
+  reducedMotion, restartAnimation, staggerIn, staggerSwap,
 } from './lib/motion';
 import {
   CARD, PANEL, INPUT_CLASS, DOT, btn, Segmented, PopMenu, MenuHeader, MenuItem,
-  Overlay, StatusPill, Badge, MeterRow, Note, Switch, SelectInput, DatePicker,
-  Toast, useDismiss, useSwipeRow, CurrencySelect, DocumentsPanel,
+  Overlay, ConfirmDialog, StatusPill, Badge, MeterRow, Note, Switch, SelectInput, DatePicker,
+  Toast, useDismiss, useSwipeRow, useIsDesktop, useDirty, useCloseGuard,
+  CurrencySelect, DocumentsPanel,
   PageHeader, MobilePageHeader,
 } from './ui';
 import { ExpensesSection } from './features/expenses/ExpensesSection';
@@ -434,19 +435,7 @@ const useTabSwipe = (tabs, activeTab, setActiveTab, enabled = true) => {
   return ref;
 };
 
-// ─── Хук: десктопный брейкпоинт (совпадает с tailwind lg) ─────────────────────
-const DESKTOP_QUERY = '(min-width: 1024px)';
-
-const useIsDesktop = () => {
-  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(DESKTOP_QUERY).matches);
-  useEffect(() => {
-    const mq = window.matchMedia(DESKTOP_QUERY);
-    const onChange = (e) => setIsDesktop(e.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-  return isDesktop;
-};
+// useIsDesktop liegt in ui/hooks.js — auch geteilte Bausteine brauchen ihn
 
 // ─── Hook: Zustand des Passwort-Tresors ───────────────────────────────────────
 const useVault = () => {
@@ -489,35 +478,49 @@ const useVault = () => {
 // BAUSTEINE — die bereichsübergreifenden liegen in ui/, hier die der Verträge
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const TrendBars = ({ totals, maxVal, months, labels, fmt, isDesktop, range }) => (
-  <div className="flex items-end gap-1.5 lg:gap-2">
-    {totals.map((val, i) => {
-      const isCurrent = i === range - 1;
-      const heightPct = maxVal > 0 ? Math.max(4, (val / maxVal) * 100) : 4;
-      return (
-        <div key={i} className="group flex-1 flex flex-col items-center gap-1.5 max-w-[72px]">
-          <span className="hidden lg:block text-[11px] font-medium text-ink-2 opacity-0 group-hover:opacity-100 transition">
-            {fmt(val)}
-          </span>
-          <div className="w-full flex items-end h-20 lg:h-36">
-            <div
-              className={`w-full rounded-md origin-bottom transition-colors
-                ${isCurrent ? 'bg-ink' : val > 0 ? 'bg-ink/35 lg:group-hover:bg-ink/60' : 'bg-surface-3'}`}
-              style={{
-                height: `${heightPct}%`, minHeight: '3px',
-                animation: `bar-grow 500ms ${EXPO_OUT} ${i * 30}ms backwards`,
-              }} />
-          </div>
-          {(range <= 6 || i % 2 === 0 || isDesktop) && (
-            <span className={`text-[10px] leading-none lg:text-[11px] ${isCurrent ? 'text-ink font-medium' : 'text-ink-3'}`}>
-              {labels[months[i].month]}
+// Der Betrag stand nur am Schreibtisch und nur beim Überfahren da — am Telefon,
+// wo die Anwendung meistens läuft, trug das Diagramm damit gar keine Zahl.
+// Jetzt ist jeder Balken ein Knopf: der laufende Monat zeigt seinen Wert von
+// sich aus, ein Antippen holt den eines anderen dazu.
+const TrendBars = ({ totals, maxVal, months, labels, fmt, isDesktop, range }) => {
+  const [picked, setPicked] = useState(null);
+
+  return (
+    <div className="flex items-end gap-1.5 lg:gap-2">
+      {totals.map((val, i) => {
+        const isCurrent = i === range - 1;
+        const shown     = picked === null ? isCurrent : picked === i;
+        const heightPct = maxVal > 0 ? Math.max(4, (val / maxVal) * 100) : 4;
+        return (
+          <button key={i} type="button"
+            onClick={() => setPicked(current => (current === i ? null : i))}
+            aria-label={`${labels[months[i].month]}: ${fmt(val)}`}
+            className="group flex-1 flex flex-col items-center gap-1.5 max-w-[72px]">
+            {/* Die Zeile bleibt stehen, auch wenn sie leer ist — sonst hüpfen die Balken */}
+            <span className={`text-[10px] lg:text-[11px] font-medium text-ink-2 tabular-nums transition-opacity
+              ${shown ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'}`}>
+              {fmt(val)}
             </span>
-          )}
-        </div>
-      );
-    })}
-  </div>
-);
+            <div className="w-full flex items-end h-20 lg:h-36">
+              <div
+                className={`w-full rounded-md origin-bottom transition-colors
+                  ${isCurrent || shown ? 'bg-ink' : val > 0 ? 'bg-ink/35 lg:group-hover:bg-ink/60' : 'bg-surface-3'}`}
+                style={{
+                  height: `${heightPct}%`, minHeight: '3px',
+                  animation: `bar-grow 500ms ${EXPO_OUT} ${i * 30}ms backwards`,
+                }} />
+            </div>
+            {(range <= 6 || i % 2 === 0 || isDesktop) && (
+              <span className={`text-[10px] leading-none lg:text-[11px] ${isCurrent ? 'text-ink font-medium' : 'text-ink-3'}`}>
+                {labels[months[i].month]}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 // ─── Kosten als Ringdiagramm ──────────────────────────────────────────────────
 // Kleine Gruppen werden zusammengefasst, damit Segmente und Legende auch auf
@@ -756,6 +759,7 @@ const FilterSelect = ({ icon: Icon, label, active, value, options, onChange }) =
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => setOpen(o => !o)}
+        aria-haspopup="menu" aria-expanded={open}
         className={`inline-flex h-10 items-center gap-1.5 max-w-[190px] border rounded-lg px-3 text-xs font-medium transition
           ${active
             // Wie die Segmentpille (§3.2): gehobene Fläche statt Umkehrung —
@@ -766,7 +770,7 @@ const FilterSelect = ({ icon: Icon, label, active, value, options, onChange }) =
         <span className="truncate">{label}</span>
         <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      <PopMenu open={open} className="top-9 left-0" width="w-[240px] max-w-[calc(100vw-2.5rem)]">
+      <PopMenu open={open} role="menu" className="top-9 left-0" width="w-[240px] max-w-[calc(100vw-2.5rem)]">
         {options.map(option => (
           <MenuItem key={option.value || '__none'}
             onClick={() => { onChange(option.value); setOpen(false); }}
@@ -783,7 +787,8 @@ const FilterSelect = ({ icon: Icon, label, active, value, options, onChange }) =
 // ─── Liste der Einträge ───────────────────────────────────────────────────────
 // Die Zeilen kaskadieren herein: 250ms, 50ms Versatz, 20px Aufstieg (§4.3)
 const EntryList = ({ groups, count, docCounts, searchQuery, menuKey, fmt, fmtOriginal, monthly,
-  groupBy, filtered, hint, archived, emptyMessage, onOpen, onEdit, onArchive, onRestore, onDelete }) => {
+  groupBy, filtered, hint, onDismissHint, archived, emptyMessage,
+  onOpen, onEdit, onArchive, onRestore, onDelete }) => {
   const t = useT();
   const listRef = useRef(null);
   const grouped = groupBy !== 'none';
@@ -800,8 +805,14 @@ const EntryList = ({ groups, count, docCounts, searchQuery, menuKey, fmt, fmtOri
   return (
     <div ref={listRef} className={shell}>
       {hint && count > 0 && (
-        <div className={`text-[11px] text-ink-3 text-center lg:hidden
-          ${grouped ? 'px-1' : 'px-4 py-2 border-b border-border'}`}>{hint}</div>
+        <button type="button" onClick={onDismissHint}
+          aria-label={t.hint_dismiss}
+          className={`w-full flex items-center justify-center gap-2 text-[11px] text-ink-3
+            hover:text-ink transition lg:hidden
+            ${grouped ? 'px-1 py-1' : 'px-4 py-2 border-b border-border'}`}>
+          <span>{hint}</span>
+          <X className="w-3 h-3 shrink-0" />
+        </button>
       )}
       {groups.map(group => (
         <section key={group.id} className={grouped ? 'space-y-2' : undefined}>
@@ -1030,21 +1041,27 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
     const onKey = (e) => {
       const typing = ['INPUT', 'TEXTAREA'].includes(e.target?.tagName) || e.target?.isContentEditable;
       if (e.key === 'Escape') {
-        if (isModalOpen) { setIsModalOpen(false); setEditingEntry(null); }
-        else if (confirmEntry) setConfirmEntry(null);
-        else if (detailOpen) setDetailOpen(false);
-        else if (typing) e.target.blur();
+        // Blätter schließen sich selbst und fragen dabei nach Ungesichertem —
+        // hier bleibt nur das Feld, aus dem jemand herauswill.
+        if (isModalOpen || confirmEntry || detailOpen) return;
+        if (typing) e.target.blur();
         return;
       }
       if (isModalOpen || confirmEntry || detailOpen || typing || e.metaKey || e.ctrlKey || e.altKey) return;
       if (expenses.modalOpen || expenses.accountsOpen) return;
       if (e.key === 'n' || e.key === 'т') { e.preventDefault(); addForSection(); }
+      // Bisher sprang „/“ immer zu den Verträgen — auch aus den Ausgaben
+      // heraus, wo es damals gar keine Suche gab. Jetzt sucht es dort, wo man ist.
       if (e.key === '/') {
         e.preventDefault();
-        switchSection('contracts');
-        switchTab('home');
-        setSearchOpen(true);
-        setTimeout(() => searchRef.current?.focus(), 0);
+        if (section === 'expenses') {
+          switchTab('month');
+          setTimeout(() => document.querySelector('[data-expense-search]')?.focus(), 0);
+        } else {
+          switchTab('home');
+          setSearchOpen(true);
+          setTimeout(() => searchRef.current?.focus(), 0);
+        }
       }
       // Die Ziffer zählt innerhalb des Bereichs — „2“ ist immer der mittlere Reiter
       const index = ['1', '2', '3'].indexOf(e.key);
@@ -1053,7 +1070,7 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDesktop, isModalOpen, confirmEntry, detailOpen, switchTab, switchSection,
+  }, [isDesktop, isModalOpen, confirmEntry, detailOpen, switchTab, switchSection, section,
       sectionTabs, expenses.modalOpen, expenses.accountsOpen]);
 
   // ── Курсы валют ────────────────────────────────────────────────────────────
@@ -1082,12 +1099,13 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
     });
   };
 
-  useEffect(() => {
-    if (!swipeHinted && entries.some(entry => !entry.archived_at)) {
-      const t = setTimeout(() => { setSwipeHinted(true); localStorage.setItem('swipeHinted', '1'); }, 3000);
-      return () => clearTimeout(t);
-    }
-  }, [entries, swipeHinted]);
+  // Früher lief hier ein Wecker über drei Sekunden — wer in dem Moment
+  // woandershin sah, hat den Hinweis nie gelesen und bekam ihn nie wieder.
+  // Jetzt bleibt er stehen, bis jemand ihn wegtippt.
+  const dismissSwipeHint = useCallback(() => {
+    setSwipeHinted(true);
+    localStorage.setItem('swipeHinted', '1');
+  }, []);
 
   // Авто-активация пробных у которых trial_end прошёл
   const activatingRef = useRef(new Set());
@@ -1416,8 +1434,12 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
       )} />
   );
 
+  // `select-none` lag früher über der ganzen Anwendung: am Telefon ließ sich
+  // damit kein Betrag, kein Name und keine Vertragsnummer markieren. Das Wischen
+  // braucht es nicht — nur der waagerechte Streifen, den man mit der Maus zieht,
+  // trägt es noch selbst.
   return (
-    <div className="min-h-screen bg-surface text-ink flex justify-center select-none lg:justify-start lg:select-text">
+    <div className="min-h-screen bg-surface text-ink flex justify-center lg:justify-start">
       {/* ── Боковая навигация (десктоп) ── */}
       <DesktopSidebar
         section={section} onSectionChange={switchSection}
@@ -1543,7 +1565,7 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
                         }}
                         aria-label={t.search_placeholder}
                         aria-expanded={searchOpen}
-                        title={t.search_placeholder}
+                        title={`${t.search_placeholder}  ( / )`}
                         className={`inline-flex size-9 shrink-0 items-center justify-center rounded-lg border transition
                           ${searchOpen || searchQuery
                             ? 'bg-surface-sunken border-border-strong text-ink'
@@ -1605,6 +1627,7 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
                     hint={!swipeHinted
                       ? (listView === 'archived' ? t.swipe_hint_archived : t.swipe_hint)
                       : null}
+                    onDismissHint={dismissSwipeHint}
                     onOpen={openDetail} onEdit={openEdit}
                     onArchive={archiveEntry} onRestore={restoreEntry}
                     onDelete={setConfirmEntry} />
@@ -1656,7 +1679,25 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
               </MobilePageHeader>
               {sectionSwitch}
 
-              {/* Сетка карточек: колонка на мобиле, 2 колонки на десктопе */}
+              {/* Ohne einen einzigen Eintrag stünden hier zwölf leere Balken, ein
+                  Ring ohne Segmente und dreimal „0 €“ — ein Gerüst, das so tut,
+                  als wäre etwas ausgewertet worden. Dann lieber ein Satz. */}
+              {currentEntries.length === 0 ? (
+                <div data-group
+                  className={`${CARD} flex flex-col items-center text-center px-6 py-12 space-y-5 lg:py-16`}>
+                  <div className="w-20 h-20 rounded-2xl bg-surface border border-border flex items-center justify-center">
+                    <BarChart2 className="w-8 h-8 text-ink-3" strokeWidth={1.5} />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-lg font-semibold tracking-tight">{t.analytics_empty_title}</p>
+                    <p className="text-sm text-ink-3 leading-relaxed max-w-[320px]">{t.analytics_empty_subtitle}</p>
+                  </div>
+                  <button onClick={openAdd} className={btn('primary', 'lg')}>
+                    <Plus className="w-4 h-4" />{t.add_first_sub}
+                  </button>
+                </div>
+              ) : (
+              /* Сетка карточек: колонка на мобиле, 2 колонки на десктопе */
               <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
               <div data-group className={`${CARD} p-5 lg:col-span-2 flex items-baseline justify-between gap-4`}>
                 <span className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">{t.per_month}</span>
@@ -1863,6 +1904,7 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
                 );
               })()}
               </div>
+              )}
             </div>
           </div>
 
@@ -1930,35 +1972,22 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
 };
 
 // ─── Löschen bestätigen ───────────────────────────────────────────────────────
+// Der Name bleibt beim Schließen stehen, damit das Blatt nicht mit einer Lücke
+// im Satz ausgleitet.
 const ConfirmDelete = ({ entry, onCancel, onConfirm }) => {
   const t = useT();
-  const isDesktop = useIsDesktop();
   const [shown, setShown] = useState(entry);
   if (entry && entry !== shown) setShown(entry);
 
   return (
-    <Overlay open={Boolean(entry)} onClose={onCancel} sheet={!isDesktop}
-      panelClass="inset-x-0 bottom-0 mx-auto w-full max-w-[420px] bg-surface-2 border border-border-strong
-        rounded-t-2xl px-5 pt-5 pb-8 shadow-2xl
-        lg:inset-0 lg:m-auto lg:h-fit lg:rounded-2xl lg:p-6">
-      <div className="flex items-start gap-3 mb-5">
-        <div className="w-9 h-9 rounded-lg bg-error/10 border border-error/30 flex items-center justify-center shrink-0">
-          <Trash2 className="w-4 h-4 text-error" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-ink">{t.sub_delete} «{shown?.name}»?</p>
-          <p className="text-xs text-ink-3 mt-1 leading-relaxed">{t.delete_confirm_hint}</p>
-        </div>
-      </div>
-      <div className="flex flex-col gap-2 lg:flex-row-reverse lg:gap-3">
-        <button onClick={onConfirm} className={btn('danger', 'md', 'w-full py-3 lg:flex-1')}>
-          {t.sub_delete}
-        </button>
-        <button onClick={onCancel} className={btn('ghost', 'md', 'w-full py-3 lg:flex-1')}>
-          {t.modal_cancel}
-        </button>
-      </div>
-    </Overlay>
+    <ConfirmDialog
+      open={Boolean(entry)}
+      title={`${t.sub_delete} «${shown?.name}»?`}
+      body={t.delete_confirm_hint}
+      confirmLabel={t.sub_delete}
+      icon={Trash2}
+      onConfirm={onConfirm}
+      onCancel={onCancel} />
   );
 };
 
@@ -2223,7 +2252,7 @@ const Onboarding = ({ onDone, toggleLang, lang, theme, toggleTheme }) => {
           {/* Точки — всегда на одном месте, прибиты к низу контентной зоны */}
           <div className="flex justify-center gap-2 py-8">
             {ONBOARDING_STEPS.map((_, i) => (
-              <button key={i} type="button" onClick={() => setStep(i)} data-no-press
+              <button key={i} type="button" onClick={() => setStep(i)}
                 aria-label={`${i + 1}`}
                 className={`rounded-full transition-all duration-300 ${i === step ? 'w-6 h-1.5 bg-ink' : 'w-1.5 h-1.5 bg-border-strong hover:bg-ink-3'}`} />
             ))}
@@ -2342,6 +2371,8 @@ const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = 
   const [importStatus, setImportStatus] = useState(null); // null | 'ok' | 'err'
   const [importMsg, setImportMsg]       = useState('');
   const [backupBusy, setBackupBusy]     = useState(false);
+  // Die eingelesene Sicherung wartet hier, bis die Rückfrage beantwortet ist
+  const [pendingRestore, setPendingRestore] = useState(null);
   const close    = useCallback(() => setOpen(false), []);
   const ref      = useDismiss(open, close);
   const fileRef  = useRef(null);
@@ -2425,19 +2456,11 @@ const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = 
         const parsed = JSON.parse(text);
 
         // Eine Sicherung wird nicht dazugemischt, sie tritt an die Stelle des
-        // bisherigen Stands — deshalb erst fragen, dann alles ersetzen.
+        // bisherigen Stands — deshalb erst fragen, dann alles ersetzen. Die
+        // Frage steht als Blatt da wie jede andere: es ist der Schritt, nach
+        // dem es hier nichts mehr zurückzuholen gibt.
         if (backup.isBackup(parsed)) {
-          if (!window.confirm(t.io_restore_confirm)) return;
-
-          const result = await backup.restoreBackup(parsed, {
-            entryStore, expenseStore, accountStore, budgetStore, bankRuleStore,
-          });
-          setImportMsg(t.io_restore_ok(result.entries + result.expenses));
-          setImportStatus('ok');
-
-          // Sprache, Farbschema und Währung stecken in den Einstellungen —
-          // ein Neuladen ist der ehrlichste Weg, sie überall wirken zu lassen.
-          setTimeout(() => window.location.reload(), 900);
+          setPendingRestore(parsed);
           return;
         }
 
@@ -2466,6 +2489,39 @@ const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = 
 
     setTimeout(() => setImportStatus(null), 3500);
   };
+
+  // Bestätigt: die Sicherung tritt an die Stelle von allem, was hier liegt
+  const runRestore = async () => {
+    const payload = pendingRestore;
+    setPendingRestore(null);
+    if (!payload) return;
+
+    try {
+      const result = await backup.restoreBackup(payload, {
+        entryStore, expenseStore, accountStore, budgetStore, bankRuleStore,
+      });
+      setImportMsg(t.io_restore_ok(result.entries + result.expenses));
+      setImportStatus('ok');
+
+      // Sprache, Farbschema und Währung stecken in den Einstellungen —
+      // ein Neuladen ist der ehrlichste Weg, sie überall wirken zu lassen.
+      setTimeout(() => window.location.reload(), 900);
+    } catch {
+      setImportMsg(t.io_import_err);
+      setImportStatus('err');
+      setTimeout(() => setImportStatus(null), 3500);
+    }
+  };
+
+  const restoreDialog = (
+    <ConfirmDialog
+      open={Boolean(pendingRestore)}
+      title={t.io_restore_title}
+      body={t.io_restore_confirm}
+      confirmLabel={t.io_restore_action}
+      onConfirm={runRestore}
+      onCancel={() => setPendingRestore(null)} />
+  );
 
   const content = (
     <>
@@ -2530,12 +2586,14 @@ const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = 
     </>
   );
 
-  if (embedded) return content;
+  // Das Blatt hängt am Rumpf, nicht am Menü — es überlebt damit, dass die
+  // Auswahlliste beim Klick daneben zugeht.
+  if (embedded) return <>{content}{restoreDialog}</>;
 
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen(v => !v)} title={t.io_title}
-        aria-label={t.io_title} aria-haspopup="menu" aria-expanded={open}
+        aria-label={t.io_title} aria-haspopup="dialog" aria-expanded={open}
         className="h-10 px-3 rounded-lg border border-border bg-surface-2 inline-flex items-center justify-center gap-2
           text-ink-2 hover:text-ink hover:bg-surface-3 transition shrink-0">
         <Archive className="w-4 h-4" />
@@ -2545,6 +2603,7 @@ const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = 
       <PopMenu open={open} className="right-0 top-12" origin="top right" width="w-[280px]">
         {content}
       </PopMenu>
+      {restoreDialog}
     </div>
   );
 };
@@ -2574,7 +2633,7 @@ const SettingsMenu = ({
     <div ref={ref} className={`relative ${buttonClass}`}>
       <button type="button" onClick={() => setOpen(value => !value)}
         title={t.settings_title} aria-label={t.settings_title}
-        aria-haspopup="menu" aria-expanded={open}
+        aria-haspopup="dialog" aria-expanded={open}
         className={`${triggerLabel ? 'w-full px-3 gap-2 justify-start' : 'w-10 justify-center'}
           h-10 shrink-0 flex items-center rounded-lg border border-border
           bg-surface-2 text-ink-2 hover:text-ink hover:bg-surface-3 transition`}>
@@ -2723,7 +2782,7 @@ const CalendarSection = ({ entries, fmt, fmtReal, monthly, month, year, onPrev, 
     <div data-group className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
       <div className="space-y-3 lg:col-span-2">
       <div className="flex items-center justify-between px-1">
-        <button onClick={onPrev} aria-label="←"
+        <button onClick={onPrev} aria-label={t.month_previous}
           className="w-9 h-9 rounded-lg border border-border bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink hover:bg-surface-3 transition">
           <ChevronDown className="w-4 h-4 rotate-90" />
         </button>
@@ -2735,7 +2794,7 @@ const CalendarSection = ({ entries, fmt, fmtReal, monthly, month, year, onPrev, 
             </button>
           )}
         </div>
-        <button onClick={onNext} aria-label="→"
+        <button onClick={onNext} aria-label={t.month_next}
           className="w-9 h-9 rounded-lg border border-border bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink hover:bg-surface-3 transition">
           <ChevronDown className="w-4 h-4 -rotate-90" />
         </button>
@@ -2849,7 +2908,7 @@ const SoonSection = ({ soonEntries, fmtOriginal, className = '' }) => {
       {soonEntries.length === 0
         ? <p className="text-sm text-ink-3 px-1 lg:px-5 lg:py-6 lg:bg-surface-2 lg:border lg:border-border lg:rounded-xl">{t.soon_empty}</p>
         : <div ref={ref} data-no-tab-swipe
-            className="flex gap-3 overflow-x-auto px-1 pb-1 lg:flex-col lg:overflow-visible lg:px-0">
+            className="flex gap-3 overflow-x-auto px-1 pb-1 select-none lg:flex-col lg:overflow-visible lg:px-0 lg:select-text">
             {soonEntries.map(entry => <SoonCard key={entry.id} entry={entry} fmtOriginal={fmtOriginal} />)}
           </div>
       }
@@ -2889,7 +2948,7 @@ const DeadlinesSection = ({ deadlines, onOpen, className = '' }) => {
       ) : (
         <div className={`${CARD} divide-y divide-border overflow-hidden`}>
           {deadlines.map(({ entry, date, days }) => (
-            <button key={entry.id} type="button" onClick={() => onOpen(entry)} data-no-press
+            <button key={entry.id} type="button" onClick={() => onOpen(entry)}
               className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface-3 transition">
               <LogoIcon entry={entry} size="sm" />
               <div className="min-w-0 flex-1">
@@ -3314,6 +3373,7 @@ const VaultPanel = ({ vaultState }) => {
   const [repeat,     setRepeat]     = useState('');
   const [error,      setError]      = useState('');
   const [busy,       setBusy]       = useState(false);
+  const [askReset,   setAskReset]   = useState(false);
 
   if (!vaultState.available) {
     return <Note tone="warning">{t.vault_unavailable}</Note>;
@@ -3352,7 +3412,7 @@ const VaultPanel = ({ vaultState }) => {
   };
 
   const resetVault = () => {
-    if (!window.confirm(t.vault_reset_confirm)) return;
+    setAskReset(false);
     vaultState.reset();
     setPassphrase(''); setRepeat(''); setError('');
   };
@@ -3393,11 +3453,20 @@ const VaultPanel = ({ vaultState }) => {
       </button>
 
       {vaultState.configured && (
-        <button type="button" onClick={resetVault}
+        <button type="button" onClick={() => setAskReset(true)}
           className="w-full text-[11px] text-ink-3 hover:text-error transition py-1.5 rounded-lg">
           {t.vault_reset} · {t.vault_reset_hint}
         </button>
       )}
+
+      <ConfirmDialog
+        open={askReset}
+        title={t.vault_reset}
+        body={t.vault_reset_confirm}
+        confirmLabel={t.vault_reset_action}
+        icon={KeyRound}
+        onConfirm={resetVault}
+        onCancel={() => setAskReset(false)} />
     </div>
   );
 };
@@ -3916,7 +3985,7 @@ const CategoryPicker = ({ value, onChange }) => {
 
   return (
     <div ref={ref} className="relative">
-      <button type="button" onClick={() => (open ? close() : setOpen(true))} aria-haspopup="listbox" aria-expanded={open}
+      <button type="button" onClick={() => (open ? close() : setOpen(true))} aria-haspopup="dialog" aria-expanded={open}
         className={`${INPUT_CLASS} flex items-center gap-2.5 text-left hover:bg-surface-3`}>
         <Icon className={`w-4 h-4 shrink-0 ${cat ? 'text-ink-2' : 'text-ink-3'}`} />
         <span className={`flex-1 truncate ${cat ? 'text-ink' : 'text-ink-3'}`}>
@@ -4086,6 +4155,17 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
 
   const canSave = Boolean(name.trim()) && !saving;
 
+  // Dokumente liegen schon in der Ablage; das Passwort zählt erst mit, wenn es
+  // angefasst wurde — was der Tresor nachträglich entschlüsselt, ist keine
+  // Eingabe des Benutzers und darf das Formular nicht als geändert ausweisen.
+  const dirty = useDirty(JSON.stringify([
+    name, provider, price, period, category, status, location, kindChoice,
+    trialEnd, notes, day, month, contractStart, contractEnd, noticeMonths,
+    autoRenew, fields, custom, url, username, loginNote, modalCurrency,
+    secretTouched ? secret : '',
+  ]));
+  const { asking, requestClose, confirmClose, cancelClose } = useCloseGuard(dirty, onClose);
+
   const handleSubmit = async () => {
     if (!canSave) return;
 
@@ -4204,7 +4284,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
   };
 
   return (
-    <Overlay open={open} onClose={onClose} sheet={!isDesktop} labelledBy="entry-modal-title"
+    <Overlay open={open} onClose={requestClose} sheet={!isDesktop} labelledBy="entry-modal-title"
       panelClass={isDesktop
         ? 'inset-0 m-auto h-fit w-[680px] max-h-[88vh] flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border shadow-2xl'
         : 'inset-x-3 bottom-3 top-14 flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border max-w-[450px] mx-auto shadow-2xl'}>
@@ -4223,7 +4303,8 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
                 <p className="text-xs text-ink-3 truncate mt-0.5">{subtitle || t.modal_edit}</p>
               )}
             </div>
-            <button type="button" onClick={onClose} title={t.detail_close} aria-label={t.detail_close}
+            <button type="button" onClick={requestClose} title={t.detail_close} aria-label={t.detail_close}
+              data-focus-skip
               className="w-9 h-9 -mt-1 -mr-2 shrink-0 rounded-lg flex items-center justify-center
                 text-ink-3 hover:text-ink hover:bg-surface-3 transition">
               <X className="w-4 h-4" />
@@ -4264,7 +4345,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
                     value={name} onChange={e => changeName(e.target.value)}
                     onFocus={() => setSuggestionsDismissed(false)} />
                 </FieldShell>
-                <PopMenu open={showSuggestions} className="top-full mt-1 left-0 right-0" width="">
+                <PopMenu open={showSuggestions} role="menu" className="top-full mt-1 left-0 right-0" width="">
                   {suggestions.map(service => {
                     const serviceCat  = getCat(service.category);
                     const ServiceIcon = service.lucideIcon || null;
@@ -4347,13 +4428,17 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
               ) : (
                 <FieldGroup label={period === 'yearly' ? t.modal_billing_date : t.modal_billing_day}>
                   <div className="flex items-center gap-2">
-                    <input type="number" inputMode="numeric" min="1" max="31" placeholder="15"
-                      className={`${INPUT_CLASS} w-20 shrink-0 text-center ${dayError ? 'border-error shake' : ''}`}
-                      value={day}
-                      onChange={e => { const v = e.target.value; if (v === '' || (Number(v) >= 1 && Number(v) <= 31)) setDay(v); }} />
+                    {/* Die Breite steht am Rahmen: INPUT_CLASS bringt w-full mit, und
+                        w-full sticht w-20 am Feld selbst aus */}
+                    <div className="w-20 shrink-0">
+                      <input type="number" inputMode="numeric" min="1" max="31" placeholder="15"
+                        className={`${INPUT_CLASS} text-center ${dayError ? 'border-error shake' : ''}`}
+                        value={day}
+                        onChange={e => { const v = e.target.value; if (v === '' || (Number(v) >= 1 && Number(v) <= 31)) setDay(v); }} />
+                    </div>
                     {period === 'yearly'
-                      ? <div className="flex-1"><MonthPicker value={month} onChange={setMonth} /></div>
-                      : <span className="text-xs text-ink-3">{t.modal_billing_suffix}</span>}
+                      ? <div className="flex-1 min-w-0"><MonthPicker value={month} onChange={setMonth} /></div>
+                      : <span className="text-xs text-ink-3 whitespace-nowrap">{t.modal_billing_suffix}</span>}
                   </div>
                 </FieldGroup>
               )}
@@ -4564,7 +4649,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
 
         {/* ── Fuß: bleibt stehen, Speichern trägt das Gewicht ── */}
         <footer className="shrink-0 border-t border-border px-5 py-4 lg:px-7 flex items-center justify-end gap-2">
-          <button type="button" onClick={onClose} className={btn('ghost', 'md', 'px-5 py-3')}>
+          <button type="button" onClick={requestClose} className={btn('ghost', 'md', 'px-5 py-3')}>
             {t.modal_cancel}
           </button>
           <button disabled={!canSave} onClick={handleSubmit}
@@ -4572,6 +4657,11 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
             {initial ? t.modal_save : t.modal_add}
           </button>
         </footer>
+
+        <ConfirmDialog open={asking}
+          title={t.discard_title} body={t.discard_hint}
+          confirmLabel={t.discard_action} cancelLabel={t.discard_keep}
+          onConfirm={confirmClose} onCancel={cancelClose} />
     </Overlay>
   );
 };
@@ -4670,9 +4760,13 @@ const DesktopSidebar = ({
           </>
         )} />
 
-      <button onClick={onAdd} data-nav-swap className={btn('primary', 'md', 'mt-4 w-full py-3')}>
+      {/* Die Reiter darunter zeigen ihre Ziffer — „n“ und „/“ waren dagegen
+          nirgends abzulesen und blieben damit für immer unentdeckt. */}
+      <button onClick={onAdd} data-nav-swap className={btn('primary', 'md', 'mt-4 w-full py-3 relative')}>
         <Plus className="w-4 h-4" />
         {addLabel}
+        <kbd className="absolute right-3 text-[10px] leading-none px-1.5 py-1 rounded-md
+          border border-surface/30 text-surface/70">N</kbd>
       </button>
 
       <Segmented
@@ -4691,9 +4785,13 @@ const DesktopSidebar = ({
           </>
         )} />
 
-      <div className="mt-auto space-y-3">
+      {/* Der Herzknopf stand nur in der Kopfzeile des Telefons — am Schreibtisch
+          gab es ihn schlicht nicht, obwohl `align="top"` für genau diese Ecke
+          gebaut war. */}
+      <div className="mt-auto flex items-center gap-2">
+        <SupportMenu align="top" />
         <SettingsMenu
-          align="top" buttonClass="w-full" triggerLabel={t.settings_title}
+          align="top" buttonClass="flex-1 min-w-0" triggerLabel={t.settings_title}
           entries={entries} expenses={expenses} onImport={onImport} vaultState={vaultState}
           lang={lang} toggleLang={toggleLang}
           theme={theme} themePreference={themePreference} onThemeChange={setThemePreference}
@@ -4723,7 +4821,6 @@ export default function Root() {
     setPreference: setThemePreference,
     toggle: toggleTheme,
   } = useTheme();
-  useButtonPress();
 
   const toggleLang = () => {
     const next = lang === 'de' ? 'en' : 'de';

@@ -13,7 +13,7 @@ export const MonthStepper = ({ month, onStep, onToday, atCurrent }) => {
 
   return (
     <div className="flex items-center justify-between px-1">
-      <button type="button" onClick={() => onStep(-1)} aria-label="←"
+      <button type="button" onClick={() => onStep(-1)} aria-label={t.month_previous}
         className="w-9 h-9 rounded-lg border border-border bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink hover:bg-surface-3 transition">
         <ChevronDown className="w-4 h-4 rotate-90" />
       </button>
@@ -27,7 +27,7 @@ export const MonthStepper = ({ month, onStep, onToday, atCurrent }) => {
           </button>
         )}
       </div>
-      <button type="button" onClick={() => onStep(1)} aria-label="→"
+      <button type="button" onClick={() => onStep(1)} aria-label={t.month_next}
         className="w-9 h-9 rounded-lg border border-border bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink hover:bg-surface-3 transition">
         <ChevronDown className="w-4 h-4 -rotate-90" />
       </button>

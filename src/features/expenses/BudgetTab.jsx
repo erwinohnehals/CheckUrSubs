@@ -80,7 +80,7 @@ const RowMenu = ({ label, onEdit, onReset, onRemove, canReset }) => {
         <MoreHorizontal className="w-4 h-4" />
       </button>
 
-      <PopMenu open={open} className="top-full right-0 mt-1" origin="top right">
+      <PopMenu open={open} role="menu" className="top-full right-0 mt-1" origin="top right">
         <MenuItem icon={Pencil} onClick={() => pick(onEdit)}>{t.budget_edit}</MenuItem>
         {canReset && <MenuItem icon={RotateCcw} onClick={() => pick(onReset)}>{t.budget_reset}</MenuItem>}
         <MenuItem icon={Trash2} onClick={() => pick(onRemove)}

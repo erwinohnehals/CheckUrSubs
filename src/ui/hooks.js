@@ -1,6 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { STANDARD_EASE, reducedMotion } from '../lib/motion';
 
+// ─── Desktop-Breakpoint (deckt sich mit tailwind lg) ──────────────────────────
+// Liegt hier und nicht in App: auch geteilte Bausteine — Bestätigung, Blätter —
+// bauen sich am Telefon anders auf als am Schreibtisch.
+const DESKTOP_QUERY = '(min-width: 1024px)';
+
+export const useIsDesktop = () => {
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(DESKTOP_QUERY).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(DESKTOP_QUERY);
+    const onChange = (e) => setIsDesktop(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return isDesktop;
+};
+
 // Schließt Menüs bei Klick daneben und mit Escape
 export const useDismiss = (open, onClose) => {
   const ref = useRef(null);
@@ -18,6 +34,38 @@ export const useDismiss = (open, onClose) => {
     };
   }, [open, onClose]);
   return ref;
+};
+
+// ─── Ungesicherte Eingaben ────────────────────────────────────────────────────
+// Ein Formular mit dreißig Feldern, ein Fingertipp neben das Blatt, und alles
+// ist weg — ohne Server, von dem sich etwas zurückholen ließe. Also wird beim
+// Öffnen gemerkt, wie es dastand, und beim Schließen verglichen.
+//
+// `snapshot` ist ein einzelner Wert, üblicherweise ein JSON-String: so kostet
+// der Vergleich nichts und der Aufrufer entscheidet, was überhaupt zählt.
+// Gemerkt wird der erste je gesehene Stand, nicht der aktuelle — was der Tresor
+// erst nachträglich entschlüsselt, ist keine Änderung des Benutzers.
+export const useDirty = (snapshot) => {
+  // Zustand statt Ref: der Anfangswert wird genau einmal ausgewertet und darf
+  // im Render gelesen werden.
+  const [initial] = useState(snapshot);
+  return snapshot !== initial;
+};
+
+// Fängt das Schließen ab, solange etwas ungesichert ist. Wer nichts geändert
+// hat, merkt davon nichts — die Rückfrage kommt nur, wenn es etwas zu verlieren gibt.
+export const useCloseGuard = (dirty, onClose) => {
+  const [asking, setAsking] = useState(false);
+
+  const requestClose = useCallback(() => {
+    if (dirty) setAsking(true);
+    else onClose();
+  }, [dirty, onClose]);
+
+  const confirmClose = useCallback(() => { setAsking(false); onClose(); }, [onClose]);
+  const cancelClose  = useCallback(() => setAsking(false), []);
+
+  return { asking, requestClose, confirmClose, cancelClose };
 };
 
 // ─── Öffnungsrichtung eines Menüs ─────────────────────────────────────────────

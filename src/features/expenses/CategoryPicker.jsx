@@ -37,7 +37,7 @@ export const CategoryPicker = ({
         measure(ref.current);
         setOpen(true);
       }}
-        aria-haspopup="listbox" aria-expanded={open}
+        aria-haspopup="dialog" aria-expanded={open}
         className={`${INPUT_CLASS} flex items-center gap-2.5 text-left hover:bg-surface-3
           ${compact ? 'px-3 py-2 text-xs' : ''}`}>
         <Icon className={`w-4 h-4 shrink-0 ${category ? 'text-ink-2' : 'text-ink-3'}`} />
