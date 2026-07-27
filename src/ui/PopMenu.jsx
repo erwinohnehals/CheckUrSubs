@@ -29,8 +29,12 @@ export const PopMenu = ({
   );
 };
 
-export const MenuHeader = ({ title, hint }) => (
-  <div className="px-3 pt-2 pb-2.5 mb-1 border-b border-border">
+// Das Polster ist ausgelagert, weil derselbe Kopf mal in einem 240px-Menü und
+// mal in einer Spalte eines Blattes steht — dort ist das Menümaß zu eng. Als
+// ganzer Satz übergeben, nicht als Zusatz: zwei widersprüchliche Tailwind-
+// Klassen entscheidet die Reihenfolge im Stylesheet, nicht die im String.
+export const MenuHeader = ({ title, hint, padClass = 'px-3 pt-2 pb-2.5' }) => (
+  <div className={`${padClass} mb-1 border-b border-border`}>
     <p className="text-sm font-medium text-ink">{title}</p>
     {hint && <p className="text-xs text-ink-3 mt-0.5">{hint}</p>}
   </div>

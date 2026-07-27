@@ -162,8 +162,12 @@ export const Overlay = ({ open, onClose, children, panelClass = '', sheet = fals
   // `transform` über ihr würde sie sonst beschneiden oder festnageln.
   return createPortal(
     <>
+      {/* Der Grund tritt zurück: abgedunkelt und weichgezeichnet, damit ein
+          Blatt über einer vollen Ansicht als eigene Ebene liest und nicht als
+          Kasten darin. Ein Wert für alle Blätter — der Grund gehört dem Haus,
+          nicht dem einzelnen Dialog. */}
       <div ref={backdropRef} onClick={onClose}
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
+        className="fixed inset-0 z-40 bg-black/55 backdrop-blur-[6px]" />
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={labelledBy}
         data-overlay-panel tabIndex={-1}
         onClick={e => e.stopPropagation()}

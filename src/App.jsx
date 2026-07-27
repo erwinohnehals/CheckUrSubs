@@ -2274,7 +2274,11 @@ const Onboarding = ({ onDone, toggleLang, lang, theme, toggleTheme }) => {
 };
 
 // ─── Import / Export Menu ─────────────────────────────────────────────────────
-const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = false }) => {
+// `padClass` gilt für alle Blöcke zugleich, damit die Trennlinien über die volle
+// Breite laufen: eingebettet im Einstellungsblatt ist das Menümaß px-3 zu eng.
+const ImportExportMenu = ({
+  entries, expenses, onImport, vaultState, embedded = false, padClass = 'px-3',
+}) => {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [importStatus, setImportStatus] = useState(null); // null | 'ok' | 'err'
@@ -2434,17 +2438,20 @@ const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = 
 
   const content = (
     <>
-        <MenuHeader title={t.io_title} hint={t.io_subtitle} />
+        <MenuHeader title={t.io_title} hint={t.io_subtitle}
+          padClass={embedded ? `${padClass} pt-5 pb-4` : undefined} />
         {importStatus && (
-          <div data-menu-item role="status"
-            className={`mx-3 mb-1 rounded-lg px-3 py-2 text-[11px] text-center
-              ${importStatus === 'ok' ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
-            {importMsg}
+          <div data-menu-item className={`${padClass} mb-1`}>
+            <div role="status"
+              className={`rounded-lg px-3 py-2 text-[11px] text-center
+                ${importStatus === 'ok' ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
+              {importMsg}
+            </div>
           </div>
         )}
 
         {/* Полная резервная копия — главный Weg gegen Datenverlust */}
-        <div data-menu-item className="px-3 py-2">
+        <div data-menu-item className={`${padClass} py-2`}>
           <div className="flex items-center gap-2 mb-2 text-ink">
             <Archive className="w-4 h-4 text-ink-2" />
             <span className="text-sm font-medium">{t.io_backup}</span>
@@ -2459,7 +2466,7 @@ const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = 
         </div>
 
         {/* Import erkennt vollständige Sicherungen und flache Exporte */}
-        <div data-menu-item className="px-3 py-2 border-t border-border mt-1 pt-3">
+        <div data-menu-item className={`${padClass} pb-2 border-t border-border mt-1 pt-3`}>
           <div className="flex items-center gap-2 mb-2 text-ink">
             <Upload className="w-4 h-4 text-ink-2" />
             <span className="text-sm font-medium">{t.io_import}</span>
@@ -2474,7 +2481,7 @@ const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = 
         </div>
 
         {/* Flache Exporte zum Weiterverarbeiten */}
-        <div data-menu-item className="px-3 py-2 border-t border-border mt-1 pt-3">
+        <div data-menu-item className={`${padClass} pb-2 border-t border-border mt-1 pt-3`}>
           <div className="flex items-center gap-2 mb-2 text-ink">
             <Download className="w-4 h-4 text-ink-2" />
             <span className="text-sm font-medium">{t.io_export}</span>
@@ -2520,26 +2527,28 @@ const ImportExportMenu = ({ entries, expenses, onImport, vaultState, embedded = 
 // ─── Einstellungen ────────────────────────────────────────────────────────────
 // Alle app-weiten Entscheidungen sind an einem Ort. Der Import-/Export-Block
 // nutzt weiterhin dieselbe Logik wie bisher, wird hier aber direkt eingebettet.
+//
+// Als Blatt und nicht als Auswahlliste: was hier steht, sind vier Abschnitte mit
+// Erläuterungen und der Weg zur Sicherung — dafür ist ein an den Knopf
+// geheftetes Menü zu schmal. Am Schreibtisch stehen die beiden Hälften
+// nebeneinander, links die Darstellung, rechts die Daten.
 const SettingsMenu = ({
   entries, expenses, onImport, vaultState,
   lang, toggleLang,
   theme, themePreference, onThemeChange,
   currency, onCurrencyChange,
   ratesLoading, onRefreshRates,
-  align = 'right',
   buttonClass = '',
   triggerLabel,
 }) => {
   const t = useT();
+  const isDesktop = useIsDesktop();
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
-  const ref = useDismiss(open, close);
-  const menuPosition = align === 'top' ? 'left-0 bottom-12' : 'right-0 top-12';
-  const origin = align === 'top' ? 'bottom left' : 'top right';
   const selectedTheme = themePreference === 'system' ? theme : themePreference;
 
   return (
-    <div ref={ref} className={`relative ${buttonClass}`}>
+    <div className={buttonClass}>
       <button type="button" onClick={() => setOpen(value => !value)}
         title={t.settings_title} aria-label={t.settings_title}
         aria-haspopup="dialog" aria-expanded={open}
@@ -2552,86 +2561,108 @@ const SettingsMenu = ({
         {triggerLabel && <span className="text-sm font-medium truncate">{triggerLabel}</span>}
       </button>
 
-      <PopMenu open={open} className={menuPosition} origin={origin}
-        width="w-[min(340px,calc(100vw-2rem))]">
-        <div className="max-h-[min(680px,calc(100vh-7rem))] overflow-y-auto overscroll-contain">
-          <MenuHeader title={t.settings_title} hint={t.settings_subtitle} />
+      <Overlay open={open} onClose={close} sheet={!isDesktop} labelledBy="settings-title"
+        panelClass={isDesktop
+          ? 'inset-0 m-auto h-fit w-[860px] max-h-[88vh] flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border shadow-2xl'
+          : 'inset-x-3 bottom-3 top-12 flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border max-w-[450px] mx-auto shadow-2xl'}>
 
-          <section data-menu-item className="px-3 py-2.5">
-            <div className="flex items-center gap-2 mb-2">
-              {theme === 'dark'
-                ? <Moon className="w-4 h-4 text-ink-2" />
-                : <Sun className="w-4 h-4 text-ink-2" />}
-              <span className="text-sm font-medium">{t.settings_theme}</span>
-            </div>
-            <Segmented
-              items={[
-                { id: 'light', label: t.theme_light },
-                { id: 'dark', label: t.theme_dark },
-              ]}
-              value={selectedTheme}
-              onChange={onThemeChange}
-              className="w-full"
-              layout="grid grid-cols-2"
-              trackClass="h-10 bg-surface border border-border rounded-lg"
-              itemClass="text-xs"
-            />
-          </section>
+        <header data-stagger className="shrink-0 border-b border-border px-5 pt-5 pb-4 lg:px-7 flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 id="settings-title" className="text-lg font-semibold tracking-tight">{t.settings_title}</h2>
+            <p className="text-xs text-ink-3 mt-0.5">{t.settings_subtitle}</p>
+          </div>
+          <button type="button" onClick={close} title={t.detail_close} aria-label={t.detail_close}
+            data-focus-skip
+            className="w-9 h-9 -mt-1 -mr-2 shrink-0 rounded-lg flex items-center justify-center
+              text-ink-3 hover:text-ink hover:bg-surface-3 transition">
+            <X className="w-4 h-4" />
+          </button>
+        </header>
 
-          <section data-menu-item className="px-3 py-3 border-t border-border">
-            <div className="flex items-center gap-2 mb-2">
-              <Wallet className="w-4 h-4 text-ink-2" />
-              <span className="text-sm font-medium">{t.settings_currency}</span>
-              <button type="button" onClick={onRefreshRates} title={t.rates_refresh}
-                aria-label={t.rates_refresh}
-                className="ml-auto w-8 h-8 flex items-center justify-center rounded-lg text-ink-3
-                  hover:text-ink hover:bg-surface-3 transition">
-                <RefreshCw className={`w-3.5 h-3.5 ${ratesLoading ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {CURRENCIES.map(item => (
-                <button type="button" key={item.code} onClick={() => onCurrencyChange(item.code)}
-                  aria-pressed={currency === item.code}
-                  className={`h-10 px-3 rounded-lg border text-xs font-medium flex items-center justify-between transition
-                    ${currency === item.code
-                      ? 'bg-ink text-surface border-ink'
-                      : 'bg-surface border-border text-ink-2 hover:bg-surface-3 hover:text-ink'}`}>
-                  <span>{item.code}</span>
-                  <span className={currency === item.code ? 'text-surface/70' : 'text-ink-3'}>{item.symbol}</span>
-                </button>
-              ))}
-            </div>
-            <p className="text-[11px] text-ink-3 mt-2">{t.settings_currency_hint}</p>
-          </section>
+        <div className="flex-1 min-h-0 overflow-y-auto desktop-scroll">
+          <div data-stagger className="lg:grid lg:grid-cols-2 lg:items-start">
 
-          <section data-menu-item className="px-3 py-3 border-t border-border">
-            <div className="flex items-center gap-2 mb-2">
-              <Languages className="w-4 h-4 text-ink-2" />
-              <span className="text-sm font-medium">{t.settings_language}</span>
-            </div>
-            <Segmented
-              items={[
-                { id: 'de', label: 'Deutsch' },
-                { id: 'en', label: 'English' },
-              ]}
-              value={lang}
-              onChange={next => { if (next !== lang) toggleLang(); }}
-              className="w-full"
-              layout="grid grid-cols-2"
-              trackClass="h-10 bg-surface border border-border rounded-lg"
-              itemClass="text-xs"
-            />
-          </section>
+            {/* ── Darstellung ── */}
+            <div data-stagger className="px-5 py-5 lg:px-7 space-y-7">
+              <section>
+                <div className="flex items-center gap-2 mb-2.5">
+                  {theme === 'dark'
+                    ? <Moon className="w-4 h-4 text-ink-2" />
+                    : <Sun className="w-4 h-4 text-ink-2" />}
+                  <span className="text-sm font-medium">{t.settings_theme}</span>
+                </div>
+                <Segmented
+                  items={[
+                    { id: 'light', label: t.theme_light },
+                    { id: 'dark', label: t.theme_dark },
+                  ]}
+                  value={selectedTheme}
+                  onChange={onThemeChange}
+                  className="w-full"
+                  layout="grid grid-cols-2"
+                  trackClass="h-11 bg-surface border border-border rounded-lg"
+                  itemClass="text-sm"
+                />
+              </section>
 
-          <div className="border-t border-border">
-            <ImportExportMenu
-              entries={entries} expenses={expenses}
-              onImport={onImport} vaultState={vaultState} embedded
-            />
+              <section>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <Wallet className="w-4 h-4 text-ink-2" />
+                  <span className="text-sm font-medium">{t.settings_currency}</span>
+                  <button type="button" onClick={onRefreshRates} title={t.rates_refresh}
+                    aria-label={t.rates_refresh}
+                    className="ml-auto w-8 h-8 flex items-center justify-center rounded-lg text-ink-3
+                      hover:text-ink hover:bg-surface-3 transition">
+                    <RefreshCw className={`w-3.5 h-3.5 ${ratesLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {CURRENCIES.map(item => (
+                    <button type="button" key={item.code} onClick={() => onCurrencyChange(item.code)}
+                      aria-pressed={currency === item.code}
+                      className={`h-11 px-3.5 rounded-lg border text-sm font-medium flex items-center justify-between transition
+                        ${currency === item.code
+                          ? 'bg-ink text-surface border-ink'
+                          : 'bg-surface border-border text-ink-2 hover:bg-surface-3 hover:text-ink'}`}>
+                      <span>{item.code}</span>
+                      <span className={currency === item.code ? 'text-surface/70' : 'text-ink-3'}>{item.symbol}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-ink-3 mt-2">{t.settings_currency_hint}</p>
+              </section>
+
+              <section>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <Languages className="w-4 h-4 text-ink-2" />
+                  <span className="text-sm font-medium">{t.settings_language}</span>
+                </div>
+                <Segmented
+                  items={[
+                    { id: 'de', label: 'Deutsch' },
+                    { id: 'en', label: 'English' },
+                  ]}
+                  value={lang}
+                  onChange={next => { if (next !== lang) toggleLang(); }}
+                  className="w-full"
+                  layout="grid grid-cols-2"
+                  trackClass="h-11 bg-surface border border-border rounded-lg"
+                  itemClass="text-sm"
+                />
+              </section>
+            </div>
+
+            {/* ── Daten: am Telefon darunter, am Schreibtisch daneben ── */}
+            <div data-stagger className="pb-5 border-t border-border lg:border-t-0 lg:border-l lg:pb-7">
+              <ImportExportMenu
+                entries={entries} expenses={expenses}
+                onImport={onImport} vaultState={vaultState} embedded
+                padClass="px-5 lg:px-7"
+              />
+            </div>
           </div>
         </div>
-      </PopMenu>
+      </Overlay>
     </div>
   );
 };
@@ -4723,7 +4754,7 @@ const DesktopSidebar = ({
 
       <div className="mt-auto">
         <SettingsMenu
-          align="top" buttonClass="w-full min-w-0" triggerLabel={t.settings_title}
+          buttonClass="w-full min-w-0" triggerLabel={t.settings_title}
           entries={entries} expenses={expenses} onImport={onImport} vaultState={vaultState}
           lang={lang} toggleLang={toggleLang}
           theme={theme} themePreference={themePreference} onThemeChange={setThemePreference}
