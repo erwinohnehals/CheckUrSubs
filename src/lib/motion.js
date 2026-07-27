@@ -34,26 +34,66 @@ export const restartAnimation = (el, shorthand) => {
   el.style.animation = shorthand;
 };
 
+// ── Ebenenbeförderung ─────────────────────────────────────────────────────────
+// Bewegte Beschriftungen müssen sonst Bild für Bild neu gerastert werden. Mit
+// `will-change` liegt das Element für die Dauer des Laufs auf einer eigenen
+// Ebene und wird nur noch verschoben. Danach wieder abräumen — eine
+// stehengelassene Ebene kostet dauerhaft Speicher. Aufgeräumt wird per Uhr statt
+// per `animationend`: das Ereignis bleibt in Hintergrund-Tabs aus, und ein
+// Ereignis eines Kindes würde durchblubbern und die Ebene zu früh auflösen.
+const promotions = new WeakMap();
+
+const promote = (el, totalMs) => {
+  window.clearTimeout(promotions.get(el));
+  el.style.willChange = 'transform, opacity';
+  promotions.set(el, window.setTimeout(() => {
+    el.style.willChange = '';
+    promotions.delete(el);
+  }, totalMs + 80));
+};
+
+// ── Kaskaden ──────────────────────────────────────────────────────────────────
+// Beide Kaskaden teilen sich diesen Unterbau: erst alle Animationen leeren, die
+// Elemente auf eigene Ebenen heben und ihre Weite setzen, dann ein einziges Mal
+// Layout erzwingen, dann alle Shorthands setzen. Ein erzwungener Reflow je
+// Element — wie es ein `restartAnimation` in der Schleife täte — ließe den
+// Browser das Layout des ganzen Dokuments so oft neu rechnen, wie die Liste
+// Einträge hat. Beim Bereichswechsel, wo daneben eine ganze Ansicht neu
+// aufgebaut wird, kommt genau daher das Stocken der ersten Bilder.
+const cascade = (elements, { duration, step, base, max, prop, value, keyframes }) => {
+  const els = Array.from(elements).filter(Boolean);
+  if (!els.length) return;
+
+  const delayOf = (i) => base + Math.min(i, max) * step;
+  const total   = delayOf(els.length - 1) + duration;
+
+  els.forEach((el) => {
+    el.style.animation = '';
+    el.style.setProperty(prop, value);
+    promote(el, total);
+  });
+  els[0].getBoundingClientRect(); // der eine Reflow für die ganze Kaskade
+  els.forEach((el, i) => {
+    el.style.animation = `${keyframes} ${duration}ms ${STANDARD_EASE} ${delayOf(i)}ms backwards`;
+  });
+};
+
 // Kaskade für Kinder eines Containers: 250ms STANDARD, 50ms/Element, 20px Aufstieg.
 // Deckelt die Anzahl gestaffelter Elemente, damit lange Listen nicht zäh wirken.
 export const staggerIn = (elements, { duration = DURATION.listItem, step = 50, rise = 20, base = 0, max = 24 } = {}) => {
   if (reducedMotion()) return;
-  Array.from(elements).forEach((el, i) => {
-    if (!el) return;
-    el.style.setProperty('--rise-y', `${rise}px`);
-    restartAnimation(el, `rise-in ${duration}ms ${STANDARD_EASE} ${base + Math.min(i, max) * step}ms backwards`);
-  });
+  cascade(elements, { duration, step, base, max, prop: '--rise-y', value: `${rise}px`, keyframes: 'rise-in' });
 };
 
 // Seitliche Kaskade für den Bereichswechsel: dieselbe Staffelung wie staggerIn,
 // nur waagerecht. Ein negatives `shift` lässt die Einträge von links einlaufen.
-export const staggerSwap = (elements, { shift = 14, duration = DURATION.navSwap, step = 45, base = 0, max = 12 } = {}) => {
+// Die Hauskurve statt EXPO_OUT: über die kurze Strecke von 18px kriecht deren
+// Ausklang bruchteile eines Pixels je Bild — sichtbar als Ruckeln. Der Schritt
+// ist enger als bei einer Liste, weil hier nur eine Handvoll Reiter läuft und
+// die Gruppe zusammenbleiben soll.
+export const staggerSwap = (elements, { shift = 14, duration = DURATION.navSwap, step = 34, base = 0, max = 12 } = {}) => {
   if (reducedMotion()) return;
-  Array.from(elements).forEach((el, i) => {
-    if (!el) return;
-    el.style.setProperty('--swap-x', `${shift}px`);
-    restartAnimation(el, `swap-in ${duration}ms ${EXPO_OUT} ${base + Math.min(i, max) * step}ms backwards`);
-  });
+  cascade(elements, { duration, step, base, max, prop: '--swap-x', value: `${shift}px`, keyframes: 'swap-in' });
 };
 
 // ── Ein- und Ausblenden mit Nachlauf ──────────────────────────────────────────

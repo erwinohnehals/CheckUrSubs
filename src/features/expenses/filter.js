@@ -16,12 +16,13 @@ export const EMPTY_FILTER = {
   query:    '',
   category: '',
   tag:      '',
+  entry:    '',        // die ID des Vertrags, nicht sein Name
   scope:    'month',   // 'month' | ALL_MONTHS
 };
 
 /** Schränkt gerade irgendetwas ein? Der Bereich allein zählt nicht als Filter. */
 export const isFilterActive = (filter = EMPTY_FILTER) =>
-  Boolean(filter.query?.trim() || filter.category || filter.tag);
+  Boolean(filter.query?.trim() || filter.category || filter.tag || filter.entry);
 
 const text = (value) => String(value ?? '').toLowerCase();
 
@@ -31,7 +32,9 @@ const text = (value) => String(value ?? '').toLowerCase();
  * Der Betrag kommt roh mit: „80“ soll den Einkauf über 80,00 finden, denn genau
  * so erinnert man sich an ihn — nicht am Titel, sondern an der Zahl.
  */
-export const searchHaystack = (transaction, { categoryLabel, accountLabel } = {}) => [
+export const searchHaystack = (
+  transaction, { categoryLabel, accountLabel, entryLabel } = {},
+) => [
   transaction?.title,
   transaction?.merchant,
   transaction?.note,
@@ -39,6 +42,9 @@ export const searchHaystack = (transaction, { categoryLabel, accountLabel } = {}
   ...(transaction?.items || []).map((item) => item?.label),
   categoryLabel?.(transaction?.category) || '',
   accountLabel?.(transaction?.account_id) || '',
+  // Der Vertrag heißt oft anders als der Händler: „freenet DLS GmbH" steht auf
+  // dem Auszug, gesucht wird nach „Internet".
+  entryLabel?.(transaction?.entry_id) || '',
   transaction?.amount,
 ].filter(Boolean).map(text).join(' ');
 
@@ -60,6 +66,7 @@ export const matchesQuery = (transaction, query, labels) => {
 export const matchesFilter = (transaction, filter = EMPTY_FILTER, labels) => {
   if (filter.category && transaction?.category !== filter.category) return false;
   if (filter.tag && !(transaction?.tags || []).includes(filter.tag)) return false;
+  if (filter.entry && transaction?.entry_id !== filter.entry) return false;
   return matchesQuery(transaction, filter.query, labels);
 };
 
@@ -82,18 +89,21 @@ export const applyFilter = (transactions = [], filter = EMPTY_FILTER, labels, mo
 };
 
 /**
- * Welche Schlagwörter und Kategorien in einem Vorrat überhaupt vorkommen.
+ * Welche Schlagwörter, Kategorien und Verträge in einem Vorrat vorkommen.
  *
  * Ein Filter, der auf nichts zeigt, ist eine Sackgasse — angeboten wird nur,
- * was auch etwas trifft.
+ * was auch etwas trifft. Verträge kommen als IDs heraus; wie sie heißen, weiß
+ * dieses Modul nicht und soll es nicht wissen.
  */
 export const availableFacets = (transactions = []) => {
   const tags = new Map();
   const categories = new Set();
+  const entries = new Set();
 
   for (const transaction of transactions) {
     if (!isCounted(transaction)) continue;
     if (transaction.category) categories.add(transaction.category);
+    if (transaction.entry_id) entries.add(transaction.entry_id);
     for (const tag of transaction.tags || []) {
       tags.set(tag, (tags.get(tag) || 0) + 1);
     }
@@ -104,5 +114,6 @@ export const availableFacets = (transactions = []) => {
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([tag]) => tag),
     categories: [...categories],
+    entries: [...entries],
   };
 };

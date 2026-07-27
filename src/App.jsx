@@ -2543,11 +2543,13 @@ const SettingsMenu = ({
       <button type="button" onClick={() => setOpen(value => !value)}
         title={t.settings_title} aria-label={t.settings_title}
         aria-haspopup="dialog" aria-expanded={open}
-        className={`${triggerLabel ? 'w-full px-3 gap-2 justify-start' : 'w-10 justify-center'}
-          h-10 shrink-0 flex items-center rounded-lg border border-border
+        className={`${triggerLabel
+          ? 'w-full px-3.5 py-2.5 gap-3 justify-start'
+          : 'w-10 h-10 justify-center'}
+          shrink-0 flex items-center rounded-lg border border-border
           bg-surface-2 text-ink-2 hover:text-ink hover:bg-surface-3 transition`}>
-        <Settings className="w-4 h-4" />
-        {triggerLabel && <span className="text-sm font-medium">{triggerLabel}</span>}
+        <Settings className="w-4 h-4 shrink-0" />
+        {triggerLabel && <span className="text-sm font-medium truncate">{triggerLabel}</span>}
       </button>
 
       <PopMenu open={open} className={menuPosition} origin={origin}
@@ -4693,13 +4695,11 @@ const DesktopSidebar = ({
           </>
         )} />
 
-      {/* Die Reiter darunter zeigen ihre Ziffer — „n“ und „/“ waren dagegen
-          nirgends abzulesen und blieben damit für immer unentdeckt. */}
-      <button onClick={onAdd} data-nav-swap className={btn('primary', 'md', 'mt-4 w-full py-3 relative')}>
-        <Plus className="w-4 h-4" />
-        {addLabel}
-        <kbd className="absolute right-3 text-[10px] leading-none px-1.5 py-1 rounded-md
-          border border-surface/30 text-surface/70">N</kbd>
+      {/* Die Reiter darunter zeigen ihre Ziffer — sie wäre sonst nirgends
+          abzulesen und bliebe damit für immer unentdeckt. */}
+      <button onClick={onAdd} data-nav-swap className={btn('primary', 'md', 'mt-4 w-full py-2.5')}>
+        <Plus className="w-4 h-4 shrink-0" />
+        <span className="truncate">{addLabel}</span>
       </button>
 
       <Segmented

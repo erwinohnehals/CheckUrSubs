@@ -15,6 +15,7 @@ const tx = (over = {}) => ({
   date: '2026-03-14',
   category: '',
   account_id: null,
+  entry_id: null,
   amount: 0,
   items: [],
   tags: [],
@@ -26,6 +27,7 @@ const tx = (over = {}) => ({
 const labels = {
   categoryLabel: (id) => ({ groceries: 'Lebensmittel', travel: 'Reise' }[id] || ''),
   accountLabel:  (id) => ({ giro: 'Girokonto' }[id] || ''),
+  entryLabel:    (id) => ({ v1: 'Internet', v2: 'Mobilfunk' }[id] || ''),
 };
 
 // ── Der Heuhaufen ─────────────────────────────────────────────────────────────
@@ -48,6 +50,12 @@ test('Kategorie und Konto kommen als übersetzte Beschriftung mit', () => {
   const haystack = searchHaystack(tx({ category: 'groceries', account_id: 'giro' }), labels);
   assert.ok(haystack.includes('lebensmittel'));
   assert.ok(haystack.includes('girokonto'));
+});
+
+test('der Name des Vertrags ist durchsuchbar, auch wenn der Händler anders heißt', () => {
+  const row = tx({ merchant: 'freenet DLS GmbH', entry_id: 'v1' });
+  assert.ok(searchHaystack(row, labels).includes('internet'));
+  assert.ok(matchesQuery(row, 'internet', labels));
 });
 
 test('der Betrag ist durchsuchbar — so erinnert man sich an ihn', () => {
@@ -86,6 +94,13 @@ test('das Stichwort muss wirklich am Vorgang hängen', () => {
   const row = tx({ tags: ['Urlaub', 'Bar'] });
   assert.ok(matchesFilter(row, { ...EMPTY_FILTER, tag: 'Urlaub' }, labels));
   assert.ok(!matchesFilter(row, { ...EMPTY_FILTER, tag: 'Büro' }, labels));
+});
+
+test('der Vertrag schränkt auf die Vorgänge ein, die auf ihn zeigen', () => {
+  const filter = { ...EMPTY_FILTER, entry: 'v1' };
+  assert.ok(matchesFilter(tx({ entry_id: 'v1' }), filter, labels));
+  assert.ok(!matchesFilter(tx({ entry_id: 'v2' }), filter, labels));
+  assert.ok(!matchesFilter(tx(), filter, labels));
 });
 
 test('Eingabe und Filter gelten zusammen, nicht wahlweise', () => {
@@ -132,10 +147,21 @@ test('angeboten wird nur, was vorkommt — häufigste Stichwörter zuerst', () =
   assert.deepEqual(categories.sort(), ['groceries', 'travel']);
 });
 
+test('angeboten werden nur Verträge, auf die auch etwas zeigt', () => {
+  const rows = [
+    tx({ entry_id: 'v1' }),
+    tx({ entry_id: 'v1' }),
+    tx({ entry_id: null }),
+  ];
+  assert.deepEqual(availableFacets(rows).entries, ['v1']);
+  assert.deepEqual(availableFacets([tx()]).entries, []);
+});
+
 test('ein Filter ohne Inhalt gilt nicht als gesetzt — der Bereich allein zählt nicht', () => {
   assert.equal(isFilterActive(EMPTY_FILTER), false);
   assert.equal(isFilterActive({ ...EMPTY_FILTER, scope: ALL_MONTHS }), false);
   assert.equal(isFilterActive({ ...EMPTY_FILTER, query: ' ' }), false);
   assert.equal(isFilterActive({ ...EMPTY_FILTER, query: 'rewe' }), true);
   assert.equal(isFilterActive({ ...EMPTY_FILTER, tag: 'Urlaub' }), true);
+  assert.equal(isFilterActive({ ...EMPTY_FILTER, entry: 'v1' }), true);
 });

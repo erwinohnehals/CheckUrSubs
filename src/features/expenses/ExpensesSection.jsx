@@ -174,7 +174,7 @@ export const ExpensesSection = ({
             atCurrent={expenses.atCurrentMonth}
             transactions={expenses.transactions}
             amountUSD={amountUSD} fmt={fmt} fmtAmountIn={fmtAmountIn}
-            accountLabelOf={accountLabelOf} docCounts={docCounts}
+            accountLabelOf={accountLabelOf} entries={contractEntries} docCounts={docCounts}
             budgetRows={rows} onOpenBudget={onOpenBudget}
             filter={filter} onFilterChange={setFilter}
             onAdd={expenses.openAdd} onEdit={expenses.openEdit}

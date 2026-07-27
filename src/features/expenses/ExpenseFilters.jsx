@@ -8,7 +8,7 @@
 // gerade angezeigten Monat.
 
 import { useCallback, useState } from 'react';
-import { Check, ChevronDown, Layers, Search, Tag, X } from 'lucide-react';
+import { Check, ChevronDown, Layers, Link2, Search, Tag, X } from 'lucide-react';
 import { useT } from '../../lib/i18n';
 import { EXPENSE_CATEGORIES } from '../../lib/expenseCategories';
 import { INPUT_CLASS, MenuItem, PopMenu, Segmented, useDismiss } from '../../ui';
@@ -50,7 +50,9 @@ const FilterSelect = ({ icon: Icon, label, active, value, options, onChange }) =
   );
 };
 
-export const ExpenseFilters = ({ filter, onChange, facets, resultCount, resultSum, active }) => {
+export const ExpenseFilters = ({
+  filter, onChange, facets, entryLabelOf = () => '', resultCount, resultSum, active,
+}) => {
   const t = useT();
 
   const set = (patch) => onChange({ ...filter, ...patch });
@@ -70,9 +72,21 @@ export const ExpenseFilters = ({ filter, onChange, facets, resultCount, resultSu
     ...facets.tags.map((tag) => ({ value: tag, label: tag })),
   ];
 
+  // Ein gelöschter Vertrag hat keinen Namen mehr — er steht nicht zur Auswahl,
+  // sonst wäre es ein Filter auf etwas, das niemand wiedererkennt.
+  const entryOptions = [
+    { value: '', label: t.exp_filter_any },
+    ...(facets.entries || [])
+      .map((id) => ({ value: id, label: entryLabelOf(id) }))
+      .filter((option) => option.label)
+      .sort((a, b) => a.label.localeCompare(b.label)),
+  ];
+
   const categoryLabel = filter.category
     ? (t[categoryLabelOf(filter.category)] || t.xcat_other)
     : t.exp_filter_category;
+
+  const entryLabel = (filter.entry && entryLabelOf(filter.entry)) || t.exp_filter_entry;
 
   return (
     <div className="space-y-2 px-1">
@@ -104,6 +118,14 @@ export const ExpenseFilters = ({ filter, onChange, facets, resultCount, resultSu
             onChange={(value) => set({ tag: value })} />
         )}
 
+        {/* Erst die Auswahl, dann der Filter: solange nichts verknüpft ist, wäre
+            die Achse nur ein Knopf, hinter dem nichts steht. */}
+        {entryOptions.length > 1 && (
+          <FilterSelect icon={Link2} label={entryLabel} active={Boolean(filter.entry)}
+            value={filter.entry} options={entryOptions}
+            onChange={(value) => set({ entry: value })} />
+        )}
+
         <Segmented
           items={[
             { id: 'month',      label: t.exp_scope_month },
@@ -115,7 +137,7 @@ export const ExpenseFilters = ({ filter, onChange, facets, resultCount, resultSu
           itemClass="px-3 text-xs" />
 
         {active && (
-          <button type="button" onClick={() => set({ query: '', category: '', tag: '' })}
+          <button type="button" onClick={() => set({ query: '', category: '', tag: '', entry: '' })}
             title={t.filter_reset} aria-label={t.filter_reset}
             className="inline-flex h-10 items-center gap-1.5 px-2.5 rounded-lg text-xs text-ink-3
               hover:text-ink hover:bg-surface-3 transition">

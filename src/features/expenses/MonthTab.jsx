@@ -9,7 +9,7 @@
 // ob der angezeigte Monat der Vorrat ist oder alles — und die Zahlen oben
 // beschreiben immer genau das, was darunter steht.
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { List, Plus, Search, Wallet, Settings2 } from 'lucide-react';
 import { useLang, useT } from '../../lib/i18n';
 import { fmtDateFromISO, fmtDateFromISOWithYear, todayISO } from '../../lib/dates';
@@ -57,7 +57,7 @@ const useDayLabel = (withYear) => {
 
 export const MonthTab = ({
   month, onStep, onToday, atCurrent,
-  transactions, amountUSD, fmt, fmtAmountIn, accountLabelOf, docCounts = {},
+  transactions, amountUSD, fmt, fmtAmountIn, accountLabelOf, entries = [], docCounts = {},
   budgetRows, onOpenBudget,
   filter, onFilterChange,
   onAdd, onEdit, onRepeat, onDelete, onManageAccounts, isDesktop,
@@ -69,12 +69,21 @@ export const MonthTab = ({
   const active    = isFilterActive(filter);
   const dayLabel  = useDayLabel(allMonths);
 
+  // Ein gelöschter Vertrag lässt seine Verweise stehen — die Zeile zeigt dann
+  // kein Zeichen, statt einen Namen zu erfinden.
+  const entryLabelOf = useCallback((id) => {
+    if (!id) return '';
+    const entry = entries.find((candidate) => candidate.id === id);
+    return entry ? (entry.name || entry.provider || '') : '';
+  }, [entries]);
+
   // Beschriftungen für den Heuhaufen: „Lebensmittel" soll sich finden lassen,
   // nicht nur der Schlüssel `groceries`.
   const labels = useMemo(() => ({
     categoryLabel: (id) => t[LABEL_KEY_BY_CATEGORY.get(id)] || '',
     accountLabel:  accountLabelOf,
-  }), [t, accountLabelOf]);
+    entryLabel:    entryLabelOf,
+  }), [t, accountLabelOf, entryLabelOf]);
 
   const facets = useMemo(() => availableFacets(transactions), [transactions]);
 
@@ -173,6 +182,7 @@ export const MonthTab = ({
         {everUsed && (
           <section data-group className="lg:col-span-3">
             <ExpenseFilters filter={filter} onChange={onFilterChange} facets={facets}
+              entryLabelOf={entryLabelOf}
               resultCount={count} resultSum={fmt(summary.expense)} active={active} />
           </section>
         )}
@@ -213,6 +223,7 @@ export const MonthTab = ({
                             transaction={transaction}
                             fmtAmount={fmtAmountIn(transaction.currency_code)}
                             accountLabel={accountLabelOf(transaction.account_id)}
+                            entryLabel={entryLabelOf(transaction.entry_id)}
                             docCount={docCounts[transaction.id] || 0}
                             expanded={expanded.has(transaction.id)}
                             onToggle={() => toggle(transaction.id)}

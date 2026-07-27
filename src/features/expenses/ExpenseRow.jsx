@@ -6,7 +6,7 @@
 // Einnahmen tragen ein Vorzeichen und einen Pfeil, keine Farbe: Farbe bleibt dem
 // Status vorbehalten, und „Geld kam herein" ist kein Status.
 
-import { ArrowDownLeft, ChevronRight, CopyPlus, Paperclip, Pencil, Trash2 } from 'lucide-react';
+import { ArrowDownLeft, ChevronRight, CopyPlus, Link2, Paperclip, Pencil, Trash2 } from 'lucide-react';
 import { useT } from '../../lib/i18n';
 import { getExpenseCategory } from '../../lib/expenseCategories';
 import { Badge, useSwipeRow } from '../../ui';
@@ -24,7 +24,7 @@ const ItemChip = ({ count, open, onToggle, label }) => (
 );
 
 export const ExpenseRow = ({
-  transaction, fmtAmount, accountLabel, docCount = 0,
+  transaction, fmtAmount, accountLabel, entryLabel = '', docCount = 0,
   expanded = false, onToggle, onEdit, onRepeat, onDelete, isDesktop,
 }) => {
   const t = useT();
@@ -60,6 +60,15 @@ export const ExpenseRow = ({
   const badges = (
     <>
       {internal && <Badge title={t.exp_internal_hint}>{t.exp_badge_internal}</Badge>}
+      {/* Der Vertrag steht als eigenes Zeichen da, nicht in der Zeile darunter:
+          „freenet DLS GmbH" ist ein Händler, „Internet" ist der Vertrag — in
+          einer Reihe mit Händler und Kategorie wäre nicht zu sehen, welches
+          von beidem gemeint ist. */}
+      {entryLabel && (
+        <Badge icon={Link2} title={t.exp_entry_linked(entryLabel)}>
+          <span className="max-w-[110px] truncate">{entryLabel}</span>
+        </Badge>
+      )}
       {items > 0 && (
         <ItemChip count={items} open={expanded} onToggle={onToggle} label={t.exp_items_count(items)} />
       )}

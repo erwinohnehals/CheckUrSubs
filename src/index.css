@@ -210,11 +210,15 @@ html, body { overscroll-behavior: none; overscroll-behavior-x: none; }
 }
 
 /* Gleitende Markierung im Segmented Control */
+/* Die Pille bewegt sich als einziges Element dauernd, deshalb bleibt sie
+   dauerhaft auf einer eigenen Ebene — ein kurzes leeres <span>, das kostet
+   nichts, spart aber das Neuzeichnen bei jedem Gleiten. */
 .seg-pill {
   position: absolute; top: 0; left: 0;
   background: rgb(var(--surface-sunken));
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
   opacity: 0; pointer-events: none;
+  will-change: transform;
 }
 
 /* Der Bereichswechsel ist die oberste Navigationsebene und braucht mehr
