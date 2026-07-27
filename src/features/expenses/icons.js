@@ -8,7 +8,7 @@
 
 import {
   ShoppingCart, UtensilsCrossed, Home, HousePlug, Building2, Sprout, Shirt, HeartPulse, Car, Plane,
-  Gamepad2, Gift, Laptop, PawPrint, BookOpen, Receipt, Package,
+  Gamepad2, Gift, Wifi, Laptop, AppWindow, PawPrint, BookOpen, Receipt, Package,
   Banknote, TrendingUp, RotateCcw, Tag, Wallet, ArrowLeftRight,
   Landmark, CreditCard, Globe, Coins,
 } from 'lucide-react';
@@ -29,7 +29,9 @@ export const CATEGORY_ICONS = {
   travel:    Plane,
   leisure:   Gamepad2,
   gifts:     Gift,
-  tech:      Laptop,
+  connectivity: Wifi,
+  devices:      Laptop,
+  software:     AppWindow,
   pets:      PawPrint,
   education: BookOpen,
   fees:      Receipt,

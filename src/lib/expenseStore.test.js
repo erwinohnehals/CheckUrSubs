@@ -173,7 +173,7 @@ test('breaks a transaction down into as much as it is worth, and no more', () =>
   const receipt = {
     category: 'household',
     items: [
-      { label: 'a', amount: 3.33, category: 'tech' },
+      { label: 'a', amount: 3.33, category: 'devices' },
       { label: 'b', amount: 3.33 },
       { label: 'c', amount: 3.34 },
     ],

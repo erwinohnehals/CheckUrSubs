@@ -117,7 +117,7 @@ export const AccountsPanel = ({
         ? 'inset-0 m-auto h-fit w-[520px] max-h-[84vh] flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border shadow-2xl'
         : 'inset-x-3 bottom-3 top-20 flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border max-w-[450px] mx-auto shadow-2xl'}>
 
-      <header className="shrink-0 border-b border-border px-5 pt-5 pb-4 lg:px-7 flex items-start gap-3">
+      <header data-stagger className="shrink-0 border-b border-border px-5 pt-5 pb-4 lg:px-7 flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <h2 id="accounts-title" className="text-lg font-semibold tracking-tight">{t.accounts_title}</h2>
           <p className="text-xs text-ink-3 mt-0.5">{t.accounts_hint}</p>
@@ -129,7 +129,7 @@ export const AccountsPanel = ({
         </button>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto desktop-scroll px-5 py-5 lg:px-7 space-y-6">
+      <div data-stagger className="flex-1 min-h-0 overflow-y-auto desktop-scroll px-5 py-5 lg:px-7 space-y-6">
         {active.length === 0
           ? <p className="text-sm text-ink-3 text-center py-6">{t.accounts_empty}</p>
           : list(active)}

@@ -17,7 +17,9 @@
 // „ungeprüft" markiert. Stillschweigend `other` zu vergeben wäre schlimmer als
 // nichts: es sieht aus wie eine Entscheidung.
 
-import { DEFAULT_EXPENSE_CATEGORY, DEFAULT_INCOME_CATEGORY, resolveCategory } from './expenseCategories.js';
+import {
+  DEFAULT_EXPENSE_CATEGORY, DEFAULT_INCOME_CATEGORY, migrateCategory, resolveCategory,
+} from './expenseCategories.js';
 
 export const CONFIDENCES = ['high', 'medium', 'low'];
 
@@ -70,6 +72,15 @@ const KEYWORD_RULES = [
   { category: 'pass_through', keywords: [
     'kaution', 'mietkaution', 'kautionsrückzahlung', 'kautionsrueckzahlung',
     'auslage', 'auslagen', 'verauslagt', 'durchlaufend', 'treuhand',
+  ] },
+  // Vor den Lebensmitteln, und das ist kein Zufall: „ALDI TALK" trifft sonst auf
+  // „aldi" und die Handykarte landet im Einkaufswagen. Der ganze Name muss die
+  // Abkürzung schlagen.
+  { category: 'connectivity', keywords: [
+    'aldi talk', 'telekom', 'vodafone', 'o2', 'telefonica', 'telefónica', '1&1',
+    'congstar', 'freenet', 'mobilcom', 'drillisch', 'winsim', 'blau.de', 'lycamobile',
+    'pyur', 'unitymedia', 'kabel deutschland', 'm-net', 'netcologne', 'ewe tel',
+    'mobilfunk', 'glasfaser',
   ] },
   { category: 'groceries', keywords: [
     'lidl', 'aldi', 'rewe', 'edeka', 'penny', 'netto', 'kaufland', 'konsum', 'norma',
@@ -145,15 +156,26 @@ const KEYWORD_RULES = [
     'spotify', 'disney', 'dazn', 'steam', 'playstation', 'nintendo', 'xbox', 'twitch',
     'patreon', 'eventim', 'ticketmaster', 'konzert', 'sportverein', 'bowling',
     'decathlon', 'intersport', 'sportscheck', 'kletterhalle', 'audible', 'kindle',
+    'this american life',
   ] },
-  { category: 'tech', keywords: [
-    'apple', 'google', 'microsoft', 'amazon', 'mediamarkt', 'media markt', 'saturn',
-    'cyberport', 'notebooksbilliger', 'alternate', 'conrad', 'reichelt', 'aliexpress',
-    'ebay', 'otto', 'backmarket', 'openai', 'anthropic', 'github', 'adobe', 'dropbox',
-    'jetbrains', 'hetzner', 'netcup', 'ionos', 'strato', 'vodafone', 'telekom', 'o2',
-    'freenet', '1&1', 'congstar', 'aldi talk', 'this american life',
-    'amzn', 'freepik', 'serif', 'böttcher', 'boettcher', 'cloudflare', 'namecheap',
-    'figma', 'canva', 'notion', 'slack', 'zoom', 'elevenlabs', 'midjourney',
+  // Amazon, eBay, Otto und AliExpress stehen in keiner Liste. Sie verkaufen alles,
+  // also sagt der Name nichts: dieselbe Zeile ist mal ein Kabel, mal Katzenfutter,
+  // mal ein Geschenk. Sie bleiben ungeprüft, und das erste Mal, das der Nutzer
+  // einsortiert, wird gelernt — eine Vermutung wäre hier nur schneller falsch.
+  { category: 'devices', keywords: [
+    'mediamarkt', 'media markt', 'saturn', 'cyberport', 'notebooksbilliger', 'alternate',
+    'conrad', 'reichelt', 'backmarket', 'back market', 'gravis', 'euronics', 'expert',
+    'böttcher', 'boettcher',
+  ] },
+  { category: 'software', keywords: [
+    'openai', 'anthropic', 'chatgpt', 'midjourney', 'elevenlabs', 'github', 'jetbrains',
+    'adobe', 'figma', 'canva', 'notion', 'slack', 'zoom', 'dropbox', 'freepik', 'serif',
+    // Server, Domains und Postfächer: gemietet wie ein Programm, nicht besessen
+    'hetzner', 'netcup', 'ionos', 'strato', 'cloudflare', 'namecheap', 'mailbox.org',
+    'proton', 'protonmail',
+    // Auf dem Auszug stehen die drei fast immer für ein Abo — „APPLE.COM/BILL",
+    // Google One, Microsoft 365. Das Gerät kommt vom Elektronikmarkt.
+    'apple', 'google', 'microsoft',
   ] },
   { category: 'pets', keywords: [
     'fressnapf', 'futterhaus', 'zooplus', 'tierarzt', 'tierklinik', 'tierheim',
@@ -228,7 +250,10 @@ export const suggestCategory = (row, learned = {}) => {
   const stored = key ? learned[key] : null;
   if (stored) {
     const resolved = resolveCategory(stored, direction);
-    if (resolved === stored) return suggestion(resolved, 'high', 'learned');
+    // Verglichen wird gegen die heutige ID: wer „Cyberport" einmal auf `tech`
+    // gesetzt hat, hat eine Entscheidung getroffen, und die überlebt die
+    // Umbenennung. Nur was gar nicht zur Richtung passt, fällt durch.
+    if (resolved === migrateCategory(stored)) return suggestion(resolved, 'high', 'learned');
   }
 
   // 2 — was die Bank über die Art der Zahlung sagt

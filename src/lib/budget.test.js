@@ -204,6 +204,28 @@ test('records a carryover reset on the stored budget', () => {
   assert.equal(budgets.resetCarryover('travel', '2026-05'), null);
 });
 
+test('a cap on a renamed category comes back under its new name', () => {
+  const stored = (budgets) => createMemoryStorage({
+    'goldgeld.budgets': JSON.stringify({ version: 1, budgets }),
+  });
+
+  const budget = (amount) => ({ amount, currency: 'EUR', since: '2026-01', reset: null });
+
+  const migrated = createBudgetStore(stored({ tech: budget(60) })).all();
+  assert.equal(migrated.tech, undefined);
+  assert.equal(migrated.devices.amount, 60);
+
+  // Steht die Grenze schon unter dem neuen Namen, ist sie die jüngere Ansage
+  const both = createBudgetStore(stored({ tech: budget(60), devices: budget(25) })).all();
+  assert.equal(both.devices.amount, 25);
+
+  // Und beim nächsten Schreiben ist der alte Schlüssel weg
+  const storage = stored({ tech: budget(60) });
+  const budgets = createBudgetStore(storage);
+  budgets.set('groceries', { amount: 400 }, '2026-02');
+  assert.equal(JSON.parse(storage.getItem('goldgeld.budgets')).budgets.tech, undefined);
+});
+
 test('treats malformed persisted budgets as none', () => {
   assert.deepEqual(
     createBudgetStore(createMemoryStorage({ 'goldgeld.budgets': '{not-json' })).all(),

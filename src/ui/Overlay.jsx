@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  STANDARD_EASE, DURATION, reducedMotion, restartAnimation, usePresence,
+  STANDARD_EASE, DURATION, reducedMotion, restartAnimation, staggerOverlay, usePresence,
 } from '../lib/motion';
 
 // ─── Was den Tastaturfokus fangen darf ────────────────────────────────────────
@@ -73,6 +73,11 @@ export const Overlay = ({ open, onClose, children, panelClass = '', sheet = fals
     restartAnimation(panelRef.current,
       enter ? `${keyframe}-in ${DURATION.modalIn}ms ${STANDARD_EASE}`
             : `${keyframe}-out ${DURATION.modalOut}ms ${STANDARD_EASE} forwards`);
+
+    // Der Inhalt kaskadiert nur beim Aufgehen. Beim Schließen geht das Blatt als
+    // Ganzes — eine Kaskade rückwärts hielte das Panel länger stehen, als der
+    // Griff zum Schließen es verträgt.
+    if (enter) staggerOverlay(panelRef.current);
   }, [open, rendered, sheet]);
 
   // ── Fokus, Sperre und Stapelplatz ────────────────────────────────────────

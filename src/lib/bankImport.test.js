@@ -68,6 +68,35 @@ test('„Miete" auf der Einnahmenseite wird keine Wohnkost', () => {
   assert.equal(result.category, 'income_other');
 });
 
+test('Mobilfunk, Geräte und Software liegen nicht mehr in einem Topf', () => {
+  assert.equal(suggestCategory(bankRow({ merchant: 'Vodafone GmbH' })).category, 'connectivity');
+  assert.equal(suggestCategory(bankRow({ merchant: 'Telekom Deutschland' })).category, 'connectivity');
+  assert.equal(suggestCategory(bankRow({ merchant: 'MediaMarkt Leipzig' })).category, 'devices');
+  assert.equal(suggestCategory(bankRow({ merchant: 'ADOBE SYSTEMS' })).category, 'software');
+  assert.equal(suggestCategory(bankRow({ merchant: 'APPLE.COM/BILL' })).category, 'software');
+});
+
+test('ALDI TALK ist kein Einkauf', () => {
+  assert.equal(suggestCategory(bankRow({ merchant: 'ALDI TALK Aufladung' })).category, 'connectivity');
+  assert.equal(suggestCategory(bankRow({ merchant: 'ALDI SAGT DANKE' })).category, 'groceries');
+});
+
+test('Kaufhäuser, die alles verkaufen, sagen nichts', () => {
+  // Kein Vorschlag ist besser als „Geräte", wenn dieselbe Zeile auch das
+  // Katzenfutter sein kann
+  assert.equal(suggestCategory(bankRow({ merchant: 'AMZN Mktp DE' })).confidence, 'low');
+  assert.equal(suggestCategory(bankRow({ merchant: 'eBay GmbH' })).confidence, 'low');
+});
+
+test('eine gelernte Regel überlebt die Umbenennung ihrer Kategorie', () => {
+  const learned = { [merchantKey('Elektro Vogel')]: 'tech' };
+  const result  = suggestCategory(bankRow({ merchant: 'Elektro Vogel' }), learned);
+
+  assert.equal(result.category, 'devices');
+  assert.equal(result.reason, 'learned');
+  assert.equal(result.confidence, 'high');
+});
+
 test('ein angehängtes s bricht die Erkennung nicht', () => {
   assert.equal(suggestCategory(bankRow({ merchant: 'McDonalds 01597' })).category, 'dining');
 });

@@ -184,7 +184,8 @@ export const ExpenseModal = ({
         : 'inset-x-3 bottom-3 top-14 flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border max-w-[450px] mx-auto shadow-2xl'}>
 
       {/* ── Kopf ── */}
-      <header className="shrink-0 border-b border-border px-5 pt-5 pb-3 lg:px-7 lg:pt-6">
+      {/* `data-stagger`: Titelzeile und Reiter laufen einzeln ein, nicht als Block */}
+      <header data-stagger className="shrink-0 border-b border-border px-5 pt-5 pb-3 lg:px-7 lg:pt-6">
         <div className="flex items-start gap-3">
           <span className="w-10 h-10 rounded-xl bg-surface border border-border flex items-center justify-center shrink-0">
             <Wallet className="w-5 h-5 text-ink-2" />
@@ -224,12 +225,12 @@ export const ExpenseModal = ({
       </header>
 
       {/* ── Rumpf ── */}
-      <div className="flex-1 min-h-0 overflow-y-auto desktop-scroll px-5 py-5 lg:px-7 lg:py-6">
+      <div data-stagger className="flex-1 min-h-0 overflow-y-auto desktop-scroll px-5 py-5 lg:px-7 lg:py-6">
 
         {/* ── Betrag ── */}
         {tab === 'amount' && (
           <div className="space-y-6">
-            <section className="space-y-3">
+            <section data-stagger className="space-y-3">
               <GroupTitle>{t.exp_sec_amount}</GroupTitle>
 
               {/* Beide Schalter beantworten dieselbe Frage — in welche Summe der
@@ -288,7 +289,7 @@ export const ExpenseModal = ({
               )}
             </section>
 
-            <section className="space-y-3">
+            <section data-stagger className="space-y-3">
               <GroupTitle>{t.exp_sec_what}</GroupTitle>
 
               <Field label={t.exp_field_title}>
@@ -313,13 +314,13 @@ export const ExpenseModal = ({
         {/* ── Beleg & Notiz ── */}
         {tab === 'receipt' && (
           <div className="space-y-6">
-            <section className="space-y-3">
+            <section data-stagger className="space-y-3">
               <GroupTitle>{t.exp_receipt}</GroupTitle>
               <DocumentsPanel entryId={transactionId} hint={t.exp_receipt_hint}
                 onChange={() => { refreshDocs(); onDocsChange?.(); }} />
             </section>
 
-            <section className="space-y-3">
+            <section data-stagger className="space-y-3">
               <GroupTitle>{t.exp_sec_note}</GroupTitle>
 
               <Field label={t.exp_tags}>
@@ -340,7 +341,7 @@ export const ExpenseModal = ({
       </div>
 
       {/* ── Fuß ── */}
-      <footer className="shrink-0 border-t border-border px-5 py-4 lg:px-7 flex items-center justify-end gap-2">
+      <footer data-stagger className="shrink-0 border-t border-border px-5 py-4 lg:px-7 flex items-center justify-end gap-2">
         <button type="button" onClick={requestClose} className={btn('ghost', 'md', 'px-5 py-3')}>
           {t.modal_cancel}
         </button>

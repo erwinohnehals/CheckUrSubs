@@ -239,7 +239,7 @@ export const ImportPanel = ({
         ? 'inset-0 m-auto h-fit w-[760px] max-h-[88vh] flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border shadow-2xl'
         : 'inset-x-3 bottom-3 top-12 flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border max-w-[560px] mx-auto shadow-2xl'}>
 
-      <header className="shrink-0 border-b border-border px-5 pt-5 pb-4 lg:px-7">
+      <header data-stagger className="shrink-0 border-b border-border px-5 pt-5 pb-4 lg:px-7">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <h2 id="import-title" className="text-lg font-semibold tracking-tight">{t.imp_title}</h2>
@@ -267,7 +267,7 @@ export const ImportPanel = ({
         )}
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto desktop-scroll px-5 py-5 lg:px-7 space-y-4">
+      <div data-stagger className="flex-1 min-h-0 overflow-y-auto desktop-scroll px-5 py-5 lg:px-7 space-y-4">
         {items.length === 0 ? (
           <div className="text-center py-10 space-y-4">
             <FileUp className="w-8 h-8 mx-auto text-ink-3" strokeWidth={1.5} />
@@ -356,7 +356,7 @@ export const ImportPanel = ({
       </div>
 
       {items.length > 0 && (
-        <footer className="shrink-0 border-t border-border px-5 py-4 lg:px-7 flex items-center gap-3">
+        <footer data-stagger className="shrink-0 border-t border-border px-5 py-4 lg:px-7 flex items-center gap-3">
           <button type="button" onClick={onPick} className={btn('secondary', 'md')}>
             <FileUp className="w-4 h-4" />{t.imp_other_file}
           </button>

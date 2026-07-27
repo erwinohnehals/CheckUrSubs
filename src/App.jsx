@@ -3693,7 +3693,9 @@ const EntryDetail = ({
         )}
       </div>
 
-      <div className="mt-5 space-y-5">
+      {/* `data-stagger`: die Abschnitte laufen einzeln ein, sonst käme der halbe
+          Vertrag als eine Fläche */}
+      <div data-stagger className="mt-5 space-y-5">
         {/* ── Verknüpfte Ausgaben ── */}
         {lastCharge && (
           <DetailSection icon={Link2} title={t.detail_linked_expenses}>
@@ -4225,7 +4227,8 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
         : 'inset-x-3 bottom-3 top-14 flex flex-col overflow-hidden bg-surface-2 rounded-2xl border border-border max-w-[450px] mx-auto shadow-2xl'}>
 
         {/* ── Kopf: bleibt stehen, damit Titel und Reiter nie wegscrollen ── */}
-        <header className="shrink-0 border-b border-border px-5 pt-5 pb-3 lg:px-7 lg:pt-6">
+        {/* `data-stagger`: Titelzeile und Reiter laufen einzeln ein, nicht als Block */}
+        <header data-stagger className="shrink-0 border-b border-border px-5 pt-5 pb-3 lg:px-7 lg:pt-6">
           <div className="flex items-start gap-3">
             <span className="w-10 h-10 rounded-xl bg-surface border border-border flex items-center justify-center shrink-0">
               <HeaderIcon className="w-5 h-5 text-ink-2" />
@@ -4264,14 +4267,14 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
         </header>
 
         {/* ── Rumpf: der einzige Bereich, der scrollt ── */}
-        <div className="flex-1 min-h-0 overflow-y-auto desktop-scroll px-5 py-5 lg:px-7 lg:py-6">
+        <div data-stagger className="flex-1 min-h-0 overflow-y-auto desktop-scroll px-5 py-5 lg:px-7 lg:py-6">
 
         {/* ── Basis ── */}
         {tab === 'basics' && (
           <div className="space-y-6">
 
             {/* Was & wie viel */}
-            <section className="space-y-3">
+            <section data-stagger className="space-y-3">
               <GroupTitle>{t.sec_money}</GroupTitle>
 
               <div className="relative">
@@ -4335,7 +4338,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
             </section>
 
             {/* Status & Abbuchung */}
-            <section className="space-y-3">
+            <section data-stagger className="space-y-3">
               <GroupTitle>{t.sec_status}</GroupTitle>
 
               <Segmented
@@ -4380,7 +4383,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
             </section>
 
             {/* Einordnung */}
-            <section className="space-y-3">
+            <section data-stagger className="space-y-3">
               <GroupTitle>{t.sec_place}</GroupTitle>
 
               <FieldGroup label={t.cat_label}>
@@ -4505,7 +4508,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
             )}
 
             {/* Kategoriespezifische Felder */}
-            <section className="space-y-3">
+            <section data-stagger className="space-y-3">
               <GroupTitle>{t.details_template}</GroupTitle>
               {!category && <p className="text-xs text-ink-3 px-1">{t.details_empty}</p>}
               <div className="grid gap-3 lg:grid-cols-2">
@@ -4517,7 +4520,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
             </section>
 
             {/* Abrechnung & Kontakt */}
-            <section className="space-y-3">
+            <section data-stagger className="space-y-3">
               <GroupTitle>{t.details_common}</GroupTitle>
               <div className="grid gap-3 lg:grid-cols-2">
                 {COMMON_FIELDS.map(field => (
@@ -4534,7 +4537,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
         {/* ── Ablage: Zugangsdaten und Dokumente ── */}
         {tab === 'filing' && (
           <div className="space-y-6">
-            <section className="space-y-3">
+            <section data-stagger className="space-y-3">
               <GroupTitle>{t.sec_access}</GroupTitle>
 
               <FieldShell label={t.access_url}>
@@ -4572,7 +4575,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
               </FieldShell>
             </section>
 
-            <section className="space-y-3">
+            <section data-stagger className="space-y-3">
               <GroupTitle>{t.tab_docs}</GroupTitle>
               <DocumentsPanel entryId={entryId}
                 onChange={() => { refreshDocs(); onDocsChange?.(); }} />
@@ -4583,7 +4586,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
         </div>
 
         {/* ── Fuß: bleibt stehen, Speichern trägt das Gewicht ── */}
-        <footer className="shrink-0 border-t border-border px-5 py-4 lg:px-7 flex items-center justify-end gap-2">
+        <footer data-stagger className="shrink-0 border-t border-border px-5 py-4 lg:px-7 flex items-center justify-end gap-2">
           <button type="button" onClick={requestClose} className={btn('ghost', 'md', 'px-5 py-3')}>
             {t.modal_cancel}
           </button>

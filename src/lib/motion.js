@@ -13,7 +13,7 @@ export const POWER1_IN     = 'cubic-bezier(0.55, 0.085, 0.68, 0.53)';
 // ── Dauern ────────────────────────────────────────────────────────────────────
 export const DURATION = {
   ddIn: 192,   ddOut: 115,
-  modalIn: 320, modalOut: 200, backdropIn: 240,
+  modalIn: 320, modalOut: 200, backdropIn: 240, modalRow: 220,
   toastIn: 400, toastOut: 300,
   viewIn: 250,  viewOut: 250, viewOverlap: 150,
   navSwap: 320,
@@ -94,6 +94,45 @@ export const staggerIn = (elements, { duration = DURATION.listItem, step = 50, r
 export const staggerSwap = (elements, { shift = 14, duration = DURATION.navSwap, step = 34, base = 0, max = 12 } = {}) => {
   if (reducedMotion()) return;
   cascade(elements, { duration, step, base, max, prop: '--swap-x', value: `${shift}px`, keyframes: 'swap-in' });
+};
+
+// ── Kaskade im Blatt ──────────────────────────────────────────────────────────
+// Ein Modal, das als fertige Fläche aufgeht, ist ein Bild und keine Ordnung.
+// Läuft der Inhalt dem Panel hinterher, liest er sich in der Reihenfolge, in der
+// er gemeint ist: erst der Kopf, dann die Felder, zuletzt die Knöpfe.
+//
+// Welche Zeilen das sind, sagt das Markup. Gestaffelt werden die Kinder des
+// Panels; ein Kind mit `data-stagger` ist selbst keine Zeile, sondern eine
+// Gruppe und gibt seine eigenen Kinder ab. Dazu eine Regel, die einem jedes
+// zweite Attribut spart: ein Container, aus dem nur eine einzige Zeile fällt,
+// ist bloß eine Hülle — dann zählt, was in ihm steht. Genau so sind die Blätter
+// gebaut, ein `space-y`-Rumpf um die Abschnitte herum.
+const MAX_DEPTH = 4;
+
+const rowsOf = (container, depth = 0) => {
+  const rows = Array.from(container.children).flatMap(child =>
+    child.hasAttribute('data-stagger') && depth < MAX_DEPTH
+      ? rowsOf(child, depth + 1)
+      : [child]);
+
+  return rows.length === 1 && rows[0].children.length > 0 && depth < MAX_DEPTH
+    ? rowsOf(rows[0], depth + 1)
+    : rows;
+};
+
+// Enger und flacher als eine Liste: die Strecke ist ein Panel und kein
+// Bildschirm, und der Nachzügler soll noch zum Panel gehören. Der Vorlauf lässt
+// dem Blatt seinen Anlauf — bei 70ms steht es bei der Hauskurve erst am Anfang
+// seiner Bewegung, die Zeilen setzen also mitten hinein und nicht hinterher.
+//
+// Der Deckel liegt bei 12 und damit über dem, was ein Blatt hier hergibt (der
+// größte Reiter kommt auf vierzehn Zeilen). Enger gefasst fiele der ganze Rest
+// auf denselben Takt, und was als Kaskade beginnt, endete als Block — die
+// letzten Felder und der Fuß kämen gemeinsam. So bleibt die Staffel bis zum
+// Fuß eine Staffel und ist nach knapp 580ms durch.
+export const staggerOverlay = (panel) => {
+  if (!panel) return;
+  staggerIn(rowsOf(panel), { duration: DURATION.modalRow, step: 24, rise: 10, base: 70, max: 12 });
 };
 
 // ── Ein- und Ausblenden mit Nachlauf ──────────────────────────────────────────

@@ -30,7 +30,17 @@ export const EXPENSE_CATEGORIES = [
   { id: 'travel',    labelKey: 'xcat_travel'    },
   { id: 'leisure',   labelKey: 'xcat_leisure'   },
   { id: 'gifts',     labelKey: 'xcat_gifts'     },
-  { id: 'tech',      labelKey: 'xcat_tech'      },
+  // „Technik" war ein Sammelbecken: die Handyrechnung, ein neuer Laptop und das
+  // Adobe-Abo lagen nebeneinander, obwohl sie nichts miteinander zu tun haben.
+  // Das eine ist eine laufende Leitung ins Haus, das zweite eine Anschaffung, das
+  // dritte eine Miete auf Zeit. Drei Töpfe statt einem:
+  //
+  //   connectivity — was monatlich für Mobilfunk und Internet abgeht
+  //   devices      — Geräte, einmal gekauft, jahrelang benutzt
+  //   software     — Programme, Abos, Server und Domains
+  { id: 'connectivity', labelKey: 'xcat_connectivity' },
+  { id: 'devices',      labelKey: 'xcat_devices'      },
+  { id: 'software',     labelKey: 'xcat_software'     },
   { id: 'pets',      labelKey: 'xcat_pets'      },
   { id: 'education', labelKey: 'xcat_education' },
   { id: 'fees',      labelKey: 'xcat_fees'      },
@@ -60,15 +70,34 @@ export const INCOME_CATEGORIES = [
 export const DEFAULT_EXPENSE_CATEGORY = 'other';
 export const DEFAULT_INCOME_CATEGORY  = 'income_other';
 
+/**
+ * Abgelöste IDs. Auf dem Gerät liegen Buchungen, Budgets und gelernte
+ * Importregeln, die `tech` tragen — es gibt keinen Server, der sie nachträglich
+ * umschreibt. Sie bekommen die Nachfolgerin beim Lesen.
+ *
+ * `devices` ist die Erbin, weil „Technik" umgangssprachlich der Elektronikmarkt
+ * ist. Für alte Handyrechnungen ist das die falsche Schublade — richtiger als
+ * der Restposten ist es trotzdem, und wer nachsortiert, sieht sie beisammen.
+ */
+export const RENAMED_CATEGORIES = { tech: 'devices' };
+
+/** Die heutige ID zu einer gespeicherten — für alles andere die unveränderte. */
+export const migrateCategory = (id) =>
+  Object.hasOwn(RENAMED_CATEGORIES, id) ? RENAMED_CATEGORIES[id] : id;
+
 export const categoriesFor = (direction) =>
   direction === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
 export const defaultCategoryFor = (direction) =>
   direction === 'income' ? DEFAULT_INCOME_CATEGORY : DEFAULT_EXPENSE_CATEGORY;
 
-/** Die Kategorie oder null — nur innerhalb der zur Richtung passenden Liste. */
+/**
+ * Die Kategorie oder null — nur innerhalb der zur Richtung passenden Liste.
+ * Abgelöste IDs werden unterwegs übersetzt, damit eine alte Buchung im Feld
+ * ihren Namen zeigt statt gar nichts.
+ */
 export const getExpenseCategory = (id, direction = 'expense') =>
-  categoriesFor(direction).find((category) => category.id === id) || null;
+  categoriesFor(direction).find((category) => category.id === migrateCategory(id)) || null;
 
 /**
  * Eine gespeicherte Kategorie darf bleiben, solange sie zur Richtung passt.
@@ -76,4 +105,4 @@ export const getExpenseCategory = (id, direction = 'expense') =>
  * `income_salary` wäre in jeder Auswertung ein stiller Fehler.
  */
 export const resolveCategory = (id, direction = 'expense') =>
-  getExpenseCategory(id, direction) ? id : defaultCategoryFor(direction);
+  getExpenseCategory(id, direction)?.id || defaultCategoryFor(direction);

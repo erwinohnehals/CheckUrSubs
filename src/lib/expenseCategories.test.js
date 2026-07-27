@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  EXPENSE_CATEGORIES, INCOME_CATEGORIES, categoriesFor, getExpenseCategory,
-  resolveCategory, defaultCategoryFor,
+  EXPENSE_CATEGORIES, INCOME_CATEGORIES, RENAMED_CATEGORIES, categoriesFor,
+  getExpenseCategory, migrateCategory, resolveCategory, defaultCategoryFor,
 } from './expenseCategories.js';
 import { translations, LANGS } from './i18n.js';
 
@@ -36,6 +36,31 @@ test('picks the list and the fallback that belong to the direction', () => {
 
   assert.equal(getExpenseCategory('garden')?.labelKey, 'xcat_garden');
   assert.equal(getExpenseCategory('garden', 'income'), null);
+});
+
+test('every renamed ID points at a category that exists today', () => {
+  for (const [old, replacement] of Object.entries(RENAMED_CATEGORIES)) {
+    assert.ok(
+      EXPENSE_CATEGORIES.some(({ id }) => id === replacement),
+      `${old} → ${replacement} zeigt ins Leere`,
+    );
+    assert.ok(
+      !EXPENSE_CATEGORIES.some(({ id }) => id === old),
+      `${old} steht noch in der Liste und wird trotzdem umgeleitet`,
+    );
+  }
+});
+
+test('a stored `tech` keeps its meaning instead of falling into the leftovers', () => {
+  assert.equal(migrateCategory('tech'), 'devices');
+  assert.equal(migrateCategory('groceries'), 'groceries');
+  // Nichts geerbtes vom Prototyp: `toString` ist keine umbenannte Kategorie
+  assert.equal(migrateCategory('toString'), 'toString');
+
+  assert.equal(resolveCategory('tech'), 'devices');
+  assert.equal(getExpenseCategory('tech')?.id, 'devices');
+  // Auf der Einnahmenseite gab es `tech` nie — dort bleibt es der Restposten
+  assert.equal(resolveCategory('tech', 'income'), 'income_other');
 });
 
 test('a category from the wrong side falls back instead of leaking through', () => {

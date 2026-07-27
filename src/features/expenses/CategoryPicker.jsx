@@ -1,5 +1,5 @@
 // ─── Kategorieauswahl der Ausgaben ────────────────────────────────────────────
-// Achtzehn Kategorien passen in ein zweispaltiges Gitter, ohne dass gesucht
+// Zwanzig Kategorien passen in ein zweispaltiges Gitter, ohne dass gesucht
 // werden muss — die Vertragsseite braucht ihre Suche erst bei neunzehn Einträgen
 // mit langen Namen. Wächst die Liste weiter, ist die Suche hier fällig.
 //

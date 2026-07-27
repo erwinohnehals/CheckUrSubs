@@ -12,6 +12,7 @@
 
 import { monthKey, shiftMonth, monthsBetween } from './dates.js';
 import { categoryBreakdown, countsAsMoney } from './expenseStore.js';
+import { migrateCategory } from './expenseCategories.js';
 
 const STORAGE_KEY     = 'goldgeld.budgets';
 const STORAGE_VERSION = 1;
@@ -85,7 +86,17 @@ export const createBudgetStore = (storage) => {
       const budgets = {};
       for (const [category, budget] of Object.entries(rows)) {
         const clean = normalizeBudget(budget);
-        if (clean.amount > 0) budgets[category] = clean;
+        if (clean.amount <= 0) continue;
+
+        // Eine Grenze auf einer abgelösten Kategorie zeigt sonst auf nichts: der
+        // Reiter läuft über die heutige Liste und fände sie nie wieder. Eine
+        // Grenze, die es unter dem neuen Namen schon gibt, bleibt unangetastet —
+        // sie ist die jüngere Entscheidung. Beim nächsten Schreiben ist der alte
+        // Schlüssel weg.
+        const key = migrateCategory(category);
+        if (key !== category && budgets[key]) continue;
+
+        budgets[key] = clean;
       }
       return budgets;
     } catch {
