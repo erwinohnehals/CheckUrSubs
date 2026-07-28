@@ -8,10 +8,11 @@ import {
   Users, Lock, Eye, EyeOff, Copy, ExternalLink, Paperclip, FileText,
   AlertTriangle, KeyRound, Flame, Plug, Trash, HeartPulse, ClipboardList,
   Sun, Moon, MapPin, Layers, Archive, Settings, Languages,
-  ShoppingCart, PiggyBank, CalendarRange, Link2
+  ShoppingCart, PiggyBank, CalendarRange, Link2, Gauge
 } from 'lucide-react';
 import { createEntryStore, newId, kindForCategory, isBilled } from './lib/entryStore';
 import { chargeDrift, lastLinkedCharge } from './lib/contractLink';
+import { hasMeter, meterUnit } from './lib/meterReadings';
 import { LangContext, useLang, useT, APP_NAME } from './lib/i18n';
 import {
   templateFor, COMMON_FIELDS, label as fieldLabel, optionLabel, CUSTOM_FIELD_TYPES,
@@ -40,7 +41,7 @@ import {
   CARD, PANEL, INPUT_CLASS, DOT, btn, Segmented, PopMenu, MenuHeader, MenuItem,
   Overlay, ConfirmDialog, StatusPill, Badge, MeterRow, Note, Switch, SelectInput, DatePicker,
   Toast, useDismiss, useSwipeRow, useIsDesktop, useDirty, useCloseGuard,
-  CurrencySelect, DocumentsPanel,
+  CurrencySelect, DocumentsPanel, MeterReadingsEditor, MeterReadingsRows,
   PageHeader, MobilePageHeader,
 } from './ui';
 import { ExpensesSection } from './features/expenses/ExpensesSection';
@@ -3641,11 +3642,12 @@ const EntryDetail = ({
 
   const { template, common } = collectFilledFields(entry);
   const customFields = (entry.custom || []).filter(field => String(field.value || '').trim());
+  const readings     = entry.readings || [];
 
   const hasContract = Boolean(entry.contract_start || entry.contract_end || entry.notice_period_months);
   const hasAccess   = Boolean(entry.url || entry.login_username || entry.login_secret || entry.login_note);
   const hasAnything = hasContract || hasAccess || template.length > 0 || common.length > 0
-    || customFields.length > 0 || Boolean(entry.notes);
+    || customFields.length > 0 || readings.length > 0 || Boolean(entry.notes);
 
   // Der Umrechnungshinweis lohnt nur, wenn er etwas Neues sagt
   const monthlyHint =
@@ -3783,6 +3785,14 @@ const EntryDetail = ({
                 <DetailValue field={field} value={value} currency={entry.currency_code || currency} />
               </DetailRow>
             ))}
+          </DetailSection>
+        )}
+
+        {/* ── Zählerstände ── */}
+        {readings.length > 0 && (
+          <DetailSection icon={Gauge} title={t.meter_section}>
+            <MeterReadingsRows readings={readings}
+              unit={meterUnit(entry.category, entry.fields)} />
           </DetailSection>
         )}
 
@@ -4044,6 +4054,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
 
   const [fields, setFields] = useState(() => ({ ...(initial?.fields || {}) }));
   const [custom, setCustom] = useState(() => (initial?.custom || []).map(field => ({ ...field })));
+  const [readings, setReadings] = useState(() => (initial?.readings || []).map(row => ({ ...row })));
 
   const [url,       setUrl]       = useState(initial?.url            || '');
   const [username,  setUsername]  = useState(initial?.login_username || '');
@@ -4129,7 +4140,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
   const dirty = useDirty(JSON.stringify([
     name, provider, price, period, category, status, location, kindChoice,
     trialEnd, notes, day, month, contractStart, contractEnd, noticeMonths,
-    autoRenew, fields, custom, url, username, loginNote, modalCurrency,
+    autoRenew, fields, custom, readings, url, username, loginNote, modalCurrency,
     secretTouched ? secret : '',
   ]));
   const { asking, requestClose, confirmClose, cancelClose } = useCloseGuard(dirty, onClose);
@@ -4194,6 +4205,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
       login_note:     loginNote,
 
       fields,
+      readings,
       custom,
       notes,
     });
@@ -4237,7 +4249,7 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
   // Was steckt hinter den Reitern? Ohne Markierung müsste man alle drei öffnen,
   // nur um zu sehen, dass zwei leer sind.
   const hasContractData = Boolean(
-    contractStart || contractEnd || noticeMonths || custom.length ||
+    contractStart || contractEnd || noticeMonths || custom.length || readings.length ||
     Object.values(fields).some(value => String(value || '').trim()));
   const hasFilingData = Boolean(url || username || secret || loginNote || initial?.login_secret);
 
@@ -4549,6 +4561,15 @@ const EntryModal = ({ open, initial, currency, locations = [], vaultState, onSav
                 ))}
               </div>
             </section>
+
+            {/* Zählerstände — nur, wo ein Zähler hängt */}
+            {hasMeter(category) && (
+              <section data-stagger className="space-y-3">
+                <GroupTitle>{t.meter_section}</GroupTitle>
+                <MeterReadingsEditor readings={readings} onChange={setReadings}
+                  unit={meterUnit(category, fields)} />
+              </section>
+            )}
 
             {/* Abrechnung & Kontakt */}
             <section data-stagger className="space-y-3">

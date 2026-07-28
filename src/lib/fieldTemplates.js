@@ -15,6 +15,9 @@ export const COMMON_FIELDS = [
   { id: 'contract_holder',   label: t('Vertragsinhaber', 'Contract holder'),    type: 'text' },
   { id: 'customer_number',   label: t('Kundennummer', 'Customer number'),        type: 'text' },
   { id: 'contract_number',   label: t('Vertragsnummer', 'Contract number'),      type: 'text' },
+  // Über ein Vergleichsportal geschlossene Verträge tragen dort eine zweite
+  // Nummer — bei Rückfragen zum Wechsel zählt sie, nicht die des Anbieters.
+  { id: 'check24_contract_number', label: t('Check24 Vertragsnummer', 'Check24 contract number'), type: 'text' },
   { id: 'payment_method',    label: t('Zahlungsweise', 'Payment method'),        type: 'select', options: [
     { value: 'sepa',     ...t('SEPA-Lastschrift', 'SEPA direct debit') },
     { value: 'transfer', ...t('Überweisung', 'Bank transfer') },
@@ -82,8 +85,6 @@ export const TEMPLATES = {
     { id: 'supply_address',         label: t('Lieferadresse', 'Supply address'),                 type: 'textarea' },
     { id: 'tariff',                 label: t('Tarif', 'Tariff'),                                 type: 'text' },
     { id: 'consumption_last_year',  label: t('Jahresverbrauch Vorjahr', 'Consumption last year'), type: 'number', unit: 'kWh' },
-    { id: 'meter_reading',          label: t('Zählerstand', 'Meter reading'),                    type: 'number', unit: 'kWh' },
-    { id: 'meter_reading_date',     label: t('Datum Zählerstand', 'Meter reading date'),         type: 'date' },
     { id: 'working_price',          label: t('Arbeitspreis', 'Unit price'),                      type: 'number', unit: 'ct/kWh' },
     { id: 'base_price',             label: t('Grundpreis', 'Base price'),                        type: 'money', unit: '/ Monat' },
     { id: 'abschlag',               label: t('Monatlicher Abschlag', 'Monthly instalment'),      type: 'money' },
@@ -95,8 +96,6 @@ export const TEMPLATES = {
     { id: 'zaehlernummer',         label: t('Zählernummer', 'Meter number'),                     type: 'text' },
     { id: 'supply_address',        label: t('Lieferadresse', 'Supply address'),                  type: 'textarea' },
     { id: 'consumption_last_year', label: t('Jahresverbrauch Vorjahr', 'Consumption last year'), type: 'number', unit: 'm³' },
-    { id: 'meter_reading',         label: t('Zählerstand', 'Meter reading'),                     type: 'number', unit: 'm³' },
-    { id: 'meter_reading_date',    label: t('Datum Zählerstand', 'Meter reading date'),          type: 'date' },
     { id: 'waste_bin',             label: t('Tonnengröße / Abfuhrrhythmus', 'Bin size / pickup'), type: 'text' },
   ],
 
@@ -175,6 +174,15 @@ const DEFAULT_TEMPLATE = [
   { id: 'account_email', label: t('Konto-E-Mail', 'Account email'), type: 'text' },
 ];
 
+// Felder, die es einmal gab und die niemand mehr ausfüllt: Zählerstände sind
+// heute eine eigene Reihe am Vertrag (lib/meterReadings.js). Der entryStore
+// übernimmt den alten Wert; nur wo das misslingt, bleibt er stehen — und soll
+// dann wenigstens seine Beschriftung behalten.
+const LEGACY_FIELDS = [
+  { id: 'meter_reading',      label: t('Zählerstand', 'Meter reading'),            type: 'number' },
+  { id: 'meter_reading_date', label: t('Datum Zählerstand', 'Meter reading date'), type: 'date' },
+];
+
 export const templateFor = (category) => TEMPLATES[category] || DEFAULT_TEMPLATE;
 
 export const fieldsFor = (category) => [...templateFor(category), ...COMMON_FIELDS];
@@ -182,7 +190,7 @@ export const fieldsFor = (category) => [...templateFor(category), ...COMMON_FIEL
 // Findet eine Felddefinition über alle Vorlagen hinweg — für die Anzeige
 // gespeicherter Werte, deren Kategorie inzwischen gewechselt wurde.
 export const findFieldDef = (id) => {
-  for (const list of [...Object.values(TEMPLATES), DEFAULT_TEMPLATE, COMMON_FIELDS]) {
+  for (const list of [...Object.values(TEMPLATES), DEFAULT_TEMPLATE, COMMON_FIELDS, LEGACY_FIELDS]) {
     const found = list.find((field) => field.id === id);
     if (found) return found;
   }

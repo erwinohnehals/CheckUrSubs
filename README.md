@@ -51,7 +51,7 @@ Alles bleibt im Browser dieses Geräts — es gibt kein Konto und keine Synchron
 
 | Was | Wo | Schlüssel |
 |---|---|---|
-| Einträge, Vertragsdaten, eigene Felder | `localStorage` | `goldgeld.entries` |
+| Einträge, Vertragsdaten, eigene Felder, Zählerstände (`readings`: Datum + Stand je Ablesung) | `localStorage` | `goldgeld.entries` |
 | Ausgaben und Einnahmen (inkl. Flagge `internal` für Umbuchungen und `entry_id` für den verknüpften Vertrag) | `localStorage` | `goldgeld.expenses` |
 | Benannte Konten | `localStorage` | `goldgeld.accounts` |
 | Budgets und Übertragsbeginn | `localStorage` | `goldgeld.budgets` |

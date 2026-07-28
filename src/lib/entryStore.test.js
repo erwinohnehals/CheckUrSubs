@@ -190,7 +190,7 @@ test('migrates subscriptions saved by the previous app version', () => {
 
   assert.equal(entry.id, 'old-1');
   assert.equal(entry.category, 'mobile');
-  assert.match(storage.getItem('goldgeld.entries'), /"version":4/);
+  assert.match(storage.getItem('goldgeld.entries'), /"version":5/);
 });
 
 test('derives the kind from the category and keeps an explicit override', () => {
@@ -226,7 +226,75 @@ test('takes the address from contract fields when upgrading older data', () => {
 
   assert.equal(entries[0].location, 'Hauptstraße 5, 10115 Berlin');
   assert.equal(entries[1].location, '');
-  assert.match(storage.getItem('goldgeld.entries'), /"version":4/);
+  assert.match(storage.getItem('goldgeld.entries'), /"version":5/);
+});
+
+test('keeps a series of meter readings, cleaned and in order', () => {
+  const storage = createMemoryStorage();
+  const store = createStore(storage);
+
+  const created = store.create({
+    name: 'Strom', category: 'energy',
+    readings: [
+      { date: '2026-01-02', value: '12.480,5' },
+      { date: '2025-01-02', value: 8000 },
+      { date: '', value: 99 },
+    ],
+  });
+
+  assert.deepEqual(created.readings.map(r => [r.date, r.value]), [
+    ['2025-01-02', 8000],
+    ['2026-01-02', 12480.5],
+  ]);
+  // Jede Ablesung bekommt eine eigene ID, sonst ließe sie sich nicht bearbeiten
+  assert.equal(new Set(created.readings.map(r => r.id)).size, 2);
+
+  // Ein Vertrag ohne Zähler hat eine leere Reihe, kein fehlendes Feld
+  assert.deepEqual(store.create({ name: 'Netflix' }).readings, []);
+  assert.deepEqual(createStore(storage).list()[0].readings, created.readings);
+});
+
+test('turns the single meter reading of older data into the first of the series', () => {
+  const storage = createMemoryStorage({
+    'goldgeld.entries': JSON.stringify({
+      version: 4,
+      entries: [
+        { id: 'a', name: 'Strom', category: 'energy', created_at: '2024-01-01T00:00:00.000Z',
+          fields: { zaehlernummer: '1ESY1', meter_reading: '8000', meter_reading_date: '2025-01-02' } },
+      ],
+    }),
+  });
+
+  const [entry] = createStore(storage).list();
+
+  assert.deepEqual(entry.readings.map(r => [r.date, r.value]), [['2025-01-02', 8000]]);
+  assert.equal(entry.fields.meter_reading, undefined);
+  assert.equal(entry.fields.meter_reading_date, undefined);
+  assert.equal(entry.fields.zaehlernummer, '1ESY1');
+
+  // Einmal übernommen, nicht bei jedem Laden erneut
+  assert.deepEqual(createStore(storage).list()[0].readings, entry.readings);
+});
+
+test('leaves an unreadable meter reading in its field instead of dropping it', () => {
+  const store = createStore();
+  const created = store.create({
+    name: 'Strom', category: 'energy',
+    fields: { meter_reading: 'ca. 8000, Ablesung fehlt' },
+  });
+
+  assert.deepEqual(created.readings, []);
+  assert.equal(created.fields.meter_reading, 'ca. 8000, Ablesung fehlt');
+});
+
+test('dates a migrated reading without its own date by the entry itself', () => {
+  const store = createStore();
+  const created = store.create({
+    name: 'Wasser', category: 'water', created_at: '2024-06-05T12:00:00.000Z',
+    fields: { meter_reading: '120' },
+  });
+
+  assert.deepEqual(created.readings.map(r => [r.date, r.value]), [['2024-06-05', 120]]);
 });
 
 test('treats malformed persisted data as empty', () => {

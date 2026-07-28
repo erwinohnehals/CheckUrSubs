@@ -1,6 +1,8 @@
+import { normalizeReadings, sortReadings } from './meterReadings.js';
+
 const STORAGE_KEY     = 'goldgeld.entries';
 const LEGACY_KEY      = 'checkursubs.subscriptions';
-const STORAGE_VERSION = 4;
+const STORAGE_VERSION = 5;
 
 // Kategorien, die es unter altem Namen gab
 const CATEGORY_ALIASES = { telecom: 'mobile' };
@@ -89,6 +91,34 @@ const normalizeFields = (input) => {
   return fields;
 };
 
+// ─── Zählerstände ─────────────────────────────────────────────────────────────
+// Bis Fassung 4 hing genau ein Zählerstand als Vorlagenfeld am Vertrag. Er wird
+// zum ersten Eintrag der Reihe, damit derselbe Wert nicht an zwei Stellen steht.
+// Was sich nicht als Stand lesen lässt, bleibt liegen, wo es liegt — lieber ein
+// verwaistes Feld als ein verlorener Wert.
+const LEGACY_METER_FIELDS = ['meter_reading', 'meter_reading_date'];
+
+const migrateMeterFields = (fields, readings, fallbackDate, createId) => {
+  if (fields.meter_reading === undefined) return { fields, readings };
+
+  const migrated = normalizeReadings([{
+    date:  fields.meter_reading_date || fallbackDate,
+    value: fields.meter_reading,
+  }], createId);
+
+  if (!migrated.length) return { fields, readings };
+
+  const rest = { ...fields };
+  for (const id of LEGACY_METER_FIELDS) delete rest[id];
+
+  // Wurde schon einmal übernommen und danach neu geschrieben, steht der Stand
+  // bereits in der Reihe
+  const known = new Set(readings.map((reading) => `${reading.date}|${reading.value}`));
+  const added = migrated.filter((reading) => !known.has(`${reading.date}|${reading.value}`));
+
+  return { fields: rest, readings: sortReadings([...readings, ...added]) };
+};
+
 // Eigene Felder des Nutzers: [{ id, label, value, type }]
 const normalizeCustom = (input, createId) => {
   if (!Array.isArray(input)) return [];
@@ -109,6 +139,14 @@ const normalize = (input, createId = newId) => {
   const numericPrice = Number(input?.price);
   const stored = asString(input?.category, 'other') || 'other';
   const category = CATEGORY_ALIASES[stored] || stored;
+  const createdAt = asString(input?.created_at) || new Date().toISOString();
+
+  const { fields, readings } = migrateMeterFields(
+    normalizeFields(input?.fields),
+    normalizeReadings(input?.readings, createId),
+    createdAt,
+    createId,
+  );
 
   return {
     id: asString(input?.id) || createId(),
@@ -137,11 +175,13 @@ const normalize = (input, createId = newId) => {
     login_secret: asString(input?.login_secret),
     login_note: asString(input?.login_note),
 
-    fields: normalizeFields(input?.fields),
+    fields,
+    // Abgelesenes: eine Reihe, kein einzelner Wert — siehe lib/meterReadings.js
+    readings,
     custom: normalizeCustom(input?.custom, createId),
     notes: asString(input?.notes),
 
-    created_at: asString(input?.created_at) || new Date().toISOString(),
+    created_at: createdAt,
     archived_at: asString(input?.archived_at) || null,
   };
 };

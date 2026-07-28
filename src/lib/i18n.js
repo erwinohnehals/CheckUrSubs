@@ -233,6 +233,26 @@ export const translations = {
     details_common:    'Abrechnung & Kontakt',
     details_empty:     'Wähle eine Kategorie, um passende Felder zu sehen',
 
+    // Zählerstände
+    meter_section:    'Zählerstände',
+    meter_hint:       'Jede Ablesung mit ihrem Datum. Der Verbrauch ergibt sich aus dem Abstand zweier Stände.',
+    meter_add:        'Ablesung hinzufügen',
+    meter_remove:     'Ablesung entfernen',
+    meter_date:       'Ablesedatum',
+    meter_value:      'Zählerstand',
+    meter_note:       'Anlass (z. B. Jahresabrechnung)',
+    meter_empty:      'Noch keine Ablesung erfasst',
+    meter_latest:     'Letzter Stand',
+    meter_first:      'Erste Ablesung',
+    meter_average:    'Durchschnitt',
+    meter_projection: 'Hochrechnung aufs Jahr',
+    meter_readings_n: (n) => (n === 1 ? '1 Ablesung' : `${n} Ablesungen`),
+    meter_used_since: (amount, days) => `+${amount} in ${days === 1 ? '1 Tag' : `${days} Tagen`}`,
+    meter_same_day:   (amount) => `+${amount} am selben Tag`,
+    meter_per_day:    (amount) => `${amount} pro Tag`,
+    meter_per_year:   (amount) => `${amount} im Jahr`,
+    meter_changed:    'Zählerwechsel — dazwischen nicht messbar',
+
     // Eigene Felder
     custom_fields:  'Eigene Felder',
     custom_add:     'Feld hinzufügen',
@@ -858,6 +878,26 @@ export const translations = {
     details_template:  'Contract details',
     details_common:    'Billing & contact',
     details_empty:     'Pick a category to see matching fields',
+
+    // Meter readings
+    meter_section:    'Meter readings',
+    meter_hint:       'Every reading with its date. Consumption follows from the gap between two of them.',
+    meter_add:        'Add reading',
+    meter_remove:     'Remove reading',
+    meter_date:       'Reading date',
+    meter_value:      'Meter reading',
+    meter_note:       'Occasion (e.g. annual statement)',
+    meter_empty:      'No readings yet',
+    meter_latest:     'Latest reading',
+    meter_first:      'First reading',
+    meter_average:    'Average',
+    meter_projection: 'Projected per year',
+    meter_readings_n: (n) => (n === 1 ? '1 reading' : `${n} readings`),
+    meter_used_since: (amount, days) => `+${amount} in ${days === 1 ? '1 day' : `${days} days`}`,
+    meter_same_day:   (amount) => `+${amount} on the same day`,
+    meter_per_day:    (amount) => `${amount} per day`,
+    meter_per_year:   (amount) => `${amount} per year`,
+    meter_changed:    'Meter replaced — nothing measurable in between',
 
     // Custom fields
     custom_fields:  'Custom fields',
