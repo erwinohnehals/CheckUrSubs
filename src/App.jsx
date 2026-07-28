@@ -38,7 +38,7 @@ import {
   reducedMotion, restartAnimation, staggerIn, staggerSwap,
 } from './lib/motion';
 import {
-  CARD, PANEL, INPUT_CLASS, DOT, btn, Segmented, PopMenu, MenuHeader, MenuItem,
+  CARD, PANEL, INPUT_CLASS, DOT, btn, Segmented, Stepper, StatHero, PopMenu, MenuHeader, MenuItem,
   Overlay, ConfirmDialog, StatusPill, Badge, MeterRow, Note, Switch, SelectInput, DatePicker,
   Toast, useDismiss, useSwipeRow, useIsDesktop, useDirty, useCloseGuard,
   CurrencySelect, DocumentsPanel, MeterReadingsEditor, MeterReadingsRows,
@@ -1145,6 +1145,25 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
   const activeEntries  = currentEntries.filter(isBilled);
   const totalMonthlyUSD = recurringMonthlyUSD(currentEntries, rates);
   const totalYearlyUSD  = totalMonthlyUSD * 12;
+
+  // Übersicht und Auswertung zählen denselben Bestand — einmal gezählt reicht
+  const statusPills = (() => {
+    const paused   = currentEntries.filter(entry => entry.status === 'paused').length;
+    const trial    = currentEntries.filter(entry => entry.status === 'trial').length;
+    const canceled = currentEntries.filter(entry => entry.status === 'canceled').length;
+    return <>
+      <StatusPill tone="success" label={t.active_count(activeEntries.length)} pulse />
+      {paused > 0 && <StatusPill tone="error"   label={t.paused_count(paused)} />}
+      {trial  > 0 && <StatusPill tone="warning" label={t.trial_count(trial)} pulse />}
+      {canceled > 0 && <StatusPill label={t.canceled_count(canceled)} />}
+    </>;
+  })();
+
+  // Dieselbe Zahl in anderer Frist — die Nebenspalte beider Leitzahlen
+  const spendStats = [
+    { value: fmt(totalYearlyUSD),        label: t.per_year },
+    { value: fmt(totalMonthlyUSD / 30),  label: t.per_day },
+  ];
   const currentOneOffUSD = monthSummary(
     inMonth(expenses.transactions, monthKey(new Date())),
     (transaction) => toUSD(transaction.amount, transaction.currency_code, rates),
@@ -1481,37 +1500,11 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
             {/* Сетка дашборда: на мобиле — колонка, на десктопе — 3 колонки */}
             <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
 
-              <section data-group className={`${CARD} p-6 lg:col-span-2 lg:col-start-1 lg:row-start-1 lg:flex lg:items-center lg:gap-10 lg:p-8`}>
-              <div className="lg:flex-1 lg:min-w-0">
-                <p className="text-ink-3 uppercase text-[11px] tracking-[0.18em] font-medium mb-2">{t.per_month}</p>
-                <h2 className="text-5xl font-semibold tracking-tight mb-4 lg:text-6xl">{fmt(totalMonthlyUSD)}</h2>
-                <div className="flex items-center flex-wrap gap-2">
-                  {(() => {
-                    const active   = currentEntries.filter(isBilled).length;
-                    const paused   = currentEntries.filter(s => s.status === 'paused').length;
-                    const trial    = currentEntries.filter(s => s.status === 'trial').length;
-                    const canceled = currentEntries.filter(s => s.status === 'canceled').length;
-                    return <>
-                      <StatusPill tone="success" label={t.active_count(active)} pulse />
-                      {paused > 0 && <StatusPill tone="error"   label={t.paused_count(paused)} />}
-                      {trial  > 0 && <StatusPill tone="warning" label={t.trial_count(trial)} pulse />}
-                      {canceled > 0 && <StatusPill label={t.canceled_count(canceled)} />}
-                    </>;
-                  })()}
-                </div>
-              </div>
-                <div className="grid grid-cols-2 mt-6 text-left border-t border-border pt-5
-                  lg:grid-cols-1 lg:gap-6 lg:mt-0 lg:pt-0 lg:border-t-0 lg:border-l lg:pl-10 lg:w-[190px] lg:shrink-0">
-                  <div>
-                    <p className="text-xl font-semibold tracking-tight lg:text-2xl">{fmt(totalYearlyUSD)}</p>
-                    <p className="text-ink-3 text-[11px] uppercase tracking-[0.12em] mt-1">{t.per_year}</p>
-                  </div>
-                  <div className="text-right lg:text-left">
-                    <p className="text-xl font-semibold tracking-tight lg:text-2xl">{fmt(totalMonthlyUSD / 30)}</p>
-                    <p className="text-ink-3 text-[11px] uppercase tracking-[0.12em] mt-1">{t.per_day}</p>
-                  </div>
-                </div>
-              </section>
+              <StatHero
+                label={t.per_month} value={fmt(totalMonthlyUSD)}
+                pills={statusPills} stats={spendStats}
+                className="lg:col-span-2 lg:col-start-1 lg:row-start-1"
+              />
 
               {/* Кнопка добавить — на десктопе живёт в боковой навигации */}
               <div data-group className="lg:hidden">
@@ -1700,10 +1693,13 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
               ) : (
               /* Сетка карточек: колонка на мобиле, 2 колонки на десктопе */
               <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
-              <div data-group className={`${CARD} p-5 lg:col-span-2 flex items-baseline justify-between gap-4`}>
-                <span className="text-[11px] text-ink-3 uppercase tracking-[0.16em]">{t.per_month}</span>
-                <span className="text-2xl font-semibold tracking-tight">{fmt(totalMonthlyUSD)}</span>
-              </div>
+              {/* Dieselbe Leitzahl wie auf der Übersicht: wer hier landet, ohne
+                  dort gewesen zu sein, soll die Summe trotzdem einmal sehen */}
+              <StatHero
+                label={t.per_month} value={fmt(totalMonthlyUSD)}
+                pills={statusPills} stats={spendStats}
+                className="lg:col-span-2"
+              />
 
               {/* ── Тренд расходов по месяцам ── */}
               {(() => {
@@ -2724,24 +2720,12 @@ const CalendarSection = ({ entries, fmt, fmtReal, monthly, month, year, onPrev, 
   return (
     <div data-group className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
       <div className="space-y-3 lg:col-span-2">
-      <div className="flex items-center justify-between px-1">
-        <button onClick={onPrev} aria-label={t.month_previous}
-          className="w-9 h-9 rounded-lg border border-border bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink hover:bg-surface-3 transition">
-          <ChevronDown className="w-4 h-4 rotate-90" />
-        </button>
-        <div className="flex items-center gap-3">
-          <p className="text-sm font-semibold tracking-tight lg:text-lg">{t.months_full[month]} {year}</p>
-          {onToday && (
-            <button onClick={onToday} className={btn('ghost', 'sm', 'hidden lg:inline-flex text-xs')}>
-              {t.today}
-            </button>
-          )}
-        </div>
-        <button onClick={onNext} aria-label={t.month_next}
-          className="w-9 h-9 rounded-lg border border-border bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink hover:bg-surface-3 transition">
-          <ChevronDown className="w-4 h-4 -rotate-90" />
-        </button>
-      </div>
+      <Stepper
+        label={`${t.months_full[month]} ${year}`}
+        onPrev={onPrev} prevLabel={t.month_previous}
+        onNext={onNext} nextLabel={t.month_next}
+        onReset={onToday} resetLabel={t.today} resetClass="hidden lg:inline-flex"
+      />
       <div className="grid grid-cols-7">
         {t.days_short.map(d => <div key={d} className="text-center text-[11px] text-ink-3 uppercase tracking-[0.12em] py-1 lg:text-left lg:pl-2">{d}</div>)}
       </div>

@@ -3,11 +3,11 @@
 // Einmalausgaben, darüber die Einnahmen als Linie. Die Zahlenkarten und Listen
 // kommen aus demselben Reportobjekt, damit nichts unabhängig nachrechnet.
 
-import { ChevronDown, ReceiptText, ShoppingBag } from 'lucide-react';
+import { ReceiptText, ShoppingBag } from 'lucide-react';
 import { useLang, useT } from '../../lib/i18n';
 import { fmtDateFromISO } from '../../lib/dates';
 import { EXPENSE_CATEGORIES } from '../../lib/expenseCategories';
-import { CARD, MeterRow, btn } from '../../ui';
+import { CARD, MeterRow, Stepper } from '../../ui';
 import { CATEGORY_ICONS } from './icons';
 import { SpendSplitCard } from './SpendSplitCard';
 
@@ -15,24 +15,14 @@ const YearStepper = ({ year, onStep, onToday, atCurrent }) => {
   const t = useT();
 
   return (
-    <div className="flex items-center justify-between px-1">
-      <button type="button" onClick={() => onStep(-1)} aria-label={t.year_previous}
-        className="w-9 h-9 rounded-lg border border-border bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink hover:bg-surface-3 transition">
-        <ChevronDown className="w-4 h-4 rotate-90" />
-      </button>
-      <div className="flex items-center gap-3">
-        <p className="text-sm font-semibold tracking-tight lg:text-lg">{year}</p>
-        {!atCurrent && (
-          <button type="button" onClick={onToday} className={btn('ghost', 'sm', 'text-xs')}>
-            {t.year_current}
-          </button>
-        )}
-      </div>
-      <button type="button" onClick={() => onStep(1)} aria-label={t.year_next}
-        className="w-9 h-9 rounded-lg border border-border bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink hover:bg-surface-3 transition">
-        <ChevronDown className="w-4 h-4 -rotate-90" />
-      </button>
-    </div>
+    <Stepper
+      label={year}
+      onPrev={() => onStep(-1)} prevLabel={t.year_previous}
+      onNext={() => onStep(1)} nextLabel={t.year_next}
+      onReset={atCurrent ? undefined : onToday} resetLabel={t.year_current}
+      // Eine Jahreszahl braucht keine Monatsbreite
+      labelClass="min-w-[4.5rem] lg:min-w-[5rem]"
+    />
   );
 };
 
