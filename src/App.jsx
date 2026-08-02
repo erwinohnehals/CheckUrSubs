@@ -1489,7 +1489,7 @@ const App = ({ toggleLang, lang, theme, themePreference, setThemePreference }) =
 
               <header className="relative flex items-center justify-between gap-2 px-1 pt-2 lg:hidden">
                 <div className="flex items-center gap-2 min-w-0">
-                  <BrandMark className="w-10 h-8 rounded-md p-0.5" />
+                  <BrandMark className="w-9 h-9" />
                   <h1 className="whitespace-nowrap"><Wordmark className="text-[21px]" /></h1>
                 </div>
                 <div className="flex items-center gap-2">{settingsMenu}</div>
@@ -4676,7 +4676,7 @@ const BrandMark = ({ className = '' }) => (
   <img
     src="/goldgeld-logo.png"
     alt=""
-    className={`block shrink-0 border border-border bg-white object-contain ${className}`}
+    className={`block shrink-0 object-contain invert dark:invert-0 ${className}`}
   />
 );
 
@@ -4713,7 +4713,7 @@ const DesktopSidebar = ({
     <aside ref={navRef}
       className="hidden lg:flex flex-col w-[264px] shrink-0 h-screen sticky top-0 z-40 bg-surface border-r border-border px-5 py-7">
       <div className="flex items-center gap-3 px-1">
-        <BrandMark className="w-14 h-10 rounded-lg p-1" />
+        <BrandMark className="w-12 h-12" />
         <Wordmark className="text-[30px] leading-none min-w-0 block truncate" />
       </div>
 
