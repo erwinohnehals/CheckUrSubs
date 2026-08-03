@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gold &amp; Geld motion guide</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --surface: #f6f5f1;
+      --panel: #fff;
+      --soft: #efeee9;
+      --ink: #1f201d;
+      --muted: #73746e;
+      --line: #deddd7;
+      --standard: cubic-bezier(.625, .05, 0, 1);
+      --expo-out: cubic-bezier(.19, 1, .22, 1);
+      --power1-out: cubic-bezier(.25, .46, .45, .94);
+      --power1-in: cubic-bezier(.55, .085, .68, .53);
+      --view-in: 250ms;
+      --view-out: 250ms;
+      --view-overlap: 150ms;
+      --pill: 400ms;
+      --nav-swap: 320ms;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--surface); line-height: 1.55; }
+    button { color: inherit; font: inherit; }
+    main { width: min(1080px, calc(100% - 32px)); margin: 48px auto 80px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 720px; margin-bottom: 12px; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacing: -.055em; }
+    h2 { margin-top: 48px; margin-bottom: 14px; font-size: 1.35rem; letter-spacing: -.025em; }
+    h3 { margin-bottom: 7px; font-size: .95rem; }
+    .lede { max-width: 720px; color: var(--muted); font-size: 1.02rem; }
+    code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+    code { font-size: .9em; }
+
+    .demo {
+      display: grid;
+      grid-template-columns: 224px minmax(0, 1fr);
+      min-height: 500px;
+      margin-top: 30px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+      box-shadow: 0 18px 55px rgb(30 31 27 / .08);
+    }
+    .sidebar { display: flex; flex-direction: column; padding: 22px 18px; border-right: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 10px; margin: 0 4px 20px; font-weight: 750; letter-spacing: -.02em; }
+    .brand-mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 11px; color: white; background: var(--ink); }
+    .segment { position: relative; display: grid; gap: 2px; padding: 4px; }
+    .section-segment { grid-template-columns: repeat(2, 1fr); border: 1px solid var(--line); border-radius: 12px; background: var(--soft); }
+    .nav-segment { margin-top: 22px; padding: 0; }
+    .segment button { position: relative; z-index: 1; border: 0; border-radius: 9px; background: transparent; cursor: pointer; transition: color 300ms ease; }
+    .section-segment button { padding: 8px 5px; color: var(--muted); font-size: 12px; }
+    .section-segment button[aria-current="page"] { color: white; }
+    .nav-segment button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; color: var(--muted); text-align: left; }
+    .nav-segment button[aria-current="page"] { color: var(--ink); }
+    .shortcut { margin-left: auto; padding: 1px 5px; border: 1px solid var(--line); border-radius: 5px; font-size: 10px; }
+    .add { width: 100%; margin-top: 14px; padding: 9px 12px; border: 0; border-radius: 9px; color: white; background: var(--ink); cursor: pointer; }
+    .pill { position: absolute; top: 0; left: 0; z-index: 0; border-radius: 9px; opacity: 0; pointer-events: none; will-change: transform; }
+    .section-pill { background: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / .18); }
+    .nav-pill { background: var(--soft); box-shadow: 0 1px 2px rgb(0 0 0 / .08); animation: pill-fade-in 320ms var(--expo-out) backwards; }
+    .content { position: relative; min-width: 0; min-height: 500px; overflow: hidden; background: #faf9f6; }
+    .pane { position: absolute; inset: 0; display: none; overflow: auto; padding: 38px; }
+    .pane.is-active, .pane.is-exiting { display: block; }
+    .pane.is-entering { animation: view-in var(--view-in) var(--power1-out) var(--view-overlap) backwards; }
+    .pane.is-exiting { animation: view-out var(--view-out) var(--power1-in) forwards; }
+    .eyebrow { margin-bottom: 5px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    .pane h3 { margin-bottom: 22px; font-size: 1.7rem; letter-spacing: -.04em; }
+    .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .group { min-height: 108px; padding: 17px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+    .group.wide { grid-column: 1 / -1; }
+    .group p { margin-bottom: 0; color: var(--muted); font-size: 13px; }
+    .metric { display: block; margin-bottom: 6px; font-size: 1.5rem; font-weight: 720; letter-spacing: -.04em; }
+
+    @keyframes view-in { from { opacity: 0; transform: translateX(20px); } }
+    @keyframes view-out { to { opacity: 0; transform: translateX(-20px); } }
+    @keyframes rise-in { from { opacity: 0; transform: translateY(var(--rise-y, 16px)); } }
+    @keyframes swap-in { from { opacity: 0; transform: translateX(var(--swap-x, 18px)); } }
+    @keyframes pill-fade-in { from { opacity: 0; } }
+
+    .timings { width: 100%; overflow: hidden; border-collapse: collapse; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+    .timings th, .timings td { padding: 11px 13px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .timings tr:last-child td { border-bottom: 0; }
+    .timings th { color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+    .timings td:first-child { font-weight: 650; }
+    .timeline { display: grid; grid-template-columns: 88px 1fr; gap: 9px 14px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+    .timeline-label { color: var(--muted); font-size: 12px; }
+    .track { position: relative; height: 14px; border-radius: 99px; background: var(--soft); }
+    .bar { position: absolute; top: 0; height: 100%; border-radius: inherit; background: var(--ink); }
+    .bar.exit { left: 0; width: 37.3%; opacity: .42; }
+    .bar.enter { left: 22.4%; width: 37.3%; }
+    .bar.pill-move { left: 0; width: 59.7%; opacity: .76; }
+    .bar.groups { left: 22.4%; width: 76.1%; background: repeating-linear-gradient(90deg, var(--ink) 0 24%, transparent 24% 31%); }
+    .scale { grid-column: 2; display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }
+    .notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .note { padding: 17px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+    .note p { margin: 0; color: var(--muted); font-size: 14px; }
+    pre { margin: 14px 0 0; overflow: auto; padding: 18px; border-radius: 14px; color: #f6f5f1; background: #22231f; font-size: 12px; line-height: 1.55; }
+
+    @media (max-width: 720px) {
+      main { margin-top: 28px; }
+      .demo { grid-template-columns: 1fr; }
+      .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+      .brand { display: none; }
+      .nav-segment { grid-template-columns: repeat(3, 1fr); margin-top: 14px; }
+      .nav-segment button { justify-content: center; padding-inline: 6px; }
+      .shortcut { display: none; }
+      .pane { padding: 26px 20px; }
+      .content { min-height: 430px; }
+      .cards, .notes { grid-template-columns: 1fr; }
+      .group.wide { grid-column: auto; }
+      .timings { font-size: 12px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Implementation reference · exact project timings</p>
+    <h1>Quick, layered motion with a quiet finish.</h1>
+    <p class="lede">This is the motion pattern used by the main tabs and desktop sidebar. Use the demo, then copy the timing tokens and sequencing rules—not the sample colours or layout.</p>
+
+    <section class="demo" aria-label="Interactive motion demo">
+      <aside class="sidebar">
+        <div class="brand"><span class="brand-mark">G</span> Motion demo</div>
+
+        <div class="segment section-segment" data-segment="section">
+          <span class="pill section-pill" aria-hidden="true"></span>
+          <button type="button" data-section="expenses" aria-current="page">Expenses</button>
+          <button type="button" data-section="contracts">Contracts</button>
+        </div>
+
+        <button type="button" class="add" data-nav-swap>+ Add expense</button>
+        <nav class="segment nav-segment" aria-label="Main tabs"></nav>
+      </aside>
+
+      <div class="content">
+        <article class="pane" data-pane="expenses-month">
+          <p class="eyebrow">Expenses</p><h3>Month</h3>
+          <div class="cards">
+            <section class="group wide"><span class="metric">€1,842</span><p>The first content group starts with the incoming page.</p></section>
+            <section class="group"><h3>Budget pace</h3><p>Each following group waits another 80 ms.</p></section>
+            <section class="group"><h3>Recent items</h3><p>Only opacity and transform animate.</p></section>
+          </div>
+        </article>
+        <article class="pane" data-pane="expenses-budget">
+          <p class="eyebrow">Expenses</p><h3>Budget</h3>
+          <div class="cards">
+            <section class="group wide"><span class="metric">68%</span><p>The outgoing pane stays mounted during its 250 ms exit.</p></section>
+            <section class="group"><h3>Essentials</h3><p>The incoming pane begins at 150 ms.</p></section>
+            <section class="group"><h3>Flexible</h3><p>That creates a deliberate 100 ms overlap.</p></section>
+          </div>
+        </article>
+        <article class="pane" data-pane="expenses-year">
+          <p class="eyebrow">Expenses</p><h3>Year</h3>
+          <div class="cards">
+            <section class="group wide"><span class="metric">€18.4k</span><p>The page moves 20 px; its groups rise only 16 px.</p></section>
+            <section class="group"><h3>Trend</h3><p>Different distances separate hierarchy.</p></section>
+            <section class="group"><h3>Categories</h3><p>The same house curve ties it together.</p></section>
+          </div>
+        </article>
+        <article class="pane" data-pane="contracts-home">
+          <p class="eyebrow">Contracts</p><h3>Overview</h3>
+          <div class="cards">
+            <section class="group wide"><span class="metric">12 active</span><p>A section switch also rebuilds the sidebar tab set.</p></section>
+            <section class="group"><h3>Renewals</h3><p>Rows arrive horizontally at 34 ms intervals.</p></section>
+            <section class="group"><h3>Monthly cost</h3><p>The new nav pill fades in for 320 ms.</p></section>
+          </div>
+        </article>
+        <article class="pane" data-pane="contracts-calendar">
+          <p class="eyebrow">Contracts</p><h3>Calendar</h3>
+          <div class="cards">
+            <section class="group wide"><span class="metric">3 renewals</span><p>The sidebar enters from the direction of the section change.</p></section>
+            <section class="group"><h3>August</h3><p>Forward comes from +18 px.</p></section>
+            <section class="group"><h3>September</h3><p>Back comes from −18 px.</p></section>
+          </div>
+        </article>
+        <article class="pane" data-pane="contracts-analytics">
+          <p class="eyebrow">Contracts</p><h3>Analytics</h3>
+          <div class="cards">
+            <section class="group wide"><span class="metric">−8.4%</span><p>The active-tab pill glides for 400 ms.</p></section>
+            <section class="group"><h3>Fixed</h3><p>Labels cross-fade their colour for 300 ms.</p></section>
+            <section class="group"><h3>Optional</h3><p>On first paint, the pill snaps into place.</p></section>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <h2>Motion recipe</h2>
+    <table class="timings">
+      <thead><tr><th>Layer</th><th>Duration / delay</th><th>Curve and distance</th></tr></thead>
+      <tbody>
+        <tr><td>Old page</td><td>250 ms, no delay</td><td><code>POWER1_IN</code>; fade and −20 px</td></tr>
+        <tr><td>New page</td><td>250 ms, 150 ms delay</td><td><code>POWER1_OUT</code>; fade from +20 px</td></tr>
+        <tr><td>Content groups</td><td>350 ms; 150 ms base + 80 ms/item</td><td><code>STANDARD</code>; fade from +16 px Y</td></tr>
+        <tr><td>Active pill</td><td>400 ms</td><td><code>STANDARD</code>; transform, width and height</td></tr>
+        <tr><td>Sidebar section swap</td><td>320 ms; 34 ms/item</td><td><code>STANDARD</code>; fade from ±18 px X</td></tr>
+        <tr><td>Sidebar pill remount</td><td>320 ms</td><td><code>EXPO_OUT</code>; opacity only</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Tab-change timeline</h2>
+    <div class="timeline" aria-label="Animation timeline from zero to 670 milliseconds">
+      <span class="timeline-label">Old page</span><div class="track"><span class="bar exit"></span></div>
+      <span class="timeline-label">New page</span><div class="track"><span class="bar enter"></span></div>
+      <span class="timeline-label">Tab pill</span><div class="track"><span class="bar pill-move"></span></div>
+      <span class="timeline-label">3 groups</span><div class="track"><span class="bar groups"></span></div>
+      <div class="scale"><span>0</span><span>150</span><span>250</span><span>400</span><span>580</span><span>670 ms</span></div>
+    </div>
+
+    <h2>Implementation rules</h2>
+    <div class="notes">
+      <article class="note"><h3>Overlap, do not replace</h3><p>Stack panes absolutely. Keep the old pane visible until its exit ends; start the new one at 150 ms. Replacing DOM immediately removes the cross-slide.</p></article>
+      <article class="note"><h3>Stagger meaningful groups</h3><p>Tag cards or sections, not every child. Animate them for 350 ms with an 80 ms step and cap the delay index so long lists do not become slow.</p></article>
+      <article class="note"><h3>Use one physical pill</h3><p>Measure the active button and translate one pill element. Snap on first paint; animate later moves. On a section rebuild, remount and fade the new pill.</p></article>
+      <article class="note"><h3>Keep it interruptible</h3><p>Clear the previous animation, force one layout read for the whole batch, then apply every stagger. Prefer a cleanup timer over relying only on <code>animationend</code>.</p></article>
+      <article class="note"><h3>Promote briefly</h3><p>Set <code>will-change: transform, opacity</code> only while a cascade is running, then clear it. The tiny pill can remain promoted because it moves frequently.</p></article>
+      <article class="note"><h3>Respect reduced motion</h3><p>Collapse animation and transition durations under <code>prefers-reduced-motion</code>, and remove the outgoing pane immediately in application code.</p></article>
+    </div>
+
+    <h2>Copy-ready core</h2>
+    <pre><code>const motion = {
+  standard: 'cubic-bezier(.625,.05,0,1)',
+  power1Out: 'cubic-bezier(.25,.46,.45,.94)',
+  power1In: 'cubic-bezier(.55,.085,.68,.53)',
+  view: 250,
+  incomingDelay: 150,
+  groupDuration: 350,
+  groupStep: 80,
+  pill: 400,
+};
+
+// At t=0: animate old pane out and start moving the tab pill.
+oldPane.style.animation = `view-out 250ms ${motion.power1In} forwards`;
+// At t=150: animate the new pane and its meaningful groups in.
+newPane.style.animation = `view-in 250ms ${motion.power1Out} 150ms backwards`;
+groups.forEach((group, i) => {
+  const delay = 150 + Math.min(i, 24) * 80;
+  group.style.animation = `rise-in 350ms ${motion.standard} ${delay}ms backwards`;
+});
+// Remove oldPane after 250ms (+ a small scheduling buffer).</code></pre>
+  </main>
+
+  <script>
+    const STANDARD = 'cubic-bezier(.625, .05, 0, 1)';
+    const sections = {
+      expenses: [
+        { id: 'month', label: 'Month' },
+        { id: 'budget', label: 'Budget' },
+        { id: 'year', label: 'Year' },
+      ],
+      contracts: [
+        { id: 'home', label: 'Overview' },
+        { id: 'calendar', label: 'Calendar' },
+        { id: 'analytics', label: 'Analytics' },
+      ],
+    };
+    const remembered = { expenses: 'month', contracts: 'home' };
+    let section = 'expenses';
+    let tab = remembered[section];
+    let cleanupTimer;
+
+    const sectionSegment = document.querySelector('[data-segment="section"]');
+    const nav = document.querySelector('.nav-segment');
+    const addButton = document.querySelector('.add');
+
+    function movePill(track, active, animate = true) {
+      const pill = track.querySelector('.pill');
+      if (!pill || !active) return;
+      pill.style.transition = animate
+        ? ['transform', 'width', 'height'].map(name => `${name} 400ms ${STANDARD}`).join(',')
+        : 'none';
+      pill.style.transform = `translate(${active.offsetLeft}px, ${active.offsetTop}px)`;
+      pill.style.width = `${active.offsetWidth}px`;
+      pill.style.height = `${active.offsetHeight}px`;
+      pill.style.opacity = '1';
+    }
+
+    function renderNav() {
+      nav.replaceChildren();
+      const pill = document.createElement('span');
+      pill.className = 'pill nav-pill';
+      pill.setAttribute('aria-hidden', 'true');
+      nav.append(pill);
+      sections[section].forEach((item, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.tab = item.id;
+        button.dataset.navSwap = '';
+        button.innerHTML = `<span>${item.label}</span><span class="shortcut">${index + 1}</span>`;
+        button.setAttribute('aria-current', item.id === tab ? 'page' : 'false');
+        button.addEventListener('click', () => switchTab(item.id));
+        nav.append(button);
+      });
+      requestAnimationFrame(() => movePill(nav, nav.querySelector('[aria-current="page"]'), false));
+    }
+
+    function restartBatch(elements, animationFor) {
+      elements.forEach(element => { element.style.animation = ''; });
+      if (elements[0]) elements[0].getBoundingClientRect();
+      elements.forEach((element, index) => { element.style.animation = animationFor(index); });
+    }
+
+    function staggerGroups(pane, base = 150) {
+      const groups = [...pane.querySelectorAll('.group')];
+      groups.forEach(group => group.style.setProperty('--rise-y', '16px'));
+      restartBatch(groups, index => `rise-in 350ms ${STANDARD} ${base + Math.min(index, 24) * 80}ms backwards`);
+    }
+
+    function transitionTo(nextSection, nextTab) {
+      const oldPane = document.querySelector('.pane.is-active:not(.is-exiting)');
+      const newPane = document.querySelector(`[data-pane="${nextSection}-${nextTab}"]`);
+      if (!newPane || oldPane === newPane) return;
+      clearTimeout(cleanupTimer);
+      document.querySelectorAll('.pane.is-exiting').forEach(pane =>
+        pane.classList.remove('is-active', 'is-exiting'));
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        oldPane?.classList.remove('is-active', 'is-entering');
+        newPane.classList.add('is-active');
+        return;
+      }
+      oldPane?.classList.remove('is-entering');
+      oldPane?.classList.add('is-exiting');
+      newPane.classList.add('is-active', 'is-entering');
+      staggerGroups(newPane);
+      cleanupTimer = setTimeout(() => {
+        oldPane?.classList.remove('is-active', 'is-exiting');
+        newPane.classList.remove('is-entering');
+      }, 310);
+    }
+
+    function switchTab(nextTab) {
+      if (nextTab === tab) return;
+      transitionTo(section, nextTab);
+      tab = nextTab;
+      remembered[section] = tab;
+      nav.querySelectorAll('button').forEach(button =>
+        button.setAttribute('aria-current', button.dataset.tab === tab ? 'page' : 'false'));
+      movePill(nav, nav.querySelector('[aria-current="page"]'));
+    }
+
+    function switchSection(nextSection) {
+      if (nextSection === section) return;
+      const forward = Object.keys(sections).indexOf(nextSection) > Object.keys(sections).indexOf(section);
+      const nextTab = remembered[nextSection];
+      transitionTo(nextSection, nextTab);
+      section = nextSection;
+      tab = nextTab;
+      sectionSegment.querySelectorAll('button').forEach(button =>
+        button.setAttribute('aria-current', button.dataset.section === section ? 'page' : 'false'));
+      movePill(sectionSegment, sectionSegment.querySelector('[aria-current="page"]'));
+      addButton.textContent = section === 'expenses' ? '+ Add expense' : '+ Add contract';
+      renderNav();
+      const shift = forward ? 18 : -18;
+      requestAnimationFrame(() => {
+        const items = [addButton, ...nav.querySelectorAll('[data-nav-swap]')];
+        items.forEach(item => item.style.setProperty('--swap-x', `${shift}px`));
+        restartBatch(items, index => `swap-in 320ms ${STANDARD} ${Math.min(index, 12) * 34}ms backwards`);
+      });
+    }
+
+    sectionSegment.querySelectorAll('button').forEach(button =>
+      button.addEventListener('click', () => switchSection(button.dataset.section)));
+    renderNav();
+    const initialPane = document.querySelector(`[data-pane="${section}-${tab}"]`);
+    initialPane.classList.add('is-active');
+    requestAnimationFrame(() => {
+      movePill(sectionSegment, sectionSegment.querySelector('[aria-current="page"]'), false);
+      staggerGroups(initialPane, 0);
+    });
+  </script>
+</body>
+</html>
